@@ -1,13 +1,14 @@
 name: Build Unsigned IPA
 
 on:
-  workflow_dispatch: # 允許手動觸發
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-latest # 使用 GitHub 提供的 Mac 伺服器
+    runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v3
+      # 1. 更新為 v4
+      - uses: actions/checkout@v4
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -19,16 +20,14 @@ jobs:
 
       - name: Build iOS (Unsigned)
         run: |
-          # 編譯成 Release 模式但不進行簽名
           flutter build ios --release --no-codesign
-          
-          # 將編譯出的 .app 轉換為 .ipa 格式
           mkdir Payload
           cp -r build/ios/iphoneos/Runner.app Payload/
           zip -r nhviewer.ipa Payload
           
+      # 2. 更新為 v4
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: nhviewer-ios-unsigned
           path: nhviewer.ipa
