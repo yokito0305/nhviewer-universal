@@ -38,13 +38,7 @@ class ComicListModel extends ChangeNotifier {
   int pageLoaded = 1;
   bool _noMorePage = false;
   bool get noMorePage => _noMorePage;
-  String? _sortByPopularType;
-
-  String? get sortByPopularType => _sortByPopularType;
-
-  set sortByPopularType(String? value) {
-    _sortByPopularType = value;
-  }
+  String? sortByPopularType;
 
   Function? _fetchPage;
 
@@ -112,7 +106,6 @@ class ComicListModel extends ChangeNotifier {
     var url =
         "https://nhentai.net/api/galleries/search?query=$q%20$languageQuery&page=$page";
     if (sortByPopularType != null) {
-      _sortByPopularType = sortByPopularType;
       url += "&sort=$sortByPopularType";
     } else if (this.sortByPopularType != null) {
       url += "&sort=${this.sortByPopularType}";

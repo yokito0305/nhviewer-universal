@@ -29,15 +29,15 @@ class NHList {
   }
 }
 class NHComic {
-  String? _id;
-  String? _mediaId;
-  Title? _title;
-  NHImages? _images;
-  String? _scanlator;
-  int? _uploadDate;
-  List<Tags>? _tags;
-  int? _numPages;
-  int? _numFavorites;
+  String? id;
+  String? mediaId;
+  Title? title;
+  NHImages? images;
+  String? scanlator;
+  int? uploadDate;
+  List<Tags>? tags;
+  int? numPages;
+  int? numFavorites;
 
   NHComic(
       {String? id,
@@ -50,273 +50,222 @@ class NHComic {
       int? numPages,
       int? numFavorites}) {
     if (id != null) {
-      _id = id;
+      this.id = id;
     }
     if (mediaId != null) {
-      _mediaId = mediaId;
+      this.mediaId = mediaId;
     }
     if (title != null) {
-      _title = title;
+      this.title = title;
     }
     if (images != null) {
-      _images = images;
+      this.images = images;
     }
     if (scanlator != null) {
-      _scanlator = scanlator;
+      this.scanlator = scanlator;
     }
     if (uploadDate != null) {
-      _uploadDate = uploadDate;
+      this.uploadDate = uploadDate;
     }
     if (tags != null) {
-      _tags = tags;
+      this.tags = tags;
     }
     if (numPages != null) {
-      _numPages = numPages;
+      this.numPages = numPages;
     }
     if (numFavorites != null) {
-      _numFavorites = numFavorites;
+      this.numFavorites = numFavorites;
     }
   }
 
-  String? get id => _id;
-  set id(String? id) => _id = id;
-  String? get mediaId => _mediaId;
-  set mediaId(String? mediaId) => _mediaId = mediaId;
-  Title? get title => _title;
-  set title(Title? title) => _title = title;
-  NHImages? get images => _images;
-  set images(NHImages? images) => _images = images;
-  String? get scanlator => _scanlator;
-  set scanlator(String? scanlator) => _scanlator = scanlator;
-  int? get uploadDate => _uploadDate;
-  set uploadDate(int? uploadDate) => _uploadDate = uploadDate;
-  List<Tags>? get tags => _tags;
-  set tags(List<Tags>? tags) => _tags = tags;
-  int? get numPages => _numPages;
-  set numPages(int? numPages) => _numPages = numPages;
-  int? get numFavorites => _numFavorites;
-  set numFavorites(int? numFavorites) => _numFavorites = numFavorites;
-
   NHComic.fromJson(Map<String, dynamic> json) {
-    _id = "${json['id']}";
-    _mediaId = "${json['media_id']}";
-    _title = json['title'] != null ? Title.fromJson(json['title']) : null;
-    _images =
+    id = "${json['id']}";
+    mediaId = "${json['media_id']}";
+    title = json['title'] != null ? Title.fromJson(json['title']) : null;
+    images =
         json['images'] != null ? NHImages.fromJson(json['images']) : null;
-    _scanlator = json['scanlator'];
-    _uploadDate = json['upload_date'];
+    scanlator = json['scanlator'];
+    uploadDate = json['upload_date'];
     if (json['tags'] != null) {
-      _tags = <Tags>[];
+      tags = <Tags>[];
       json['tags'].forEach((v) {
-        _tags!.add(Tags.fromJson(v));
+        tags!.add(Tags.fromJson(v));
       });
     }
-    _numPages = json['num_pages'];
-    _numFavorites = json['num_favorites'];
+    numPages = json['num_pages'];
+    numFavorites = json['num_favorites'];
   }
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = <String, dynamic>{};
-    data['id'] = _id;
-    data['media_id'] = _mediaId;
-    if (_title != null) {
-      data['title'] = _title!.toJson();
+    data['id'] = id;
+    data['media_id'] = mediaId;
+    if (title != null) {
+      data['title'] = title!.toJson();
     }
-    if (_images != null) {
-      data['images'] = _images!.toJson();
+    if (images != null) {
+      data['images'] = images!.toJson();
     }
-    data['scanlator'] = _scanlator;
-    data['upload_date'] = _uploadDate;
-    if (_tags != null) {
-      data['tags'] = _tags!.map((v) => v.toJson()).toList();
+    data['scanlator'] = scanlator;
+    data['upload_date'] = uploadDate;
+    if (tags != null) {
+      data['tags'] = tags!.map((v) => v.toJson()).toList();
     }
-    data['num_pages'] = _numPages;
-    data['num_favorites'] = _numFavorites;
+    data['num_pages'] = numPages;
+    data['num_favorites'] = numFavorites;
     return data;
   }
 }
 
 class Title {
-  String? _english;
-  String? _japanese;
-  String? _pretty;
+  String? english;
+  String? japanese;
+  String? pretty;
 
   Title({String? english, String? japanese, String? pretty}) {
     if (english != null) {
-      _english = english;
+      this.english = english;
     }
     if (japanese != null) {
-      _japanese = japanese;
+      this.japanese = japanese;
     }
     if (pretty != null) {
-      _pretty = pretty;
+      this.pretty = pretty;
     }
   }
 
-  String? get english => _english;
-  set english(String? english) => _english = english;
-  String? get japanese => _japanese;
-  set japanese(String? japanese) => _japanese = japanese;
-  String? get pretty => _pretty;
-  set pretty(String? pretty) => _pretty = pretty;
-
   Title.fromJson(Map<String, dynamic> json) {
-    _english = json['english'];
-    _japanese = json['japanese'];
-    _pretty = json['pretty'];
+    english = json['english'];
+    japanese = json['japanese'];
+    pretty = json['pretty'];
   }
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = <String, dynamic>{};
-    data['english'] = _english;
-    data['japanese'] = _japanese;
-    data['pretty'] = _pretty;
+    data['english'] = english;
+    data['japanese'] = japanese;
+    data['pretty'] = pretty;
     return data;
   }
 }
 
 class NHImages {
-  List<Pages>? _pages;
-  Pages? _cover;
-  Pages? _thumbnail;
+  List<Pages>? pages;
+  Pages? cover;
+  Pages? thumbnail;
 
   NHImages({List<Pages>? pages, Pages? cover, Pages? thumbnail}) {
     if (pages != null) {
-      _pages = pages;
+      this.pages = pages;
     }
     if (cover != null) {
-      _cover = cover;
+      this.cover = cover;
     }
     if (thumbnail != null) {
-      _thumbnail = thumbnail;
+      this.thumbnail = thumbnail;
     }
   }
 
-  List<Pages>? get pages => _pages;
-  set pages(List<Pages>? pages) => _pages = pages;
-  Pages? get cover => _cover;
-  set cover(Pages? cover) => _cover = cover;
-  Pages? get thumbnail => _thumbnail;
-  set thumbnail(Pages? thumbnail) => _thumbnail = thumbnail;
-
   NHImages.fromJson(Map<String, dynamic> json) {
     if (json['pages'] != null) {
-      _pages = <Pages>[];
+      pages = <Pages>[];
       json['pages'].forEach((v) {
-        _pages!.add(Pages.fromJson(v));
+        pages!.add(Pages.fromJson(v));
       });
     }
-    _cover = json['cover'] != null ? Pages.fromJson(json['cover']) : null;
-    _thumbnail = json['thumbnail'] != null
+    cover = json['cover'] != null ? Pages.fromJson(json['cover']) : null;
+    thumbnail = json['thumbnail'] != null
         ? Pages.fromJson(json['thumbnail'])
         : null;
   }
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = <String, dynamic>{};
-    if (_pages != null) {
-      data['pages'] = _pages!.map((v) => v.toJson()).toList();
+    if (pages != null) {
+      data['pages'] = pages!.map((v) => v.toJson()).toList();
     }
-    if (_cover != null) {
-      data['cover'] = _cover!.toJson();
+    if (cover != null) {
+      data['cover'] = cover!.toJson();
     }
-    if (_thumbnail != null) {
-      data['thumbnail'] = _thumbnail!.toJson();
+    if (thumbnail != null) {
+      data['thumbnail'] = thumbnail!.toJson();
     }
     return data;
   }
 }
 
 class Pages {
-  String? _t;
-  int? _w;
-  int? _h;
+  String? t;
+  int? w;
+  int? h;
 
   Pages({String? t, int? w, int? h}) {
     if (t != null) {
-      _t = t;
+      this.t = t;
     }
     if (w != null) {
-      _w = w;
+      this.w = w;
     }
     if (h != null) {
-      _h = h;
+      this.h = h;
     }
   }
 
-  String? get t => _t;
-  set t(String? t) => _t = t;
-  int? get w => _w;
-  set w(int? w) => _w = w;
-  int? get h => _h;
-  set h(int? h) => _h = h;
-
   Pages.fromJson(Map<String, dynamic> json) {
-    _t = json['t'];
-    _w = json['w'];
-    _h = json['h'];
+    t = json['t'];
+    w = json['w'];
+    h = json['h'];
   }
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = <String, dynamic>{};
-    data['t'] = _t;
-    data['w'] = _w;
-    data['h'] = _h;
+    data['t'] = t;
+    data['w'] = w;
+    data['h'] = h;
     return data;
   }
 }
 
 class Tags {
-  int? _id;
-  String? _type;
-  String? _name;
-  String? _url;
-  int? _count;
+  int? id;
+  String? type;
+  String? name;
+  String? url;
+  int? count;
 
   Tags({int? id, String? type, String? name, String? url, int? count}) {
     if (id != null) {
-      _id = id;
+      this.id = id;
     }
     if (type != null) {
-      _type = type;
+      this.type = type;
     }
     if (name != null) {
-      _name = name;
+      this.name = name;
     }
     if (url != null) {
-      _url = url;
+      this.url = url;
     }
     if (count != null) {
-      _count = count;
+      this.count = count;
     }
   }
 
-  int? get id => _id;
-  set id(int? id) => _id = id;
-  String? get type => _type;
-  set type(String? type) => _type = type;
-  String? get name => _name;
-  set name(String? name) => _name = name;
-  String? get url => _url;
-  set url(String? url) => _url = url;
-  int? get count => _count;
-  set count(int? count) => _count = count;
-
   Tags.fromJson(Map<String, dynamic> json) {
-    _id = json['id'];
-    _type = json['type'];
-    _name = json['name'];
-    _url = json['url'];
-    _count = json['count'];
+    id = json['id'];
+    type = json['type'];
+    name = json['name'];
+    url = json['url'];
+    count = json['count'];
   }
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = <String, dynamic>{};
-    data['id'] = _id;
-    data['type'] = _type;
-    data['name'] = _name;
-    data['url'] = _url;
-    data['count'] = _count;
+    data['id'] = id;
+    data['type'] = type;
+    data['name'] = name;
+    data['url'] = url;
+    data['count'] = count;
     return data;
   }
 }
