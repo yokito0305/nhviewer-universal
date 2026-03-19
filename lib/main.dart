@@ -58,10 +58,12 @@ Future<void> main() async {
                     return GestureDetector(
                       onLongPress: () {
                         // mostly same with FAB press below, here it change to NHPopularType.allTime
+                        final appModelNotifier = context.read<AppModel>();
+                        final comicListModel = context.read<ComicListModel>();
                         final sortByPopularType =
-                            context.read<ComicListModel>().sortByPopularType;
+                            comicListModel.sortByPopularType;
                         if (sortByPopularType != NHPopularType.allTime) {
-                          context.read<ComicListModel>().sortByPopularType =
+                          comicListModel.sortByPopularType =
                               NHPopularType.allTime;
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -71,23 +73,22 @@ Future<void> main() async {
                             ),
                           );
                         } else {
-                          context.read<ComicListModel>().sortByPopularType =
-                              null;
+                          comicListModel.sortByPopularType = null;
                         }
-                        context.read<AppModel>().isLoading = true;
-                        // await context.read<ComicListModel>().fetchPage();
-                        // context.read<AppModel>().isLoading = false;
-                        context.read<ComicListModel>().fetchPage().then(
-                            (value) =>
-                                context.read<AppModel>().isLoading = false);
+                        appModelNotifier.isLoading = true;
+                        comicListModel.fetchPage().then(
+                            (_) => appModelNotifier.isLoading = false);
                       },
                       child: FloatingActionButton(
                         onPressed: () {
                           // logic is not straight forward here
+                          final appModelNotifier = context.read<AppModel>();
+                          final comicListModel =
+                              context.read<ComicListModel>();
                           final sortByPopularType =
-                              context.read<ComicListModel>().sortByPopularType;
+                              comicListModel.sortByPopularType;
                           if (sortByPopularType != NHPopularType.month) {
-                            context.read<ComicListModel>().sortByPopularType =
+                            comicListModel.sortByPopularType =
                                 NHPopularType.month;
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
@@ -97,15 +98,11 @@ Future<void> main() async {
                               ),
                             );
                           } else {
-                            context.read<ComicListModel>().sortByPopularType =
-                                null;
+                            comicListModel.sortByPopularType = null;
                           }
-                          context.read<AppModel>().isLoading = true;
-                          // await context.read<ComicListModel>().fetchPage();
-                          // context.read<AppModel>().isLoading = false;
-                          context.read<ComicListModel>().fetchPage().then(
-                              (value) =>
-                                  context.read<AppModel>().isLoading = false);
+                          appModelNotifier.isLoading = true;
+                          comicListModel.fetchPage().then(
+                              (_) => appModelNotifier.isLoading = false);
                         },
                         child: const Icon(Icons.sort),
                       ),
@@ -126,12 +123,15 @@ Future<void> main() async {
                         final screens = {
                           0: () {
                             // todo 20240304 handle keeping loaded comics, go back from search, and scroll to top
+                            final appModelNotifier = context.read<AppModel>();
+                            final comicListModel =
+                                context.read<ComicListModel>();
+                            final messenger = ScaffoldMessenger.of(context);
                             appModel.navigationIndex = index;
-                            context.read<AppModel>().isLoading = true;
-                            context
-                                .read<ComicListModel>()
-                                .fetchIndex(clearComic: true)
-                                .then((value) {
+                            appModelNotifier.isLoading = true;
+                            comicListModel.fetchIndex(clearComic: true).then((
+                              value,
+                            ) {
                               String? message;
                               if (value == 404) {
                                 message = 'API issue (404)';
@@ -140,14 +140,14 @@ Future<void> main() async {
                                 message = 'CF Cookies issue (403)';
                               }
                               if (message != null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
+                                messenger.showSnackBar(
                                   SnackBar(
                                     content: Text(message),
                                     duration: const Duration(seconds: 2),
                                   ),
                                 );
                               }
-                              context.read<AppModel>().isLoading = false;
+                              appModelNotifier.isLoading = false;
                             });
                           },
                           1: () {
@@ -210,31 +210,31 @@ Future<void> main() async {
             path: '/third',
             builder: (context, state) {
               final id = state.uri.queryParameters['id'] ?? '';
+              final currentComicModel = context.read<CurrentComicModel>();
+              final messenger = ScaffoldMessenger.of(context);
               Store.getOption("lastSeenOffset-$id").then((lastSeenOffset) {
                 debugPrint(
                     "getOption lastSeenOffset-$id ${lastSeenOffset.toString()}");
                 if (lastSeenOffset.isNotEmpty) {
-                  context.read<CurrentComicModel>().scrollController.animateTo(
+                  currentComicModel.scrollController.animateTo(
                         double.parse(lastSeenOffset),
                         duration: const Duration(milliseconds: 1000),
                         curve: Curves.easeInOut,
                       );
                 }
 
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text("Loaded last seen page"),
-                      action: SnackBarAction(
-                        label: "Back to top",
-                        onPressed: () => context
-                            .read<CurrentComicModel>()
-                            .scrollController
-                            ?.jumpTo(0),
-                      ),
-                      behavior: SnackBarBehavior.floating,
-                      duration: const Duration(seconds: 3),
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: const Text("Loaded last seen page"),
+                    action: SnackBarAction(
+                      label: "Back to top",
+                      onPressed: () =>
+                          currentComicModel.scrollController.jumpTo(0),
                     ),
-                  );
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
               });
 
               return ThirdScreen();
@@ -330,7 +330,7 @@ class CollectionSliver extends StatelessWidget {
                 thumbnailWidth: images.thumbnail!.w!,
                 thumbnailHeight: images.thumbnail!.h!,
               );
-            } on FormatException catch (e) {
+            } on FormatException {
               debugPrint('images is not json (old format images)');
             }
 
@@ -417,7 +417,7 @@ class CollectionListScreen extends StatelessWidget {
                   thumbnailWidth: images.thumbnail!.w!,
                   thumbnailHeight: images.thumbnail!.h!,
                 );
-              } on FormatException catch (e) {
+              } on FormatException {
                 debugPrint('images is not json (old format images)');
               }
 
@@ -467,7 +467,6 @@ enum NHLanguage {
         return ['-language:english -language:japanese', '汉化', '中国'];
       case NHLanguage.japanese:
       case NHLanguage.english:
-      default:
         return [];
     }
   }
@@ -486,7 +485,7 @@ class NHPopularType {
 class Store {
   static late final Future<Database> _database;
 
-  static init() async {
+  static Future<void> init() async {
     late final String path;
 
     if (Platform.isIOS) {
@@ -708,10 +707,6 @@ class Store {
     final List<Map<String, Object?>> collectedComics = await db.rawQuery(
         "select * from Collection col, Comic com where col.comicid = com.id order by dateCreated desc");
 
-    debugPrint('testing comics...');
-    final List<Map<String, Object?>> comics =
-        await db.rawQuery("select * from Comic");
-
     return collectedComics;
   }
 
@@ -748,7 +743,7 @@ class FirstScreen extends StatelessWidget {
   const FirstScreen({super.key});
 
   Future<(String, String)> receiveCFCookies(
-      controller, Future<void> Function() fetchIndex) async {
+      WebViewController controller, Future<void> Function() fetchIndex) async {
     String cookies;
     String? token;
     try {
@@ -770,7 +765,7 @@ class FirstScreen extends StatelessWidget {
     }
 
     debugPrint(cookies);
-    final String useragent = await controller.getUserAgent();
+    final String useragent = await controller.getUserAgent() ?? '';
     debugPrint(useragent);
 
     await Store.setCFCookies(useragent, token ?? '');
@@ -924,7 +919,7 @@ class IndexScreen extends StatelessWidget {
 }
 
 class ThirdScreen extends StatelessWidget {
-  ThirdScreen({super.key});
+  const ThirdScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -1006,7 +1001,7 @@ class ThirdScreen extends StatelessWidget {
                       final width = c.images!.pages![index].w!;
                       final height = c.images!.pages![index].h!;
                       final url =
-                          "https://i3.nhentai.net/galleries/$mid/$page.$ext";
+                          "https://i.nhentai.net/galleries/$mid/$page.$ext";
                       debugPrint(url);
                       // Stack of comic image, page number
                       return Stack(
@@ -1046,6 +1041,7 @@ class SettingsScreen extends StatelessWidget {
               title: const Text('Language'),
               subtitle: Text(NHLanguage.current.queryString),
               onTap: () {
+                final messenger = ScaffoldMessenger.of(context);
                 showDialog<bool>(
                     context: context,
                     builder: (BuildContext context) {
@@ -1087,8 +1083,8 @@ class SettingsScreen extends StatelessWidget {
                   if (value == null || value == false) {
                     return;
                   }
-                  ScaffoldMessenger.of(context).clearSnackBars();
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.clearSnackBars();
+                  messenger.showSnackBar(
                     SnackBar(
                       content: Text('Language set to `${NHLanguage.current}`'),
                     ),
@@ -1194,9 +1190,9 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
-class SimpleCachedNetworkImage extends StatelessWidget {
+class SimpleCachedNetworkImage extends StatefulWidget {
   // debt 20250213 hardcode DEMO_MODE to true for now
-  final bool DEMO_MODE = false; 
+  static const bool demoMode = false;
 
   const SimpleCachedNetworkImage({
     super.key,
@@ -1210,54 +1206,179 @@ class SimpleCachedNetworkImage extends StatelessWidget {
   final int height;
 
   @override
+  State<SimpleCachedNetworkImage> createState() =>
+      _SimpleCachedNetworkImageState();
+}
+
+class _SimpleCachedNetworkImageState extends State<SimpleCachedNetworkImage> {
+  static const List<String> _thumbnailHosts = <String>[
+    't.nhentai.net',
+    't1.nhentai.net',
+    't2.nhentai.net',
+    't3.nhentai.net',
+    't4.nhentai.net',
+  ];
+
+  static const List<String> _imageHosts = <String>[
+    'i.nhentai.net',
+    'i1.nhentai.net',
+    'i2.nhentai.net',
+    'i3.nhentai.net',
+    'i4.nhentai.net',
+  ];
+
+  late List<String> _candidateUrls;
+  int _currentIndex = 0;
+  bool _retryScheduled = false;
+
+  String get _currentUrl => _candidateUrls[_currentIndex];
+
+  @override
+  void initState() {
+    super.initState();
+    _resetCandidates();
+  }
+
+  @override
+  void didUpdateWidget(covariant SimpleCachedNetworkImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      _resetCandidates();
+    }
+  }
+
+  void _resetCandidates() {
+    _candidateUrls = _buildCandidateUrls(widget.url);
+    _currentIndex = 0;
+    _retryScheduled = false;
+  }
+
+  List<String> _buildCandidateUrls(String originalUrl) {
+    final uri = Uri.tryParse(originalUrl);
+    if (uri == null) {
+      return <String>[originalUrl];
+    }
+
+    final hosts = switch (uri.host) {
+      't.nhentai.net' ||
+      't1.nhentai.net' ||
+      't2.nhentai.net' ||
+      't3.nhentai.net' ||
+      't4.nhentai.net' => _thumbnailHosts,
+      'i.nhentai.net' ||
+      'i1.nhentai.net' ||
+      'i2.nhentai.net' ||
+      'i3.nhentai.net' ||
+      'i4.nhentai.net' => _imageHosts,
+      _ => <String>[uri.host],
+    };
+
+    final pathSegments = uri.pathSegments;
+    final lastSegment = pathSegments.isEmpty ? '' : pathSegments.last;
+    final currentExt =
+        lastSegment.contains('.') ? lastSegment.split('.').last : '';
+    final extensionCandidates = <String>[
+      currentExt,
+      'jpg',
+      'webp',
+      'png',
+      'gif',
+    ].where((ext) => ext.isNotEmpty).toSet().toList();
+
+    final urls = <String>[];
+    for (final host in hosts) {
+      for (final ext in extensionCandidates) {
+        var candidateUri = uri.replace(host: host);
+        if (lastSegment.contains('.')) {
+          final updatedSegments = <String>[
+            ...pathSegments.take(pathSegments.length - 1),
+            '${lastSegment.substring(0, lastSegment.lastIndexOf('.'))}.$ext',
+          ];
+          candidateUri = candidateUri.replace(pathSegments: updatedSegments);
+        }
+        urls.add(candidateUri.toString());
+      }
+    }
+
+    if (!urls.contains(originalUrl)) {
+      urls.insert(0, originalUrl);
+    }
+
+    return urls.toSet().toList();
+  }
+
+  bool get _hasNextCandidate => _currentIndex + 1 < _candidateUrls.length;
+
+  void _scheduleRetry() {
+    if (_retryScheduled || !_hasNextCandidate || !mounted) {
+      return;
+    }
+
+    _retryScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_hasNextCandidate) {
+        return;
+      }
+
+      setState(() {
+        _currentIndex += 1;
+        _retryScheduled = false;
+      });
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
         CachedNetworkImage(
-          imageUrl: url,
+          imageUrl: _currentUrl,
           httpHeaders: Provider.of<CurrentComicModel>(context).headers,
           placeholder: (context, url) => AspectRatio(
-            aspectRatio: width / height,
+            aspectRatio: widget.width / widget.height,
             child: const Center(
               child: CircularProgressIndicator(),
             ),
           ),
           errorWidget: (context, url, error) => AspectRatio(
-            aspectRatio: width / height,
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.error,
-                    color: Colors.red,
-                  ),
-                  GestureDetector(
-                    onTap: () {
+            aspectRatio: widget.width / widget.height,
+            child: Builder(
+              builder: (context) {
+                if (_hasNextCandidate) {
+                  _scheduleRetry();
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
+
+                return Center(
+                  child: IconButton(
+                    tooltip: 'Copy image URL',
+                    iconSize: 24,
+                    onPressed: () {
                       Clipboard.setData(ClipboardData(text: url));
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                            content: Text('Link copied to clipboard')),
+                          content: Text('Link copied to clipboard'),
+                        ),
                       );
                     },
-                    child: Text(
-                      "$url",
-                      style: const TextStyle(
-                          color: Colors.blue,
-                          decoration: TextDecoration.underline),
+                    icon: const Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.red,
                     ),
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ),
-        if (DEMO_MODE)
+        if (SimpleCachedNetworkImage.demoMode)
           Positioned.fill(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
               child: Container(
-                color: Colors.black.withOpacity(0),
+                color: Colors.transparent,
               ),
             ),
           ),
@@ -1336,14 +1457,14 @@ class _AppState extends State<App> {
                     // check if numeric, which means comic id
                     if (int.tryParse(value) != null) {
                       final id = value;
-                      Provider.of<CurrentComicModel>(context, listen: false)
-                          .fetchComic(id);
+                      final currentComicModel =
+                          Provider.of<CurrentComicModel>(context, listen: false);
+                      currentComicModel.fetchComic(id);
                       context
                           .push(Uri(path: '/third', queryParameters: {'id': id})
                               .toString())
                           .then((_) {
-                        Provider.of<CurrentComicModel>(context, listen: false)
-                            .clearComic();
+                        currentComicModel.clearComic();
                         appModel.searchController.text =
                             appModel.searchController.text;
                       });
@@ -1355,12 +1476,12 @@ class _AppState extends State<App> {
                       appModel.navigationIndex = 0;
                     }
 
-                    context.read<AppModel>().isLoading = true;
-                    context
-                        .read<ComicListModel>()
+                    final appModelNotifier = context.read<AppModel>();
+                    final comicListModel = context.read<ComicListModel>();
+                    appModelNotifier.isLoading = true;
+                    comicListModel
                         .fetchSearch(q: value, clearComic: true)
-                        .then((value) =>
-                            context.read<AppModel>().isLoading = false);
+                        .then((_) => appModelNotifier.isLoading = false);
                     // Navigator.of(context).pop();
                   },
                   barTrailing: [
@@ -1393,7 +1514,7 @@ class _AppState extends State<App> {
                   //   icon: const Icon(Icons.search, color: Colors.black),
                   // ),
                   barHintText: "Search comic",
-                  barElevation: MaterialStateProperty.all(0),
+                  barElevation: WidgetStateProperty.all(0),
                   suggestionsBuilder:
                       (BuildContext buildContext, SearchController controller) {
                     return Store.getSearchHistory()
@@ -1412,18 +1533,18 @@ class _AppState extends State<App> {
                                 // check if numeric, which means comic id
                                 if (int.tryParse(value) != null) {
                                   final id = value;
-                                  Provider.of<CurrentComicModel>(context,
-                                          listen: false)
-                                      .fetchComic(id);
+                                  final currentComicModel =
+                                      Provider.of<CurrentComicModel>(
+                                          context,
+                                          listen: false);
+                                  currentComicModel.fetchComic(id);
                                   context
                                       .push(Uri(
                                               path: '/third',
                                               queryParameters: {'id': id})
                                           .toString())
                                       .then((_) {
-                                    Provider.of<CurrentComicModel>(context,
-                                            listen: false)
-                                        .clearComic();
+                                    currentComicModel.clearComic();
                                     appModel.searchController.text =
                                         appModel.searchController.text;
                                   });
@@ -1435,13 +1556,17 @@ class _AppState extends State<App> {
                                   appModel.navigationIndex = 0;
                                 }
 
-                                context.read<AppModel>().isLoading = true;
-                                context
-                                    .read<ComicListModel>()
+                                final appModelNotifier =
+                                    context.read<AppModel>();
+                                final comicListModel =
+                                    context.read<ComicListModel>();
+                                appModelNotifier.isLoading = true;
+                                comicListModel
                                     .fetchSearch(q: value, clearComic: true)
-                                    .then((value) => context
-                                        .read<AppModel>()
-                                        .isLoading = false);
+                                    .then(
+                                      (_) =>
+                                          appModelNotifier.isLoading = false,
+                                    );
                                 // Navigator.of(context).pop();
                               },
                               onLongPress: () {
@@ -1653,11 +1778,11 @@ class ComicSliverGrid extends StatelessWidget {
               },
             );
             // todo 20240227 cannot update isLoading (global state) during build(), design how to show user that it is "loading"
+            final appModel = Provider.of<AppModel>(context, listen: false);
             Provider.of<ComicListModel>(context, listen: false)
                 .fetchPage(page: pageLoaded! + 1)
                 .then(
-                  (_) => Provider.of<AppModel>(context, listen: false)
-                      .isLoading = false,
+                  (_) => appModel.isLoading = false,
                 );
           }
           debugPrint("index: $index");
@@ -1673,8 +1798,8 @@ class ComicSliverGrid extends StatelessWidget {
           final thumbnailWidth = comic.thumbnailWidth;
           final thumbnailHeight = comic.thumbnailHeight;
           var thumbnailLink =
-              "https://t3.nhentai.net/galleries/$mid/thumb.$ext";
-          debugPrint("https://t3.nhentai.net/galleries/$mid/thumb.$ext");
+              "https://t.nhentai.net/galleries/$mid/thumb.$ext";
+          debugPrint("https://t.nhentai.net/galleries/$mid/thumb.$ext");
 
           return ComicListItem(
             id: id,
@@ -1734,14 +1859,13 @@ class ComicListItem extends StatelessWidget {
             child: InkWell(
               splashColor: Colors.blue.withAlpha(30),
               onTap: () {
-                Provider.of<CurrentComicModel>(context, listen: false)
-                    .fetchComic(id);
+                final currentComicModel =
+                    Provider.of<CurrentComicModel>(context, listen: false);
+                currentComicModel.fetchComic(id);
                 context
                     .push(Uri(path: '/third', queryParameters: {'id': id})
                         .toString())
-                    .then((_) =>
-                        Provider.of<CurrentComicModel>(context, listen: false)
-                            .clearComic());
+                    .then((_) => currentComicModel.clearComic());
               },
               onLongPress: () {
                 // todo store collection name in upper state
@@ -1996,7 +2120,7 @@ class CollectionCover {
 
   String get thumbnailLink {
     if (mid != "-1") {
-      return "https://t3.nhentai.net/galleries/$mid/thumb.$thumbnailExt";
+      return "https://t.nhentai.net/galleries/$mid/thumb.$thumbnailExt";
     }
 
     return "https://placehold.co/${thumbnailWidth}x$thumbnailHeight/png?text=$collectionName";

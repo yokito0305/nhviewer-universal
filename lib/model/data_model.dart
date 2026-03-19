@@ -11,7 +11,7 @@ class NHList {
     if (json['result'] != null) {
       result = <NHComic>[];
       json['result'].forEach((v) {
-        result!.add(new NHComic.fromJson(v));
+        result!.add(NHComic.fromJson(v));
       });
     }
     numPages = json['num_pages'];
@@ -19,12 +19,12 @@ class NHList {
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    if (this.result != null) {
-      data['result'] = this.result!.map((v) => v.toJson()).toList();
+    final Map<String, dynamic> data = <String, dynamic>{};
+    if (result != null) {
+      data['result'] = result!.map((v) => v.toJson()).toList();
     }
-    data['num_pages'] = this.numPages;
-    data['per_page'] = this.perPage;
+    data['num_pages'] = numPages;
+    data['per_page'] = perPage;
     return data;
   }
 }
@@ -50,31 +50,31 @@ class NHComic {
       int? numPages,
       int? numFavorites}) {
     if (id != null) {
-      this._id = "$id";
+      _id = id;
     }
     if (mediaId != null) {
-      this._mediaId = "$mediaId";
+      _mediaId = mediaId;
     }
     if (title != null) {
-      this._title = title;
+      _title = title;
     }
     if (images != null) {
-      this._images = images;
+      _images = images;
     }
     if (scanlator != null) {
-      this._scanlator = scanlator;
+      _scanlator = scanlator;
     }
     if (uploadDate != null) {
-      this._uploadDate = uploadDate;
+      _uploadDate = uploadDate;
     }
     if (tags != null) {
-      this._tags = tags;
+      _tags = tags;
     }
     if (numPages != null) {
-      this._numPages = numPages;
+      _numPages = numPages;
     }
     if (numFavorites != null) {
-      this._numFavorites = numFavorites;
+      _numFavorites = numFavorites;
     }
   }
 
@@ -100,15 +100,15 @@ class NHComic {
   NHComic.fromJson(Map<String, dynamic> json) {
     _id = "${json['id']}";
     _mediaId = "${json['media_id']}";
-    _title = json['title'] != null ? new Title.fromJson(json['title']) : null;
+    _title = json['title'] != null ? Title.fromJson(json['title']) : null;
     _images =
-        json['images'] != null ? new NHImages.fromJson(json['images']) : null;
+        json['images'] != null ? NHImages.fromJson(json['images']) : null;
     _scanlator = json['scanlator'];
     _uploadDate = json['upload_date'];
     if (json['tags'] != null) {
       _tags = <Tags>[];
       json['tags'].forEach((v) {
-        _tags!.add(new Tags.fromJson(v));
+        _tags!.add(Tags.fromJson(v));
       });
     }
     _numPages = json['num_pages'];
@@ -116,22 +116,22 @@ class NHComic {
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['id'] = this._id;
-    data['media_id'] = this._mediaId;
-    if (this._title != null) {
-      data['title'] = this._title!.toJson();
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['id'] = _id;
+    data['media_id'] = _mediaId;
+    if (_title != null) {
+      data['title'] = _title!.toJson();
     }
-    if (this._images != null) {
-      data['images'] = this._images!.toJson();
+    if (_images != null) {
+      data['images'] = _images!.toJson();
     }
-    data['scanlator'] = this._scanlator;
-    data['upload_date'] = this._uploadDate;
-    if (this._tags != null) {
-      data['tags'] = this._tags!.map((v) => v.toJson()).toList();
+    data['scanlator'] = _scanlator;
+    data['upload_date'] = _uploadDate;
+    if (_tags != null) {
+      data['tags'] = _tags!.map((v) => v.toJson()).toList();
     }
-    data['num_pages'] = this._numPages;
-    data['num_favorites'] = this._numFavorites;
+    data['num_pages'] = _numPages;
+    data['num_favorites'] = _numFavorites;
     return data;
   }
 }
@@ -143,13 +143,13 @@ class Title {
 
   Title({String? english, String? japanese, String? pretty}) {
     if (english != null) {
-      this._english = english;
+      _english = english;
     }
     if (japanese != null) {
-      this._japanese = japanese;
+      _japanese = japanese;
     }
     if (pretty != null) {
-      this._pretty = pretty;
+      _pretty = pretty;
     }
   }
 
@@ -167,10 +167,10 @@ class Title {
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['english'] = this._english;
-    data['japanese'] = this._japanese;
-    data['pretty'] = this._pretty;
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['english'] = _english;
+    data['japanese'] = _japanese;
+    data['pretty'] = _pretty;
     return data;
   }
 }
@@ -182,13 +182,13 @@ class NHImages {
 
   NHImages({List<Pages>? pages, Pages? cover, Pages? thumbnail}) {
     if (pages != null) {
-      this._pages = pages;
+      _pages = pages;
     }
     if (cover != null) {
-      this._cover = cover;
+      _cover = cover;
     }
     if (thumbnail != null) {
-      this._thumbnail = thumbnail;
+      _thumbnail = thumbnail;
     }
   }
 
@@ -203,25 +203,25 @@ class NHImages {
     if (json['pages'] != null) {
       _pages = <Pages>[];
       json['pages'].forEach((v) {
-        _pages!.add(new Pages.fromJson(v));
+        _pages!.add(Pages.fromJson(v));
       });
     }
-    _cover = json['cover'] != null ? new Pages.fromJson(json['cover']) : null;
+    _cover = json['cover'] != null ? Pages.fromJson(json['cover']) : null;
     _thumbnail = json['thumbnail'] != null
-        ? new Pages.fromJson(json['thumbnail'])
+        ? Pages.fromJson(json['thumbnail'])
         : null;
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    if (this._pages != null) {
-      data['pages'] = this._pages!.map((v) => v.toJson()).toList();
+    final Map<String, dynamic> data = <String, dynamic>{};
+    if (_pages != null) {
+      data['pages'] = _pages!.map((v) => v.toJson()).toList();
     }
-    if (this._cover != null) {
-      data['cover'] = this._cover!.toJson();
+    if (_cover != null) {
+      data['cover'] = _cover!.toJson();
     }
-    if (this._thumbnail != null) {
-      data['thumbnail'] = this._thumbnail!.toJson();
+    if (_thumbnail != null) {
+      data['thumbnail'] = _thumbnail!.toJson();
     }
     return data;
   }
@@ -234,13 +234,13 @@ class Pages {
 
   Pages({String? t, int? w, int? h}) {
     if (t != null) {
-      this._t = t;
+      _t = t;
     }
     if (w != null) {
-      this._w = w;
+      _w = w;
     }
     if (h != null) {
-      this._h = h;
+      _h = h;
     }
   }
 
@@ -258,10 +258,10 @@ class Pages {
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['t'] = this._t;
-    data['w'] = this._w;
-    data['h'] = this._h;
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['t'] = _t;
+    data['w'] = _w;
+    data['h'] = _h;
     return data;
   }
 }
@@ -275,19 +275,19 @@ class Tags {
 
   Tags({int? id, String? type, String? name, String? url, int? count}) {
     if (id != null) {
-      this._id = id;
+      _id = id;
     }
     if (type != null) {
-      this._type = type;
+      _type = type;
     }
     if (name != null) {
-      this._name = name;
+      _name = name;
     }
     if (url != null) {
-      this._url = url;
+      _url = url;
     }
     if (count != null) {
-      this._count = count;
+      _count = count;
     }
   }
 
@@ -311,12 +311,12 @@ class Tags {
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['id'] = this._id;
-    data['type'] = this._type;
-    data['name'] = this._name;
-    data['url'] = this._url;
-    data['count'] = this._count;
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['id'] = _id;
+    data['type'] = _type;
+    data['name'] = _name;
+    data['url'] = _url;
+    data['count'] = _count;
     return data;
   }
 }

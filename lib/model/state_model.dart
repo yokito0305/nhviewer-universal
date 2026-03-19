@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:concept_nhv/main.dart';
 import 'package:concept_nhv/model/data_model.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class AppModel extends ChangeNotifier {
@@ -130,7 +129,7 @@ class ComicListModel extends ChangeNotifier {
     try {
       debugPrint('Trying request without headers...');
       final response = await dio.get(url);
-      print(response);
+      debugPrint('$response');
       final freshComics = NHList.fromJson(response.data);
       _noMorePage = freshComics.result?.isEmpty ?? true;
       lastStatusCode = response.statusCode;
@@ -162,7 +161,7 @@ class ComicListModel extends ChangeNotifier {
               HttpHeaders.userAgentHeader: agent,
               HttpHeaders.cookieHeader: "cf_clearance=$token",
             }));
-        print(response);
+        debugPrint('$response');
         final freshComics = NHList.fromJson(response.data);
         _noMorePage = freshComics.result?.isEmpty ?? true;
         lastStatusCode = response.statusCode;
@@ -237,7 +236,7 @@ class CurrentComicModel extends ChangeNotifier {
     try {
       debugPrint('Trying fetchComic without headers...');
       final response = await dio.get('https://nhentai.net/api/gallery/$id');
-      print(response);
+      debugPrint('$response');
       currentComic = NHComic.fromJson(response.data);
       headers = null; // No headers needed
       notifyListeners();
@@ -256,11 +255,11 @@ class CurrentComicModel extends ChangeNotifier {
       try {
         final response = await dio.get('https://nhentai.net/api/gallery/$id',
             options: Options(headers: headers));
-        print(response);
+        debugPrint('$response');
         currentComic = NHComic.fromJson(response.data);
         notifyListeners();
       } catch (e2) {
-        print('fetchComic failed with headers: $e2');
+        debugPrint('fetchComic failed with headers: $e2');
         rethrow;
       }
     }
