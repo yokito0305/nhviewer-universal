@@ -1,0 +1,104 @@
+import 'dart:convert';
+
+import 'package:concept_nhv/models/comic.dart';
+import 'package:concept_nhv/models/comic_images.dart';
+import 'package:concept_nhv/models/collection_summary.dart';
+import 'package:concept_nhv/models/image_format.dart';
+import 'package:concept_nhv/models/stored_comic.dart';
+
+class ComicCardData {
+  ComicCardData({
+    required this.id,
+    required this.mediaId,
+    required this.title,
+    required this.pages,
+    required this.serializedImages,
+    required this.thumbnailUrl,
+    required this.thumbnailWidth,
+    required this.thumbnailHeight,
+  });
+
+  final String id;
+  final String mediaId;
+  final String title;
+  final int pages;
+  final String serializedImages;
+  final String thumbnailUrl;
+  final int thumbnailWidth;
+  final int thumbnailHeight;
+
+  factory ComicCardData.fromComic(Comic comic) {
+    final thumbnail = comic.images.thumbnail;
+    final thumbnailExt = imageTypeCodeToExtension(thumbnail?.t);
+    return ComicCardData(
+      id: comic.id,
+      mediaId: comic.mediaId,
+      title: comic.title.english ?? comic.title.pretty ?? comic.id,
+      pages: comic.numPages,
+      serializedImages: jsonEncode(comic.images.toJson()),
+      thumbnailUrl:
+          'https://t.nhentai.net/galleries/${comic.mediaId}/thumb.$thumbnailExt',
+      thumbnailWidth: thumbnail?.w ?? 9,
+      thumbnailHeight: thumbnail?.h ?? 16,
+    );
+  }
+
+  factory ComicCardData.fromStoredComic(StoredComic comic) {
+    try {
+      final images = ComicImages.fromJson(
+        jsonDecode(comic.serializedImages) as Map<String, dynamic>,
+      );
+      final thumbnail = images.thumbnail;
+      final thumbnailExt = imageTypeCodeToExtension(thumbnail?.t);
+      return ComicCardData(
+        id: comic.id,
+        mediaId: comic.mediaId,
+        title: comic.title,
+        pages: comic.pages,
+        serializedImages: comic.serializedImages,
+        thumbnailUrl:
+            'https://t.nhentai.net/galleries/${comic.mediaId}/thumb.$thumbnailExt',
+        thumbnailWidth: thumbnail?.w ?? 9,
+        thumbnailHeight: thumbnail?.h ?? 16,
+      );
+    } on FormatException {
+      final legacyExt = comic.serializedImages.isEmpty
+          ? 'jpg'
+          : imageTypeCodeToExtension(comic.serializedImages[0]);
+      return ComicCardData(
+        id: comic.id,
+        mediaId: comic.mediaId,
+        title: comic.title,
+        pages: comic.pages,
+        serializedImages: comic.serializedImages,
+        thumbnailUrl:
+            'https://t.nhentai.net/galleries/${comic.mediaId}/thumb.$legacyExt',
+        thumbnailWidth: 9,
+        thumbnailHeight: 16,
+      );
+    }
+  }
+
+  StoredComic toStoredComic() {
+    return StoredComic(
+      id: id,
+      mediaId: mediaId,
+      title: title,
+      serializedImages: serializedImages,
+      pages: pages,
+    );
+  }
+
+  static CollectionSummary placeholderSummary({
+    required String collectionName,
+  }) {
+    return CollectionSummary(
+      collectionName: collectionName,
+      collectedCount: 0,
+      thumbnailUrl:
+          'https://placehold.co/720x720/png?text=${Uri.encodeComponent(collectionName)}',
+      thumbnailWidth: 720,
+      thumbnailHeight: 720,
+    );
+  }
+}

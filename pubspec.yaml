@@ -48,6 +48,8 @@ dependencies:
   cached_network_image: ^3.3.1
   flutter_launcher_icons: ^0.14.4
   flutter_displaymode: ^0.7.0
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.11.0
 
 dev_dependencies:
   flutter_test:
@@ -59,6 +61,10 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  build_runner: ^2.13.0
+  freezed: ^3.2.5
+  json_serializable: ^6.13.0
+  sqflite_common_ffi: ^2.4.0+2
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
