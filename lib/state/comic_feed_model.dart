@@ -1,26 +1,19 @@
+import 'package:concept_nhv/application/feed/load_collection_summaries_use_case.dart';
+import 'package:concept_nhv/application/feed/search_comics_use_case.dart';
 import 'package:concept_nhv/models/collection_summary.dart';
 import 'package:concept_nhv/models/comic.dart';
 import 'package:concept_nhv/models/comic_language.dart';
 import 'package:concept_nhv/models/popular_sort_type.dart';
-import 'package:concept_nhv/services/nhentai_api_client.dart';
-import 'package:concept_nhv/services/search_query_builder.dart';
-import 'package:concept_nhv/storage/collection_repository.dart';
-import 'package:concept_nhv/storage/search_history_repository.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 class ComicFeedModel extends ChangeNotifier {
   ComicFeedModel({
-    required this.nhentaiGateway,
-    required this.collectionRepository,
-    required this.searchHistoryRepository,
-    required this.searchQueryBuilder,
+    required this.searchComicsUseCase,
+    required this.loadCollectionSummariesUseCase,
   });
 
-  final NhentaiGateway nhentaiGateway;
-  final CollectionRepository collectionRepository;
-  final SearchHistoryRepository searchHistoryRepository;
-  final SearchQueryBuilder searchQueryBuilder;
+  final SearchComicsUseCase searchComicsUseCase;
+  final LoadCollectionSummariesUseCase loadCollectionSummariesUseCase;
 
   final List<Comic> _comics = <Comic>[];
   Future<List<CollectionSummary>>? collectionSummariesFuture;
@@ -53,7 +46,7 @@ class ComicFeedModel extends ChangeNotifier {
   }
 
   void refreshCollections() {
-    collectionSummariesFuture = collectionRepository.loadCollectionSummaries();
+    collectionSummariesFuture = loadCollectionSummariesUseCase.execute();
     notifyListeners();
   }
 
@@ -65,53 +58,29 @@ class ComicFeedModel extends ChangeNotifier {
     required String query,
     int page = 1,
     PopularSortType? sortType,
-    int retryCount = 0,
     bool clearComic = false,
-    int? lastStatusCode,
   }) async {
     if (clearComic) {
       _comics.clear();
       _noMorePage = false;
     }
 
-    final languageQueries = <String>[
-      currentLanguage.apiQuery,
-      ...currentLanguage.fallbackQueries,
-    ];
-    if (retryCount >= languageQueries.length) {
-      return lastStatusCode;
-    }
-
     _lastQuery = query;
-    final uri = searchQueryBuilder.buildSearchUri(
-      userQuery: query,
-      languageQuery: languageQueries[retryCount],
+    final result = await searchComicsUseCase.execute(
+      query: query,
       page: page,
+      language: currentLanguage,
       sortType: sortType ?? sortByPopularType,
     );
 
-    try {
-      final freshComics = await nhentaiGateway.searchComics(uri);
-      _feedErrorMessage = null;
-      _noMorePage = freshComics.result.isEmpty;
-      if (!_noMorePage) {
-        _comics.addAll(freshComics.result);
-      }
-      pageLoaded = page;
-      notifyListeners();
-      return 200;
-    } on DioException catch (error) {
-      _feedErrorMessage = _mapDioError(error);
-      notifyListeners();
-      return searchComics(
-        query: query,
-        page: page,
-        sortType: sortType,
-        retryCount: retryCount + 1,
-        clearComic: true,
-        lastStatusCode: error.response?.statusCode,
-      );
+    _feedErrorMessage = result.errorMessage;
+    _noMorePage = result.noMorePage;
+    if (!_noMorePage) {
+      _comics.addAll(result.comics);
     }
+    pageLoaded = result.pageLoaded;
+    notifyListeners();
+    return result.statusCode;
   }
 
   Future<void> fetchNextPage({int? page}) async {
@@ -121,25 +90,5 @@ class ComicFeedModel extends ChangeNotifier {
       page: targetPage,
       clearComic: targetPage == 1,
     );
-  }
-
-  String _mapDioError(DioException error) {
-    if (error.type == DioExceptionType.connectionError ||
-        error.type == DioExceptionType.connectionTimeout ||
-        error.type == DioExceptionType.receiveTimeout ||
-        error.type == DioExceptionType.sendTimeout ||
-        error.type == DioExceptionType.unknown) {
-      return 'Network error. Check the emulator/device internet connection and DNS.';
-    }
-
-    final statusCode = error.response?.statusCode;
-    if (statusCode == 403) {
-      return 'Authentication issue (403).';
-    }
-    if (statusCode == 404) {
-      return 'Website API issue (404).';
-    }
-
-    return 'Failed to load comics from website.';
   }
 }

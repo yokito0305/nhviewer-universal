@@ -1,8 +1,8 @@
+import 'package:concept_nhv/application/library/load_collection_comics_use_case.dart';
 import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/models/comic_card_data.dart';
 import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/favorite_sync_model.dart';
-import 'package:concept_nhv/storage/collection_repository.dart';
 import 'package:concept_nhv/widgets/comic_grid_sliver.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -105,12 +105,9 @@ class _CollectionComicSliverState extends State<CollectionComicSliver> {
   }
 
   Future<List<ComicCardData>> _loadComics() async {
-    final records = await context
-        .read<CollectionRepository>()
-        .loadCollectionComics(widget.collectionType);
-    return records
-        .map((record) => ComicCardData.fromStoredComic(record.comic))
-        .toList();
+    return context.read<LoadCollectionComicsUseCase>().execute(
+      widget.collectionType,
+    );
   }
 
   void _refresh() {

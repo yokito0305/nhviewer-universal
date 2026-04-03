@@ -1,5 +1,19 @@
+import 'package:concept_nhv/application/favorites/clear_favorite_auth_use_case.dart';
+import 'package:concept_nhv/application/favorites/initialize_favorites_use_case.dart';
+import 'package:concept_nhv/application/favorites/save_api_key_use_case.dart';
+import 'package:concept_nhv/application/favorites/sync_remote_favorites_use_case.dart';
+import 'package:concept_nhv/application/favorites/toggle_favorite_use_case.dart';
+import 'package:concept_nhv/application/feed/load_collection_summaries_use_case.dart';
+import 'package:concept_nhv/application/feed/search_comics_use_case.dart';
+import 'package:concept_nhv/application/library/load_collection_comics_use_case.dart';
+import 'package:concept_nhv/application/library/remove_comic_from_collection_use_case.dart';
+import 'package:concept_nhv/application/library/save_comic_to_collection_use_case.dart';
+import 'package:concept_nhv/application/reader/load_comic_detail_use_case.dart';
+import 'package:concept_nhv/application/reader/open_comic_use_case.dart';
+import 'package:concept_nhv/application/reader/reader_progress_repository.dart';
 import 'package:concept_nhv/services/image_url_resolver.dart';
 import 'package:concept_nhv/services/library_import_service.dart';
+import 'package:concept_nhv/services/comic_page_source_resolver.dart';
 import 'package:concept_nhv/services/nhentai_auth_service.dart';
 import 'package:concept_nhv/services/nhentai_api_client.dart';
 import 'package:concept_nhv/services/nhentai_cdn_config_service.dart';
@@ -14,6 +28,7 @@ import 'package:concept_nhv/storage/comic_repository.dart';
 import 'package:concept_nhv/storage/local_database.dart';
 import 'package:concept_nhv/storage/nhentai_api_key_store.dart';
 import 'package:concept_nhv/storage/options_store.dart';
+import 'package:concept_nhv/storage/reader_progress_store.dart';
 import 'package:concept_nhv/storage/search_history_repository.dart';
 import 'package:concept_nhv/storage/secure_key_value_store.dart';
 import 'package:provider/provider.dart';
@@ -40,7 +55,11 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
       create: (context) =>
           SearchHistoryRepository(localDatabase: context.read()),
     ),
+    Provider<ReaderProgressRepository>(
+      create: (context) => ReaderProgressStore(optionsStore: context.read()),
+    ),
     Provider(create: (_) => const SearchQueryBuilder()),
+    Provider(create: (_) => const ComicPageSourceResolver()),
     Provider(
       create: (_) {
         final service = NhentaiCdnConfigService();
@@ -67,6 +86,71 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
       ),
     ),
     Provider(
+      create: (context) => SearchComicsUseCase(
+        nhentaiGateway: context.read(),
+        searchQueryBuilder: context.read(),
+      ),
+    ),
+    Provider(
+      create: (context) => LoadCollectionSummariesUseCase(
+        collectionRepository: context.read(),
+      ),
+    ),
+    Provider(
+      create: (context) => LoadCollectionComicsUseCase(
+        collectionRepository: context.read(),
+      ),
+    ),
+    Provider(
+      create: (context) => LoadComicDetailUseCase(
+        nhentaiGateway: context.read(),
+      ),
+    ),
+    Provider(
+      create: (context) => OpenComicUseCase(
+        comicRepository: context.read(),
+        collectionRepository: context.read(),
+      ),
+    ),
+    Provider(
+      create: (context) => SaveComicToCollectionUseCase(
+        comicRepository: context.read(),
+        collectionRepository: context.read(),
+      ),
+    ),
+    Provider(
+      create: (context) => RemoveComicFromCollectionUseCase(
+        collectionRepository: context.read(),
+      ),
+    ),
+    Provider(
+      create: (context) => InitializeFavoritesUseCase(
+        collectionRepository: context.read(),
+        authService: context.read(),
+      ),
+    ),
+    Provider(
+      create: (context) => SaveApiKeyUseCase(authService: context.read()),
+    ),
+    Provider(
+      create: (context) => ClearFavoriteAuthUseCase(authService: context.read()),
+    ),
+    Provider(
+      create: (context) => SyncRemoteFavoritesUseCase(
+        collectionRepository: context.read(),
+        remoteFavoriteGateway: context.read(),
+        authService: context.read(),
+      ),
+    ),
+    Provider(
+      create: (context) => ToggleFavoriteUseCase(
+        collectionRepository: context.read(),
+        remoteFavoriteGateway: context.read(),
+        authService: context.read(),
+        syncRemoteFavoritesUseCase: context.read(),
+      ),
+    ),
+    Provider(
       create: (context) => LibraryImportService(
         comicRepository: context.read(),
         collectionRepository: context.read(),
@@ -75,18 +159,18 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
     ChangeNotifierProvider(create: (_) => HomeUiModel()),
     ChangeNotifierProvider(
       create: (context) => ComicFeedModel(
-        nhentaiGateway: context.read(),
-        collectionRepository: context.read(),
-        searchHistoryRepository: context.read(),
-        searchQueryBuilder: context.read(),
+        searchComicsUseCase: context.read(),
+        loadCollectionSummariesUseCase: context.read(),
       ),
     ),
     ChangeNotifierProvider(
       create: (context) {
         final model = FavoriteSyncModel(
-          collectionRepository: context.read(),
-          remoteFavoriteGateway: context.read(),
-          authService: context.read(),
+          initializeFavoritesUseCase: context.read(),
+          saveApiKeyUseCase: context.read(),
+          clearFavoriteAuthUseCase: context.read(),
+          syncRemoteFavoritesUseCase: context.read(),
+          toggleFavoriteUseCase: context.read(),
         );
         model.initialize();
         return model;
@@ -94,10 +178,9 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
     ),
     ChangeNotifierProvider(
       create: (context) => ComicReaderModel(
-        nhentaiGateway: context.read(),
-        comicRepository: context.read(),
-        collectionRepository: context.read(),
-        optionsStore: context.read(),
+        loadComicDetailUseCase: context.read(),
+        openComicUseCase: context.read(),
+        readerProgressRepository: context.read(),
       ),
     ),
   ];

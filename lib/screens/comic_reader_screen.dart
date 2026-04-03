@@ -1,4 +1,4 @@
-import 'package:concept_nhv/models/image_format.dart';
+import 'package:concept_nhv/services/comic_page_source_resolver.dart';
 import 'package:concept_nhv/state/comic_reader_model.dart';
 import 'package:concept_nhv/widgets/fallback_cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -97,9 +97,10 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
                   delegate: SliverChildBuilderDelegate((context, index) {
                     final page = index + 1;
                     final pageImage = comic.images.pages[index];
-                    final url = pageImage.path == null || pageImage.path!.isEmpty
-                        ? 'https://i1.nhentai.net/galleries/${comic.mediaId}/$page.${imageTypeCodeToExtension(pageImage.t)}'
-                        : 'https://i1.nhentai.net/${pageImage.path}';
+                    final url = context.read<ComicPageSourceResolver>().resolvePageUrl(
+                      comic: comic,
+                      pageNumber: page,
+                    );
 
                     return Stack(
                       alignment: Alignment.bottomRight,

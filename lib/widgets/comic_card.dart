@@ -1,10 +1,10 @@
+import 'package:concept_nhv/application/library/remove_comic_from_collection_use_case.dart';
+import 'package:concept_nhv/application/library/save_comic_to_collection_use_case.dart';
 import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/models/comic_card_data.dart';
 import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/comic_reader_model.dart';
 import 'package:concept_nhv/state/favorite_sync_model.dart';
-import 'package:concept_nhv/storage/collection_repository.dart';
-import 'package:concept_nhv/storage/comic_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -86,7 +86,6 @@ class ComicCard extends StatelessWidget {
   }
 
   Future<void> _showRemoveDialog(BuildContext context) async {
-    final collectionRepository = context.read<CollectionRepository>();
     final feedModel = context.read<ComicFeedModel>();
     final shouldRemove = await showDialog<bool>(
       context: context,
@@ -119,7 +118,7 @@ class ComicCard extends StatelessWidget {
       return;
     }
 
-    await collectionRepository.removeComicFromCollection(
+    await context.read<RemoveComicFromCollectionUseCase>().execute(
       collectionType: collectionType!,
       comicId: comic.id,
     );
@@ -131,14 +130,11 @@ class ComicCard extends StatelessWidget {
     BuildContext context,
     CollectionType targetCollection,
   ) async {
-    final comicRepository = context.read<ComicRepository>();
-    final collectionRepository = context.read<CollectionRepository>();
     final feedModel = context.read<ComicFeedModel>();
 
-    await comicRepository.upsertComic(comic.toStoredComic());
-    await collectionRepository.addComicToCollection(
-      collectionType: targetCollection,
-      comicId: comic.id,
+    await context.read<SaveComicToCollectionUseCase>().execute(
+      comic: comic,
+      targetCollection: targetCollection,
     );
 
     if (!context.mounted) {

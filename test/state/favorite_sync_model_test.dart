@@ -1,55 +1,77 @@
+import 'package:concept_nhv/application/favorites/clear_favorite_auth_use_case.dart';
+import 'package:concept_nhv/application/favorites/initialize_favorites_use_case.dart';
+import 'package:concept_nhv/application/favorites/save_api_key_use_case.dart';
+import 'package:concept_nhv/application/favorites/sync_remote_favorites_use_case.dart';
+import 'package:concept_nhv/application/favorites/toggle_favorite_use_case.dart';
 import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/models/comic.dart';
 import 'package:concept_nhv/models/comic_card_data.dart';
-import 'package:concept_nhv/models/nhentai_api_credential.dart';
-import 'package:concept_nhv/services/nhentai_auth_service.dart';
-import 'package:concept_nhv/services/remote_favorite_gateway.dart';
 import 'package:concept_nhv/state/favorite_sync_model.dart';
-import 'package:concept_nhv/storage/collection_repository.dart';
-import 'package:concept_nhv/storage/comic_repository.dart';
-import 'package:concept_nhv/storage/local_database.dart';
-import 'package:concept_nhv/storage/nhentai_api_key_store.dart';
 import 'package:concept_nhv/models/stored_comic.dart';
+import 'package:concept_nhv/storage/nhentai_api_key_store.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-import '../test_support/fakes.dart';
+import '../test_support/fakes/fake_nhentai_auth_service.dart';
+import '../test_support/fakes/fake_remote_favorite_gateway.dart';
+import '../test_support/fakes/memory_secure_store.dart';
+import '../test_support/fixtures/sample_comic.dart';
+import '../test_support/storage/sqlite_test_harness.dart';
 
 void main() {
-  late LocalDatabase localDatabase;
-  late ComicRepository comicRepository;
-  late CollectionRepository collectionRepository;
+  late SqliteTestHarness harness;
   late NhentaiApiKeyStore apiKeyStore;
   late FakeNhentaiAuthService authService;
   late FakeRemoteFavoriteGateway remoteFavoriteGateway;
   late FavoriteSyncModel model;
+  late InitializeFavoritesUseCase initializeFavoritesUseCase;
+  late SaveApiKeyUseCase saveApiKeyUseCase;
+  late ClearFavoriteAuthUseCase clearFavoriteAuthUseCase;
+  late SyncRemoteFavoritesUseCase syncRemoteFavoritesUseCase;
+  late ToggleFavoriteUseCase toggleFavoriteUseCase;
 
   setUp(() async {
-    sqfliteFfiInit();
-    localDatabase = LocalDatabase(
-      databaseFactory: databaseFactoryFfi,
-      databasePathResolver: () async => inMemoryDatabasePath,
-    );
-    await localDatabase.initialize();
-    comicRepository = ComicRepository(localDatabase: localDatabase);
-    collectionRepository = CollectionRepository(localDatabase: localDatabase);
+    harness = SqliteTestHarness();
+    await harness.initialize();
     apiKeyStore = NhentaiApiKeyStore(secureStore: MemorySecureKeyValueStore());
     authService = FakeNhentaiAuthService(apiKeyStore);
     remoteFavoriteGateway = FakeRemoteFavoriteGateway();
-    model = FavoriteSyncModel(
-      collectionRepository: collectionRepository,
+    initializeFavoritesUseCase = InitializeFavoritesUseCase(
+      collectionRepository: harness.collectionRepository,
+      authService: authService,
+    );
+    saveApiKeyUseCase = SaveApiKeyUseCase(authService: authService);
+    clearFavoriteAuthUseCase = ClearFavoriteAuthUseCase(
+      authService: authService,
+    );
+    syncRemoteFavoritesUseCase = SyncRemoteFavoritesUseCase(
+      collectionRepository: harness.collectionRepository,
       remoteFavoriteGateway: remoteFavoriteGateway,
       authService: authService,
+    );
+    toggleFavoriteUseCase = ToggleFavoriteUseCase(
+      collectionRepository: harness.collectionRepository,
+      remoteFavoriteGateway: remoteFavoriteGateway,
+      authService: authService,
+      syncRemoteFavoritesUseCase: syncRemoteFavoritesUseCase,
+    );
+    model = FavoriteSyncModel(
+      initializeFavoritesUseCase: initializeFavoritesUseCase,
+      saveApiKeyUseCase: saveApiKeyUseCase,
+      clearFavoriteAuthUseCase: clearFavoriteAuthUseCase,
+      syncRemoteFavoritesUseCase: syncRemoteFavoritesUseCase,
+      toggleFavoriteUseCase: toggleFavoriteUseCase,
     );
   });
 
   tearDown(() async {
-    await localDatabase.resetForTesting();
+    await harness.dispose();
   });
 
   test('initialize loads cached favorites and auth state', () async {
-    await comicRepository.upsertComic(StoredComic.fromComic(sampleComic(id: '1')));
-    await collectionRepository.addComicToCollection(
+    await harness.comicRepository.upsertComic(
+      StoredComic.fromComic(sampleComic(id: '1')),
+    );
+    await harness.collectionRepository.addComicToCollection(
       collectionType: CollectionType.favorite,
       comicId: '1',
     );
@@ -72,7 +94,7 @@ void main() {
     await model.initialize();
 
     final ok = await model.syncFavorites();
-    final ids = await collectionRepository.loadCollectedComicIds(
+    final ids = await harness.collectionRepository.loadCollectedComicIds(
       CollectionType.favorite,
     );
 
@@ -84,8 +106,10 @@ void main() {
   });
 
   test('syncFavorites keeps cached favorites on auth failure', () async {
-    await comicRepository.upsertComic(StoredComic.fromComic(sampleComic(id: '1')));
-    await collectionRepository.addComicToCollection(
+    await harness.comicRepository.upsertComic(
+      StoredComic.fromComic(sampleComic(id: '1')),
+    );
+    await harness.collectionRepository.addComicToCollection(
       collectionType: CollectionType.favorite,
       comicId: '1',
     );
@@ -133,67 +157,4 @@ void main() {
     expect(model.syncError, isNull);
     expect((await apiKeyStore.load()).isEmpty, isTrue);
   });
-}
-
-class FakeNhentaiAuthService extends NhentaiAuthService {
-  FakeNhentaiAuthService(NhentaiApiKeyStore apiKeyStore)
-    : _apiKeyStore = apiKeyStore,
-      super(apiKeyStore: apiKeyStore);
-
-  final NhentaiApiKeyStore _apiKeyStore;
-  bool isValid = false;
-  String username = 'tester';
-
-  @override
-  Future<bool> validateStoredApiKey() async {
-    return isValid;
-  }
-
-  @override
-  Future<void> clearApiKey() {
-    isValid = false;
-    return _apiKeyStore.clear();
-  }
-
-  @override
-  Future<NhentaiApiCredential> saveAndValidateApiKey(String apiKey) async {
-    if (apiKey.trim().isEmpty) {
-      throw const NhentaiAuthException('API key cannot be empty.');
-    }
-
-    final credential = NhentaiApiCredential(
-      apiKey: apiKey.trim(),
-      username: username,
-      lastValidatedAt: DateTime.now(),
-    );
-    isValid = true;
-    await _apiKeyStore.save(credential);
-    return credential;
-  }
-}
-
-class FakeRemoteFavoriteGateway implements RemoteFavoriteGateway {
-  List<Comic> remoteFavorites = <Comic>[];
-  final List<String> addedComicIds = <String>[];
-  final List<String> removedComicIds = <String>[];
-
-  @override
-  Future<void> addRemoteFavorite(String comicId) async {
-    addedComicIds.add(comicId);
-    if (remoteFavorites.every((comic) => comic.id != comicId)) {
-      remoteFavorites = <Comic>[...remoteFavorites, sampleComic(id: comicId)];
-    }
-  }
-
-  @override
-  Future<List<Comic>> loadRemoteFavorites() async {
-    return List<Comic>.from(remoteFavorites);
-  }
-
-  @override
-  Future<void> removeRemoteFavorite(String comicId) async {
-    removedComicIds.add(comicId);
-    remoteFavorites =
-        remoteFavorites.where((comic) => comic.id != comicId).toList();
-  }
 }
