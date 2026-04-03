@@ -97,6 +97,11 @@ class FavoriteSyncModel extends ChangeNotifier {
     }
   }
 
+  Future<void> saveAndValidateApiKey(String apiKey) async {
+    await authService.saveAndValidateApiKey(apiKey);
+    await initialize();
+  }
+
   Future<bool> toggleFavorite(ComicCardData comic) async {
     if (_mutatingIds.contains(comic.id)) {
       return false;
@@ -134,7 +139,7 @@ class FavoriteSyncModel extends ChangeNotifier {
     }
   }
 
-  Future<void> logout() async {
+  Future<void> clearApiKey() async {
     await authService.clearApiKey();
     _isAuthenticated = false;
     _lastSyncAt = null;

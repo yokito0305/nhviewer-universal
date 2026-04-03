@@ -134,7 +134,7 @@ class ComicFeedModel extends ChangeNotifier {
 
     final statusCode = error.response?.statusCode;
     if (statusCode == 403) {
-      return 'Cloudflare or website session issue (403).';
+      return 'Authentication issue (403).';
     }
     if (statusCode == 404) {
       return 'Website API issue (404).';

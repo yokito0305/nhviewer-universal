@@ -1,14 +1,8 @@
-import 'dart:convert';
-
-import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/models/comic_language.dart';
-import 'package:concept_nhv/models/stored_comic.dart';
+import 'package:concept_nhv/services/library_import_service.dart';
 import 'package:concept_nhv/services/nhentai_auth_service.dart';
 import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/favorite_sync_model.dart';
-import 'package:concept_nhv/storage/collection_repository.dart';
-import 'package:concept_nhv/storage/comic_repository.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -68,7 +62,6 @@ class SettingsScreen extends StatelessWidget {
       ),
       onTap: () async {
         final favoriteModel = context.read<FavoriteSyncModel>();
-        final authService = context.read<NhentaiAuthService>();
         final feedModel = context.read<ComicFeedModel>();
         final messenger = ScaffoldMessenger.of(context);
         final apiKey = await _promptApiKey(
@@ -80,8 +73,7 @@ class SettingsScreen extends StatelessWidget {
         }
 
         try {
-          await authService.saveAndValidateApiKey(apiKey);
-          await favoriteModel.initialize();
+          await favoriteModel.saveAndValidateApiKey(apiKey);
           await favoriteModel.syncFavorites();
           messenger.showSnackBar(
             const SnackBar(content: Text('API key saved and validated')),
@@ -125,7 +117,7 @@ class SettingsScreen extends StatelessWidget {
       onTap: () async {
         final favoriteModel = context.read<FavoriteSyncModel>();
         final messenger = ScaffoldMessenger.of(context);
-        await favoriteModel.logout();
+        await favoriteModel.clearApiKey();
         messenger.showSnackBar(
           const SnackBar(content: Text('API key cleared')),
         );
@@ -230,52 +222,7 @@ class SettingsScreen extends StatelessWidget {
           return;
         }
 
-        final comicResponse = await Dio().get<String>('$url/comics.json');
-        final collectionResponse = await Dio().get<String>(
-          '$url/collections.json',
-        );
-        if (!context.mounted) {
-          return;
-        }
-        final comicJson = List<Map<String, dynamic>>.from(
-          jsonDecode(comicResponse.data!) as List<dynamic>,
-        );
-        final collectionJson = List<Map<String, dynamic>>.from(
-          jsonDecode(collectionResponse.data!) as List<dynamic>,
-        );
-
-        final comicRepository = context.read<ComicRepository>();
-        final collectionRepository = context.read<CollectionRepository>();
-
-        for (final json in comicJson) {
-          await comicRepository.upsertComic(
-            StoredComic(
-              id: '${json['id']}',
-              mediaId: json['mid'] as String,
-              title: json['title'] as String,
-              serializedImages: json['pageTypes'] as String,
-              pages: json['numOfPages'] as int,
-            ),
-          );
-        }
-
-        for (final json in collectionJson) {
-          final collectionType = CollectionType.fromStorageName(
-            json['name'] as String,
-          );
-          if (collectionType == null) {
-            continue;
-          }
-
-          await collectionRepository.addComicToCollection(
-            collectionType: collectionType,
-            comicId: '${json['id']}',
-            dateCreated: DateTime.fromMillisecondsSinceEpoch(
-              json['dateCreated'] as int,
-            ).toIso8601String(),
-          );
-        }
-
+        await context.read<LibraryImportService>().importFromBaseUrl(url);
         feedModel.refreshCollections();
       },
     );
