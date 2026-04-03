@@ -62,7 +62,8 @@ class _HomeShellState extends State<HomeShell> {
                           titleAlignment: ListTileTitleAlignment.center,
                           title: Text(entry.query),
                           trailing: Text(entry.createdAt.toString()),
-                          onTap: () => _handleSearchSubmit(context, entry.query),
+                          onTap: () =>
+                              _handleSearchSubmit(context, entry.query),
                           onLongPress: () async {
                             await context
                                 .read<SearchHistoryRepository>()
@@ -91,9 +92,7 @@ class _HomeShellState extends State<HomeShell> {
     final navigationIndex = context.watch<HomeUiModel>().navigationIndex;
     switch (navigationIndex) {
       case 1:
-        return CollectionComicSliver(
-          collectionType: CollectionType.favorite,
-        );
+        return CollectionComicSliver(collectionType: CollectionType.favorite);
       case 2:
         return const CollectionOverviewScreen();
       case 0:
@@ -102,6 +101,29 @@ class _HomeShellState extends State<HomeShell> {
           builder: (context, feedModel, child) {
             final comics = feedModel.comics;
             if (comics == null) {
+              final errorMessage = feedModel.feedErrorMessage;
+              if (errorMessage != null) {
+                return SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(errorMessage, textAlign: TextAlign.center),
+                          const SizedBox(height: 12),
+                          FilledButton(
+                            onPressed: () => _retryHomeFeed(context),
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }
+
               return SliverList(
                 delegate: SliverChildListDelegate(const <Widget>[]),
               );
@@ -133,7 +155,10 @@ class _HomeShellState extends State<HomeShell> {
         return;
       }
       await context.push(
-        Uri(path: '/third', queryParameters: <String, String>{'id': value}).toString(),
+        Uri(
+          path: '/third',
+          queryParameters: <String, String>{'id': value},
+        ).toString(),
       );
       readerModel.clearComic();
       return;
@@ -148,13 +173,22 @@ class _HomeShellState extends State<HomeShell> {
     await feedModel.searchComics(query: value, clearComic: true);
     homeUiModel.setLoading(false);
   }
+
+  Future<void> _retryHomeFeed(BuildContext context) async {
+    final homeUiModel = context.read<HomeUiModel>();
+    final feedModel = context.read<ComicFeedModel>();
+    homeUiModel.setLoading(true);
+    await feedModel.loadHomeFeed(clearComic: true);
+    homeUiModel.setLoading(false);
+  }
 }
 
 class CollectionOverviewScreen extends StatefulWidget {
   const CollectionOverviewScreen({super.key});
 
   @override
-  State<CollectionOverviewScreen> createState() => _CollectionOverviewScreenState();
+  State<CollectionOverviewScreen> createState() =>
+      _CollectionOverviewScreenState();
 }
 
 class _CollectionOverviewScreenState extends State<CollectionOverviewScreen> {
@@ -183,9 +217,7 @@ class _CollectionOverviewScreenState extends State<CollectionOverviewScreen> {
           return const SliverFillRemaining(hasScrollBody: false);
         }
 
-        return CollectionGridSliver(
-          collections: snapshot.requireData,
-        );
+        return CollectionGridSliver(collections: snapshot.requireData);
       },
     );
   }

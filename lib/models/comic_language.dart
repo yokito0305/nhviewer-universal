@@ -7,7 +7,7 @@ enum ComicLanguage {
   String get apiQuery {
     switch (this) {
       case ComicLanguage.all:
-        return '-';
+        return '';
       case ComicLanguage.chinese:
         return 'language:chinese';
       case ComicLanguage.japanese:
@@ -20,7 +20,7 @@ enum ComicLanguage {
   List<String> get fallbackQueries {
     switch (this) {
       case ComicLanguage.all:
-        return const ['language:-'];
+        return const [];
       case ComicLanguage.chinese:
         return const ['-language:english -language:japanese'];
       case ComicLanguage.japanese:
@@ -42,4 +42,3 @@ enum ComicLanguage {
     }
   }
 }
-

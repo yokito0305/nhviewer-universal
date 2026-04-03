@@ -1,4 +1,3 @@
-import 'package:concept_nhv/models/cloudflare_cookie_pair.dart';
 import 'package:concept_nhv/models/comic.dart';
 import 'package:concept_nhv/models/comic_images.dart';
 import 'package:concept_nhv/models/comic_page_image.dart';
@@ -6,7 +5,7 @@ import 'package:concept_nhv/models/comic_search_response.dart';
 import 'package:concept_nhv/models/comic_tag.dart';
 import 'package:concept_nhv/models/comic_title.dart';
 import 'package:concept_nhv/services/nhentai_api_client.dart';
-import 'package:concept_nhv/services/platform/cloudflare_cookie_bridge.dart';
+import 'package:concept_nhv/storage/secure_key_value_store.dart';
 import 'package:dio/dio.dart';
 
 class FakeNhentaiGateway implements NhentaiGateway {
@@ -53,25 +52,32 @@ class FakeNhentaiGateway implements NhentaiGateway {
   }
 }
 
-class FakeCloudflareCookieBridge implements CloudflareCookieBridge {
-  FakeCloudflareCookieBridge(this.cookieString);
-
-  final String cookieString;
+class MemorySecureKeyValueStore implements SecureKeyValueStore {
+  final Map<String, String> _values = <String, String>{};
 
   @override
-  Future<String> readCookieStringFromPlatform() async => cookieString;
+  Future<void> delete(String key) async {
+    _values.remove(key);
+  }
+
+  @override
+  Future<String?> read(String key) async {
+    return _values[key];
+  }
+
+  @override
+  Future<void> write(String key, String value) async {
+    _values[key] = value;
+  }
 }
 
-Comic sampleComic({
-  String id = '1001',
-  String mediaId = '9',
-}) {
+Comic sampleComic({String id = '1001', String mediaId = '9'}) {
   return Comic(
     id: id,
     mediaId: mediaId,
     title: ComicTitle(
       english: 'Sample Comic',
-      japanese: 'サンプル',
+      japanese: '?萸?',
       pretty: 'Sample Comic',
     ),
     images: ComicImages(
@@ -85,7 +91,13 @@ Comic sampleComic({
     scanlator: null,
     uploadDate: 0,
     tags: <ComicTag>[
-      ComicTag(id: 1, type: 'tag', name: 'sample', url: '/tag/sample', count: 1),
+      ComicTag(
+        id: 1,
+        type: 'tag',
+        name: 'sample',
+        url: '/tag/sample',
+        count: 1,
+      ),
     ],
     numPages: 2,
     numFavorites: 1,
@@ -101,12 +113,5 @@ DioException sampleDioException([int? statusCode]) {
             requestOptions: RequestOptions(path: '/'),
             statusCode: statusCode,
           ),
-  );
-}
-
-CloudflareCookiePair sampleCookiePair() {
-  return CloudflareCookiePair(
-    userAgent: 'test-agent',
-    token: 'test-token',
   );
 }

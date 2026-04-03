@@ -6,10 +6,9 @@ void main() {
   group('ComicLanguage', () {
     test('returns primary query and fallback queries', () {
       expect(ComicLanguage.chinese.apiQuery, 'language:chinese');
-      expect(
-        ComicLanguage.chinese.fallbackQueries,
-        const <String>['-language:english -language:japanese'],
-      );
+      expect(ComicLanguage.chinese.fallbackQueries, const <String>[
+        '-language:english -language:japanese',
+      ]);
       expect(ComicLanguage.english.fallbackQueries, isEmpty);
     });
   });
@@ -21,4 +20,3 @@ void main() {
     });
   });
 }
-

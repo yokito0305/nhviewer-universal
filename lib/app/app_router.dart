@@ -14,10 +14,7 @@ import 'package:provider/provider.dart';
 GoRouter createAppRouter() {
   return GoRouter(
     routes: <RouteBase>[
-      GoRoute(
-        path: '/',
-        builder: (context, state) => const BootstrapScreen(),
-      ),
+      GoRoute(path: '/', builder: (context, state) => const BootstrapScreen()),
       ShellRoute(
         builder: (context, state, child) {
           return _AppShellScaffold(child: child);
@@ -57,9 +54,7 @@ GoRouter createAppRouter() {
 }
 
 class _AppShellScaffold extends StatelessWidget {
-  const _AppShellScaffold({
-    required this.child,
-  });
+  const _AppShellScaffold({required this.child});
 
   final Widget child;
 
@@ -74,15 +69,11 @@ class _AppShellScaffold extends StatelessWidget {
           }
 
           return GestureDetector(
-            onLongPress: () => _toggleSortAndRefresh(
-              context,
-              PopularSortType.allTime,
-            ),
+            onLongPress: () =>
+                _toggleSortAndRefresh(context, PopularSortType.allTime),
             child: FloatingActionButton(
-              onPressed: () => _toggleSortAndRefresh(
-                context,
-                PopularSortType.month,
-              ),
+              onPressed: () =>
+                  _toggleSortAndRefresh(context, PopularSortType.month),
               child: const Icon(Icons.sort),
             ),
           );
@@ -92,10 +83,8 @@ class _AppShellScaffold extends StatelessWidget {
         builder: (context, homeUiModel, child) {
           return NavigationBar(
             selectedIndex: homeUiModel.navigationIndex,
-            onDestinationSelected: (index) => _handleDestinationSelected(
-              context,
-              index,
-            ),
+            onDestinationSelected: (index) =>
+                _handleDestinationSelected(context, index),
             destinations: const <Widget>[
               NavigationDestination(
                 selectedIcon: Icon(Icons.home),
@@ -119,7 +108,10 @@ class _AppShellScaffold extends StatelessWidget {
     );
   }
 
-  Future<void> _handleDestinationSelected(BuildContext context, int index) async {
+  Future<void> _handleDestinationSelected(
+    BuildContext context,
+    int index,
+  ) async {
     final homeUiModel = context.read<HomeUiModel>();
     final feedModel = context.read<ComicFeedModel>();
 
@@ -185,7 +177,7 @@ class _AppShellScaffold extends StatelessWidget {
     if (statusCode == 404) {
       message = 'API issue (404)';
     } else if (statusCode == 403) {
-      message = 'CF Cookies issue (403)';
+      message = 'Authentication issue (403)';
     }
 
     if (message == null) {
@@ -193,10 +185,7 @@ class _AppShellScaffold extends StatelessWidget {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-      ),
+      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
     );
   }
 }
