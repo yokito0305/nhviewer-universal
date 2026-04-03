@@ -129,7 +129,7 @@ _refer to the [API-README](API-README.md)_
 
 If you cannot build iOS locally, you can produce an unsigned IPA from GitHub Actions:
 
-1. Open the `iOS Unsigned IPA` workflow in the Actions tab.
+1. Open the `flutter-workflow-ipa` workflow in the Actions tab.
 2. Trigger it with `workflow_dispatch`.
 3. Download the `nhviewer-ios-unsigned` artifact after the macOS job finishes.
 

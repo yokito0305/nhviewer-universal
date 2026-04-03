@@ -1,4 +1,4 @@
-name: iOS Unsigned IPA
+name: flutter-workflow-ipa
 
 on:
   workflow_dispatch:
