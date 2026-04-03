@@ -1,15 +1,15 @@
 import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/models/comic_card_data.dart';
+import 'package:concept_nhv/state/comic_feed_model.dart';
+import 'package:concept_nhv/state/favorite_sync_model.dart';
 import 'package:concept_nhv/storage/collection_repository.dart';
 import 'package:concept_nhv/widgets/comic_grid_sliver.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 class CollectionScreen extends StatelessWidget {
-  const CollectionScreen({
-    super.key,
-    required this.collectionName,
-  });
+  const CollectionScreen({super.key, required this.collectionName});
 
   final String collectionName;
 
@@ -18,9 +18,7 @@ class CollectionScreen extends StatelessWidget {
     final collectionType = CollectionType.fromStorageName(collectionName);
     if (collectionType == null) {
       return Scaffold(
-        body: Center(
-          child: Text('Unknown collection: $collectionName'),
-        ),
+        body: Center(child: Text('Unknown collection: $collectionName')),
       );
     }
 
@@ -34,6 +32,35 @@ class CollectionScreen extends StatelessWidget {
             snap: true,
             title: Text(collectionType.displayName),
           ),
+          if (collectionType == CollectionType.favorite)
+            Consumer<FavoriteSyncModel>(
+              builder: (context, favoriteModel, child) {
+                final message = favoriteModel.syncError;
+                if (message == null) {
+                  return const SliverToBoxAdapter(child: SizedBox.shrink());
+                }
+
+                return SliverToBoxAdapter(
+                  child: Card(
+                    margin: const EdgeInsets.all(12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(message),
+                          if (!favoriteModel.isAuthenticated)
+                            TextButton(
+                              onPressed: () => context.push('/settings'),
+                              child: const Text('Open Settings'),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           CollectionComicSliver(collectionType: collectionType),
         ],
       ),
@@ -42,10 +69,7 @@ class CollectionScreen extends StatelessWidget {
 }
 
 class CollectionComicSliver extends StatefulWidget {
-  const CollectionComicSliver({
-    super.key,
-    required this.collectionType,
-  });
+  const CollectionComicSliver({super.key, required this.collectionType});
 
   final CollectionType collectionType;
 
@@ -60,6 +84,11 @@ class _CollectionComicSliverState extends State<CollectionComicSliver> {
   void initState() {
     super.initState();
     _future = _loadComics();
+    if (widget.collectionType == CollectionType.favorite) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _syncFavoriteCache();
+      });
+    }
   }
 
   @override
@@ -67,6 +96,11 @@ class _CollectionComicSliverState extends State<CollectionComicSliver> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.collectionType != widget.collectionType) {
       _future = _loadComics();
+      if (widget.collectionType == CollectionType.favorite) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _syncFavoriteCache();
+        });
+      }
     }
   }
 
@@ -74,13 +108,27 @@ class _CollectionComicSliverState extends State<CollectionComicSliver> {
     final records = await context
         .read<CollectionRepository>()
         .loadCollectionComics(widget.collectionType);
-    return records.map((record) => ComicCardData.fromStoredComic(record.comic)).toList();
+    return records
+        .map((record) => ComicCardData.fromStoredComic(record.comic))
+        .toList();
   }
 
   void _refresh() {
     setState(() {
       _future = _loadComics();
     });
+  }
+
+  Future<void> _syncFavoriteCache() async {
+    final synced = await context.read<FavoriteSyncModel>().syncFavorites();
+    if (!mounted) {
+      return;
+    }
+
+    if (synced) {
+      context.read<ComicFeedModel>().refreshCollections();
+    }
+    _refresh();
   }
 
   @override
@@ -94,10 +142,23 @@ class _CollectionComicSliverState extends State<CollectionComicSliver> {
 
         final comics = snapshot.requireData;
         if (comics.isEmpty) {
+          final favoriteModel = context.watch<FavoriteSyncModel>();
+          final isFavoriteCollection =
+              widget.collectionType == CollectionType.favorite;
           return SliverFillRemaining(
             hasScrollBody: false,
             child: Center(
-              child: Text('No comics in ${widget.collectionType.displayName}'),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text('No comics in ${widget.collectionType.displayName}'),
+                  if (isFavoriteCollection && !favoriteModel.isAuthenticated)
+                    TextButton(
+                      onPressed: () => context.push('/settings'),
+                      child: const Text('Login from Settings'),
+                    ),
+                ],
+              ),
             ),
           );
         }

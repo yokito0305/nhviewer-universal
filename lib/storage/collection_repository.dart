@@ -7,9 +7,7 @@ import 'package:concept_nhv/storage/local_database.dart';
 import 'package:sqflite/sqflite.dart';
 
 class CollectionRepository {
-  const CollectionRepository({
-    required this.localDatabase,
-  });
+  const CollectionRepository({required this.localDatabase});
 
   final LocalDatabase localDatabase;
 
@@ -19,15 +17,11 @@ class CollectionRepository {
     String? dateCreated,
   }) async {
     final db = await localDatabase.database;
-    return db.insert(
-      'Collection',
-      <String, Object?>{
-        'name': collectionType.storageName,
-        'comicid': comicId,
-        'dateCreated': dateCreated ?? DateTime.now().toIso8601String(),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    return db.insert('Collection', <String, Object?>{
+      'name': collectionType.storageName,
+      'comicid': comicId,
+      'dateCreated': dateCreated ?? DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<int> removeComicFromCollection({
@@ -71,6 +65,19 @@ class CollectionRepository {
         .toList();
   }
 
+  Future<Set<String>> loadCollectedComicIds(
+    CollectionType collectionType,
+  ) async {
+    final db = await localDatabase.database;
+    final rows = await db.query(
+      'Collection',
+      columns: <String>['comicid'],
+      where: 'name = ?',
+      whereArgs: <Object?>[collectionType.storageName],
+    );
+    return rows.map((row) => row['comicid']).whereType<String>().toSet();
+  }
+
   Future<List<CollectionSummary>> loadCollectionSummaries() async {
     final allCollections = await _loadAllCollectedComics();
     final grouped = <CollectionType, List<CollectedComic>>{
@@ -105,8 +112,7 @@ class CollectionRepository {
 
   Future<List<CollectedComic>> _loadAllCollectedComics() async {
     final db = await localDatabase.database;
-    final rows = await db.rawQuery(
-      '''
+    final rows = await db.rawQuery('''
       SELECT
         col.name AS collection_name,
         col.comicid AS comic_id,
@@ -119,13 +125,42 @@ class CollectionRepository {
       FROM Collection col
       LEFT JOIN Comic com ON col.comicid = com.id
       ORDER BY col.dateCreated DESC
-      ''',
-    );
+      ''');
 
     return rows
         .where((row) => row['id'] != null)
         .map(_mapCollectedComic)
         .toList();
+  }
+
+  Future<void> replaceCollectionCache({
+    required CollectionType collectionType,
+    required Iterable<StoredComic> comics,
+  }) async {
+    final db = await localDatabase.database;
+    final now = DateTime.now().toIso8601String();
+    await db.transaction((txn) async {
+      await txn.delete(
+        'Collection',
+        where: 'name = ?',
+        whereArgs: <Object?>[collectionType.storageName],
+      );
+
+      final batch = txn.batch();
+      for (final comic in comics) {
+        batch.insert(
+          'Comic',
+          comic.toJson(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        batch.insert('Collection', <String, Object?>{
+          'name': collectionType.storageName,
+          'comicid': comic.id,
+          'dateCreated': now,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+      await batch.commit(noResult: true);
+    });
   }
 
   CollectedComic _mapCollectedComic(Map<String, Object?> row) {
@@ -143,4 +178,3 @@ class CollectionRepository {
     );
   }
 }
-

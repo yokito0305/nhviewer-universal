@@ -1,21 +1,9 @@
+import 'package:concept_nhv/services/nhentai_cdn_config_service.dart';
+
 class ImageUrlResolver {
-  static const List<String> _thumbnailHosts = <String>[
-    't.nhentai.net',
-    't1.nhentai.net',
-    't2.nhentai.net',
-    't3.nhentai.net',
-    't4.nhentai.net',
-  ];
+  const ImageUrlResolver({this.cdnConfigService});
 
-  static const List<String> _imageHosts = <String>[
-    'i.nhentai.net',
-    'i1.nhentai.net',
-    'i2.nhentai.net',
-    'i3.nhentai.net',
-    'i4.nhentai.net',
-  ];
-
-  const ImageUrlResolver();
+  final NhentaiCdnConfigService? cdnConfigService;
 
   List<String> buildFallbackImageUrls(String originalUrl) {
     final uri = Uri.tryParse(originalUrl);
@@ -23,24 +11,42 @@ class ImageUrlResolver {
       return <String>[originalUrl];
     }
 
+    final thumbnailHosts =
+        cdnConfigService?.thumbnailHosts ??
+        const <String>[
+          't1.nhentai.net',
+          't2.nhentai.net',
+          't3.nhentai.net',
+          't4.nhentai.net',
+        ];
+    final imageHosts =
+        cdnConfigService?.imageHosts ??
+        const <String>[
+          'i1.nhentai.net',
+          'i2.nhentai.net',
+          'i3.nhentai.net',
+          'i4.nhentai.net',
+        ];
+
     final hosts = switch (uri.host) {
       't.nhentai.net' ||
       't1.nhentai.net' ||
       't2.nhentai.net' ||
       't3.nhentai.net' ||
-      't4.nhentai.net' => _thumbnailHosts,
+      't4.nhentai.net' => thumbnailHosts,
       'i.nhentai.net' ||
       'i1.nhentai.net' ||
       'i2.nhentai.net' ||
       'i3.nhentai.net' ||
-      'i4.nhentai.net' => _imageHosts,
+      'i4.nhentai.net' => imageHosts,
       _ => <String>[uri.host],
     };
 
     final pathSegments = uri.pathSegments;
     final lastSegment = pathSegments.isEmpty ? '' : pathSegments.last;
-    final currentExt =
-        lastSegment.contains('.') ? lastSegment.split('.').last : '';
+    final currentExt = lastSegment.contains('.')
+        ? lastSegment.split('.').last
+        : '';
     final extensionCandidates = <String>[
       currentExt,
       'jpg',
@@ -67,4 +73,3 @@ class ImageUrlResolver {
     return urls.toSet().toList();
   }
 }
-

@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ComicPageImage {
 
- String? get t; int? get w; int? get h;
+ String? get t; int? get w; int? get h; String? get path; String? get thumbnailPath;
 /// Create a copy of ComicPageImage
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $ComicPageImageCopyWith<ComicPageImage> get copyWith => _$ComicPageImageCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ComicPageImage&&(identical(other.t, t) || other.t == t)&&(identical(other.w, w) || other.w == w)&&(identical(other.h, h) || other.h == h));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ComicPageImage&&(identical(other.t, t) || other.t == t)&&(identical(other.w, w) || other.w == w)&&(identical(other.h, h) || other.h == h)&&(identical(other.path, path) || other.path == path)&&(identical(other.thumbnailPath, thumbnailPath) || other.thumbnailPath == thumbnailPath));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,t,w,h);
+int get hashCode => Object.hash(runtimeType,t,w,h,path,thumbnailPath);
 
 @override
 String toString() {
-  return 'ComicPageImage(t: $t, w: $w, h: $h)';
+  return 'ComicPageImage(t: $t, w: $w, h: $h, path: $path, thumbnailPath: $thumbnailPath)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $ComicPageImageCopyWith<$Res>  {
   factory $ComicPageImageCopyWith(ComicPageImage value, $Res Function(ComicPageImage) _then) = _$ComicPageImageCopyWithImpl;
 @useResult
 $Res call({
- String? t, int? w, int? h
+ String? t, int? w, int? h, String? path, String? thumbnailPath
 });
 
 
@@ -65,12 +65,14 @@ class _$ComicPageImageCopyWithImpl<$Res>
 
 /// Create a copy of ComicPageImage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? t = freezed,Object? w = freezed,Object? h = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? t = freezed,Object? w = freezed,Object? h = freezed,Object? path = freezed,Object? thumbnailPath = freezed,}) {
   return _then(_self.copyWith(
 t: freezed == t ? _self.t : t // ignore: cast_nullable_to_non_nullable
 as String?,w: freezed == w ? _self.w : w // ignore: cast_nullable_to_non_nullable
 as int?,h: freezed == h ? _self.h : h // ignore: cast_nullable_to_non_nullable
-as int?,
+as int?,path: freezed == path ? _self.path : path // ignore: cast_nullable_to_non_nullable
+as String?,thumbnailPath: freezed == thumbnailPath ? _self.thumbnailPath : thumbnailPath // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -155,10 +157,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String? t,  int? w,  int? h)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String? t,  int? w,  int? h,  String? path,  String? thumbnailPath)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ComicPageImage() when $default != null:
-return $default(_that.t,_that.w,_that.h);case _:
+return $default(_that.t,_that.w,_that.h,_that.path,_that.thumbnailPath);case _:
   return orElse();
 
 }
@@ -176,10 +178,10 @@ return $default(_that.t,_that.w,_that.h);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String? t,  int? w,  int? h)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String? t,  int? w,  int? h,  String? path,  String? thumbnailPath)  $default,) {final _that = this;
 switch (_that) {
 case _ComicPageImage():
-return $default(_that.t,_that.w,_that.h);case _:
+return $default(_that.t,_that.w,_that.h,_that.path,_that.thumbnailPath);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -196,10 +198,10 @@ return $default(_that.t,_that.w,_that.h);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String? t,  int? w,  int? h)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String? t,  int? w,  int? h,  String? path,  String? thumbnailPath)?  $default,) {final _that = this;
 switch (_that) {
 case _ComicPageImage() when $default != null:
-return $default(_that.t,_that.w,_that.h);case _:
+return $default(_that.t,_that.w,_that.h,_that.path,_that.thumbnailPath);case _:
   return null;
 
 }
@@ -211,12 +213,14 @@ return $default(_that.t,_that.w,_that.h);case _:
 @JsonSerializable()
 
 class _ComicPageImage implements ComicPageImage {
-  const _ComicPageImage({this.t, this.w, this.h});
+   _ComicPageImage({this.t, this.w, this.h, this.path, this.thumbnailPath});
   factory _ComicPageImage.fromJson(Map<String, dynamic> json) => _$ComicPageImageFromJson(json);
 
 @override final  String? t;
 @override final  int? w;
 @override final  int? h;
+@override final  String? path;
+@override final  String? thumbnailPath;
 
 /// Create a copy of ComicPageImage
 /// with the given fields replaced by the non-null parameter values.
@@ -231,16 +235,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ComicPageImage&&(identical(other.t, t) || other.t == t)&&(identical(other.w, w) || other.w == w)&&(identical(other.h, h) || other.h == h));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ComicPageImage&&(identical(other.t, t) || other.t == t)&&(identical(other.w, w) || other.w == w)&&(identical(other.h, h) || other.h == h)&&(identical(other.path, path) || other.path == path)&&(identical(other.thumbnailPath, thumbnailPath) || other.thumbnailPath == thumbnailPath));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,t,w,h);
+int get hashCode => Object.hash(runtimeType,t,w,h,path,thumbnailPath);
 
 @override
 String toString() {
-  return 'ComicPageImage(t: $t, w: $w, h: $h)';
+  return 'ComicPageImage(t: $t, w: $w, h: $h, path: $path, thumbnailPath: $thumbnailPath)';
 }
 
 
@@ -251,7 +255,7 @@ abstract mixin class _$ComicPageImageCopyWith<$Res> implements $ComicPageImageCo
   factory _$ComicPageImageCopyWith(_ComicPageImage value, $Res Function(_ComicPageImage) _then) = __$ComicPageImageCopyWithImpl;
 @override @useResult
 $Res call({
- String? t, int? w, int? h
+ String? t, int? w, int? h, String? path, String? thumbnailPath
 });
 
 
@@ -268,12 +272,14 @@ class __$ComicPageImageCopyWithImpl<$Res>
 
 /// Create a copy of ComicPageImage
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? t = freezed,Object? w = freezed,Object? h = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? t = freezed,Object? w = freezed,Object? h = freezed,Object? path = freezed,Object? thumbnailPath = freezed,}) {
   return _then(_ComicPageImage(
 t: freezed == t ? _self.t : t // ignore: cast_nullable_to_non_nullable
 as String?,w: freezed == w ? _self.w : w // ignore: cast_nullable_to_non_nullable
 as int?,h: freezed == h ? _self.h : h // ignore: cast_nullable_to_non_nullable
-as int?,
+as int?,path: freezed == path ? _self.path : path // ignore: cast_nullable_to_non_nullable
+as String?,thumbnailPath: freezed == thumbnailPath ? _self.thumbnailPath : thumbnailPath // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 

@@ -18,4 +18,3 @@ enum CollectionType {
     return null;
   }
 }
-

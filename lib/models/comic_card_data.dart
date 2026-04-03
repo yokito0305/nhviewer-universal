@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:concept_nhv/models/comic.dart';
 import 'package:concept_nhv/models/comic_images.dart';
+import 'package:concept_nhv/models/comic_page_image.dart';
 import 'package:concept_nhv/models/collection_summary.dart';
 import 'package:concept_nhv/models/image_format.dart';
 import 'package:concept_nhv/models/stored_comic.dart';
@@ -29,15 +30,13 @@ class ComicCardData {
 
   factory ComicCardData.fromComic(Comic comic) {
     final thumbnail = comic.images.thumbnail;
-    final thumbnailExt = imageTypeCodeToExtension(thumbnail?.t);
     return ComicCardData(
       id: comic.id,
       mediaId: comic.mediaId,
       title: comic.title.english ?? comic.title.pretty ?? comic.id,
       pages: comic.numPages,
       serializedImages: jsonEncode(comic.images.toJson()),
-      thumbnailUrl:
-          'https://t.nhentai.net/galleries/${comic.mediaId}/thumb.$thumbnailExt',
+      thumbnailUrl: _buildThumbnailUrl(comic.mediaId, thumbnail),
       thumbnailWidth: thumbnail?.w ?? 9,
       thumbnailHeight: thumbnail?.h ?? 16,
     );
@@ -49,15 +48,13 @@ class ComicCardData {
         jsonDecode(comic.serializedImages) as Map<String, dynamic>,
       );
       final thumbnail = images.thumbnail;
-      final thumbnailExt = imageTypeCodeToExtension(thumbnail?.t);
       return ComicCardData(
         id: comic.id,
         mediaId: comic.mediaId,
         title: comic.title,
         pages: comic.pages,
         serializedImages: comic.serializedImages,
-        thumbnailUrl:
-            'https://t.nhentai.net/galleries/${comic.mediaId}/thumb.$thumbnailExt',
+        thumbnailUrl: _buildThumbnailUrl(comic.mediaId, thumbnail),
         thumbnailWidth: thumbnail?.w ?? 9,
         thumbnailHeight: thumbnail?.h ?? 16,
       );
@@ -100,5 +97,15 @@ class ComicCardData {
       thumbnailWidth: 720,
       thumbnailHeight: 720,
     );
+  }
+
+  static String _buildThumbnailUrl(String mediaId, ComicPageImage? thumbnail) {
+    final path = thumbnail?.path;
+    if (path != null && path.isNotEmpty) {
+      return 'https://t1.nhentai.net/$path';
+    }
+
+    final thumbnailExt = imageTypeCodeToExtension(thumbnail?.t);
+    return 'https://t1.nhentai.net/galleries/$mediaId/thumb.$thumbnailExt';
   }
 }

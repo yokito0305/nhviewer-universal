@@ -235,7 +235,7 @@ return $default(_that.pages,_that.cover,_that.thumbnail);case _:
 @JsonSerializable()
 
 class _ComicImages implements ComicImages {
-  const _ComicImages({final  List<ComicPageImage> pages = const <ComicPageImage>[], this.cover, this.thumbnail}): _pages = pages;
+   _ComicImages({final  List<ComicPageImage> pages = const <ComicPageImage>[], this.cover, this.thumbnail}): _pages = pages;
   factory _ComicImages.fromJson(Map<String, dynamic> json) => _$ComicImagesFromJson(json);
 
  final  List<ComicPageImage> _pages;

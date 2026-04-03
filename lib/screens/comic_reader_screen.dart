@@ -5,10 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 class ComicReaderScreen extends StatefulWidget {
-  const ComicReaderScreen({
-    super.key,
-    required this.comicId,
-  });
+  const ComicReaderScreen({super.key, required this.comicId});
 
   final String comicId;
 
@@ -28,7 +25,9 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
   Future<void> _restoreLastSeenOffset() async {
     final readerModel = context.read<ComicReaderModel>();
     final offset = await readerModel.loadLastSeenOffset(widget.comicId);
-    if (!mounted || offset == null || !readerModel.scrollController.hasClients) {
+    if (!mounted ||
+        offset == null ||
+        !readerModel.scrollController.hasClients) {
       return;
     }
 
@@ -95,28 +94,25 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
                 }
 
                 return SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final page = index + 1;
-                      final pageImage = comic.images.pages[index];
-                      final extension = imageTypeCodeToExtension(pageImage.t);
-                      final url =
-                          'https://i.nhentai.net/galleries/${comic.mediaId}/$page.$extension';
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final page = index + 1;
+                    final pageImage = comic.images.pages[index];
+                    final url = pageImage.path == null || pageImage.path!.isEmpty
+                        ? 'https://i1.nhentai.net/galleries/${comic.mediaId}/$page.${imageTypeCodeToExtension(pageImage.t)}'
+                        : 'https://i1.nhentai.net/${pageImage.path}';
 
-                      return Stack(
-                        alignment: Alignment.bottomRight,
-                        children: <Widget>[
-                          FallbackCachedNetworkImage(
-                            url: url,
-                            width: pageImage.w ?? 9,
-                            height: pageImage.h ?? 16,
-                          ),
-                          Text('P$page'),
-                        ],
-                      );
-                    },
-                    childCount: comic.numPages,
-                  ),
+                    return Stack(
+                      alignment: Alignment.bottomRight,
+                      children: <Widget>[
+                        FallbackCachedNetworkImage(
+                          url: url,
+                          width: pageImage.w ?? 9,
+                          height: pageImage.h ?? 16,
+                        ),
+                        Text('P$page'),
+                      ],
+                    );
+                  }, childCount: comic.numPages),
                 );
               },
             ),
@@ -126,4 +122,3 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
     );
   }
 }
-

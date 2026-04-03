@@ -39,4 +39,3 @@ void main() {
     expect(comic.toJson()['num_pages'], 1);
   });
 }
-

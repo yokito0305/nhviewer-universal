@@ -213,7 +213,7 @@ return $default(_that.id,_that.mediaId,_that.title,_that.serializedImages,_that.
 @JsonSerializable()
 
 class _StoredComic implements StoredComic {
-  const _StoredComic({required this.id, @JsonKey(name: 'mid') required this.mediaId, required this.title, @JsonKey(name: 'images') required this.serializedImages, @JsonKey(name: 'pages') required this.pages});
+   _StoredComic({required this.id, @JsonKey(name: 'mid') required this.mediaId, required this.title, @JsonKey(name: 'images') required this.serializedImages, @JsonKey(name: 'pages') required this.pages});
   factory _StoredComic.fromJson(Map<String, dynamic> json) => _$StoredComicFromJson(json);
 
 @override final  String id;

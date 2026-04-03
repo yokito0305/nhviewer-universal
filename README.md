@@ -125,6 +125,18 @@ _refer to the [API-README](API-README.md)_
 <p align="right"> <a href="#readme-top"> ‣ back to top</a> </p>
 
 
+## GitHub-hosted iOS build
+
+If you cannot build iOS locally, you can produce an unsigned IPA from GitHub Actions:
+
+1. Open the `iOS Unsigned IPA` workflow in the Actions tab.
+2. Trigger it with `workflow_dispatch`.
+3. Download the `nhviewer-ios-unsigned` artifact after the macOS job finishes.
+
+The generated IPA is unsigned. It is useful for remote build verification, but it is not ready for TestFlight or App Store submission.
+
+<p align="right"> <a href="#readme-top"> ??back to top</a> </p>
+
 <!-- LICENSE -->
 ## License
 

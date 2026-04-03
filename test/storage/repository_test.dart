@@ -23,7 +23,9 @@ void main() {
     await localDatabase.initialize();
     comicRepository = ComicRepository(localDatabase: localDatabase);
     collectionRepository = CollectionRepository(localDatabase: localDatabase);
-    searchHistoryRepository = SearchHistoryRepository(localDatabase: localDatabase);
+    searchHistoryRepository = SearchHistoryRepository(
+      localDatabase: localDatabase,
+    );
   });
 
   tearDown(() async {
@@ -56,6 +58,34 @@ void main() {
     expect(favorite.thumbnailUrl, contains('thumb.webp'));
   });
 
+  test('replaceCollectionCache rewrites favorite mirror ids', () async {
+    await collectionRepository.replaceCollectionCache(
+      collectionType: CollectionType.favorite,
+      comics: <StoredComic>[
+        StoredComic(
+          id: '1',
+          mediaId: '9',
+          title: 'Favorite A',
+          serializedImages: 'jj',
+          pages: 2,
+        ),
+        StoredComic(
+          id: '2',
+          mediaId: '10',
+          title: 'Favorite B',
+          serializedImages: 'jj',
+          pages: 2,
+        ),
+      ],
+    );
+
+    final ids = await collectionRepository.loadCollectedComicIds(
+      CollectionType.favorite,
+    );
+
+    expect(ids, <String>{'1', '2'});
+  });
+
   test('legacy serialized image fallback still maps to a thumbnail', () {
     final card = ComicCardData.fromStoredComic(
       StoredComic(
@@ -80,4 +110,3 @@ void main() {
     expect(entries.first.query, 'sample');
   });
 }
-

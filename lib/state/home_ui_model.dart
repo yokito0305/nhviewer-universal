@@ -23,4 +23,3 @@ class HomeUiModel extends ChangeNotifier {
     notifyListeners();
   }
 }
-

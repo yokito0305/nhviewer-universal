@@ -7,13 +7,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-typedef CachedImageBuilder = Widget Function(
-  BuildContext context,
-  String imageUrl,
-  Map<String, String>? headers,
-  Widget Function(BuildContext context, String url)? placeholderBuilder,
-  Widget Function(BuildContext context, String url, Object error)? errorBuilder,
-);
+typedef CachedImageBuilder =
+    Widget Function(
+      BuildContext context,
+      String imageUrl,
+      Map<String, String>? headers,
+      Widget Function(BuildContext context, String url)? placeholderBuilder,
+      Widget Function(BuildContext context, String url, Object error)?
+      errorBuilder,
+    );
 
 class FallbackCachedNetworkImage extends StatefulWidget {
   const FallbackCachedNetworkImage({
@@ -22,21 +24,22 @@ class FallbackCachedNetworkImage extends StatefulWidget {
     required this.width,
     required this.height,
     this.imageBuilder,
-    this.imageUrlResolver = const ImageUrlResolver(),
+    this.imageUrlResolver,
   });
 
   final String url;
   final int width;
   final int height;
   final CachedImageBuilder? imageBuilder;
-  final ImageUrlResolver imageUrlResolver;
+  final ImageUrlResolver? imageUrlResolver;
 
   @override
   State<FallbackCachedNetworkImage> createState() =>
       _FallbackCachedNetworkImageState();
 }
 
-class _FallbackCachedNetworkImageState extends State<FallbackCachedNetworkImage> {
+class _FallbackCachedNetworkImageState
+    extends State<FallbackCachedNetworkImage> {
   static const bool _demoMode = false;
 
   late List<String> _candidateUrls;
@@ -60,9 +63,18 @@ class _FallbackCachedNetworkImageState extends State<FallbackCachedNetworkImage>
   }
 
   void _resetFallbackCandidates() {
-    _candidateUrls = widget.imageUrlResolver.buildFallbackImageUrls(widget.url);
+    final resolver = widget.imageUrlResolver ?? _readResolverFromContext();
+    _candidateUrls = resolver.buildFallbackImageUrls(widget.url);
     _currentIndex = 0;
     _retryScheduled = false;
+  }
+
+  ImageUrlResolver _readResolverFromContext() {
+    try {
+      return context.read<ImageUrlResolver>();
+    } on ProviderNotFoundException {
+      return const ImageUrlResolver();
+    }
   }
 
   bool get _hasNextCandidate => _currentIndex + 1 < _candidateUrls.length;
@@ -114,7 +126,8 @@ class _FallbackCachedNetworkImageState extends State<FallbackCachedNetworkImage>
     String imageUrl,
     Map<String, String>? headers,
     Widget Function(BuildContext context, String url)? placeholderBuilder,
-    Widget Function(BuildContext context, String url, Object error)? errorBuilder,
+    Widget Function(BuildContext context, String url, Object error)?
+    errorBuilder,
   ) {
     return CachedNetworkImage(
       imageUrl: imageUrl,
@@ -127,9 +140,7 @@ class _FallbackCachedNetworkImageState extends State<FallbackCachedNetworkImage>
   Widget _buildLoadingState(BuildContext context, String url) {
     return AspectRatio(
       aspectRatio: widget.width / widget.height,
-      child: const Center(
-        child: CircularProgressIndicator(),
-      ),
+      child: const Center(child: CircularProgressIndicator()),
     );
   }
 
@@ -153,10 +164,7 @@ class _FallbackCachedNetworkImageState extends State<FallbackCachedNetworkImage>
                   const SnackBar(content: Text('Link copied to clipboard')),
                 );
               },
-              icon: const Icon(
-                Icons.broken_image_outlined,
-                color: Colors.red,
-              ),
+              icon: const Icon(Icons.broken_image_outlined, color: Colors.red),
             ),
           );
         },

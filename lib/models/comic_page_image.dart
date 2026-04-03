@@ -9,6 +9,8 @@ abstract class ComicPageImage with _$ComicPageImage {
     String? t,
     int? w,
     int? h,
+    String? path,
+    String? thumbnailPath,
   }) = _ComicPageImage;
 
   factory ComicPageImage.fromJson(Map<String, dynamic> json) =>

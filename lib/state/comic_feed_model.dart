@@ -27,6 +27,7 @@ class ComicFeedModel extends ChangeNotifier {
   int pageLoaded = 1;
   bool _noMorePage = false;
   String _lastQuery = '';
+  String? _feedErrorMessage;
   ComicLanguage currentLanguage = ComicLanguage.chinese;
   PopularSortType? sortByPopularType;
 
@@ -39,6 +40,7 @@ class ComicFeedModel extends ChangeNotifier {
 
   bool get noMorePage => _noMorePage;
   int get comicsLoaded => _comics.length;
+  String? get feedErrorMessage => _feedErrorMessage;
 
   void setLanguage(ComicLanguage language) {
     currentLanguage = language;
@@ -55,15 +57,8 @@ class ComicFeedModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<int?> loadHomeFeed({
-    int page = 1,
-    bool clearComic = false,
-  }) {
-    return searchComics(
-      query: '',
-      page: page,
-      clearComic: clearComic,
-    );
+  Future<int?> loadHomeFeed({int page = 1, bool clearComic = false}) {
+    return searchComics(query: '', page: page, clearComic: clearComic);
   }
 
   Future<int?> searchComics({
@@ -97,6 +92,7 @@ class ComicFeedModel extends ChangeNotifier {
 
     try {
       final freshComics = await nhentaiGateway.searchComics(uri);
+      _feedErrorMessage = null;
       _noMorePage = freshComics.result.isEmpty;
       if (!_noMorePage) {
         _comics.addAll(freshComics.result);
@@ -105,6 +101,8 @@ class ComicFeedModel extends ChangeNotifier {
       notifyListeners();
       return 200;
     } on DioException catch (error) {
+      _feedErrorMessage = _mapDioError(error);
+      notifyListeners();
       return searchComics(
         query: query,
         page: page,
@@ -124,5 +122,24 @@ class ComicFeedModel extends ChangeNotifier {
       clearComic: targetPage == 1,
     );
   }
-}
 
+  String _mapDioError(DioException error) {
+    if (error.type == DioExceptionType.connectionError ||
+        error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.receiveTimeout ||
+        error.type == DioExceptionType.sendTimeout ||
+        error.type == DioExceptionType.unknown) {
+      return 'Network error. Check the emulator/device internet connection and DNS.';
+    }
+
+    final statusCode = error.response?.statusCode;
+    if (statusCode == 403) {
+      return 'Authentication issue (403).';
+    }
+    if (statusCode == 404) {
+      return 'Website API issue (404).';
+    }
+
+    return 'Failed to load comics from website.';
+  }
+}

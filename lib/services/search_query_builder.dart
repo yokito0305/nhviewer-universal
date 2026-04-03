@@ -14,15 +14,16 @@ class SearchQueryBuilder {
       languageQuery.trim(),
     ].where((element) => element.isNotEmpty).join(' ').trim();
 
-    return Uri.https(
-      'nhentai.net',
-      '/api/galleries/search',
-      <String, String>{
-        'query': normalizedQuery,
+    if (normalizedQuery.isEmpty && sortType == null) {
+      return Uri.https('nhentai.net', '/api/v2/galleries', <String, String>{
         'page': '$page',
-        if (sortType != null) 'sort': sortType.apiValue,
-      },
-    );
+      });
+    }
+
+    return Uri.https('nhentai.net', '/api/v2/search', <String, String>{
+      'query': normalizedQuery.isEmpty ? 'pages:>0' : normalizedQuery,
+      'page': '$page',
+      if (sortType != null) 'sort': sortType.apiValue,
+    });
   }
 }
-

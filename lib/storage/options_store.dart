@@ -2,22 +2,16 @@ import 'package:concept_nhv/storage/local_database.dart';
 import 'package:sqflite/sqflite.dart';
 
 class OptionsStore {
-  const OptionsStore({
-    required this.localDatabase,
-  });
+  const OptionsStore({required this.localDatabase});
 
   final LocalDatabase localDatabase;
 
   Future<void> saveOption(String name, String value) async {
     final db = await localDatabase.database;
-    await db.insert(
-      'Options',
-      <String, Object?>{
-        'name': name,
-        'value': value,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await db.insert('Options', <String, Object?>{
+      'name': name,
+      'value': value,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<String> loadOption(String name) async {
@@ -43,4 +37,3 @@ class OptionsStore {
     );
   }
 }
-
