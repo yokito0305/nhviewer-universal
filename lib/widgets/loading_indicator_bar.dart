@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 
-class LoadingIndicatorBar extends StatelessWidget implements PreferredSizeWidget {
-  const LoadingIndicatorBar({
-    super.key,
-    required this.isLoading,
-  });
+class LoadingIndicatorBar extends StatelessWidget
+    implements PreferredSizeWidget {
+  const LoadingIndicatorBar({super.key, required this.isLoading});
 
   final bool isLoading;
 
   @override
-  Size get preferredSize => isLoading ? const Size(double.infinity, 4) : Size.zero;
+  Size get preferredSize =>
+      isLoading ? const Size(double.infinity, 4) : Size.zero;
 
   @override
   Widget build(BuildContext context) {
@@ -20,4 +19,3 @@ class LoadingIndicatorBar extends StatelessWidget implements PreferredSizeWidget
     return const LinearProgressIndicator();
   }
 }
-

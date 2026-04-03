@@ -221,7 +221,7 @@ return $default(_that.collectionName,_that.comicId,_that.dateCreated,_that.comic
 @JsonSerializable()
 
 class _CollectedComic implements CollectedComic {
-  const _CollectedComic({required this.collectionName, required this.comicId, required this.dateCreated, required this.comic});
+   _CollectedComic({required this.collectionName, required this.comicId, required this.dateCreated, required this.comic});
   factory _CollectedComic.fromJson(Map<String, dynamic> json) => _$CollectedComicFromJson(json);
 
 @override final  String collectionName;

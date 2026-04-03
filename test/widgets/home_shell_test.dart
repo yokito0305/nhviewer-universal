@@ -22,7 +22,8 @@ void main() {
                   CollectionSummary(
                     collectionName: 'Favorite',
                     collectedCount: 2,
-                    thumbnailUrl: 'https://placehold.co/10x10/png?text=Favorite',
+                    thumbnailUrl:
+                        'https://placehold.co/10x10/png?text=Favorite',
                     thumbnailWidth: 10,
                     thumbnailHeight: 10,
                   ),

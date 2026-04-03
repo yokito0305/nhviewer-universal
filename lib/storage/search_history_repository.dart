@@ -2,28 +2,18 @@ import 'package:concept_nhv/models/search_history_entry.dart';
 import 'package:concept_nhv/storage/local_database.dart';
 
 class SearchHistoryRepository {
-  const SearchHistoryRepository({
-    required this.localDatabase,
-  });
+  const SearchHistoryRepository({required this.localDatabase});
 
   final LocalDatabase localDatabase;
 
   Future<void> save(String query) async {
     final db = await localDatabase.database;
-    await db.insert(
-      'SearchHistory',
-      <String, Object?>{
-        'query': query,
-      },
-    );
+    await db.insert('SearchHistory', <String, Object?>{'query': query});
   }
 
   Future<List<SearchHistoryEntry>> load() async {
     final db = await localDatabase.database;
-    final rows = await db.query(
-      'SearchHistory',
-      orderBy: 'created_at DESC',
-    );
+    final rows = await db.query('SearchHistory', orderBy: 'created_at DESC');
 
     return rows.map((row) {
       return SearchHistoryEntry(
@@ -42,4 +32,3 @@ class SearchHistoryRepository {
     );
   }
 }
-

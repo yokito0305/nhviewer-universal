@@ -235,7 +235,7 @@ return $default(_that.id,_that.mediaId,_that.title,_that.images,_that.scanlator,
 @JsonSerializable()
 
 class _Comic implements Comic {
-  const _Comic({@JsonKey(fromJson: _stringFromDynamic) required this.id, @JsonKey(name: 'media_id', fromJson: _stringFromDynamic) required this.mediaId, required this.title, required this.images, this.scanlator, @JsonKey(name: 'upload_date') this.uploadDate, final  List<ComicTag> tags = const <ComicTag>[], @JsonKey(name: 'num_pages') required this.numPages, @JsonKey(name: 'num_favorites') this.numFavorites}): _tags = tags;
+   _Comic({@JsonKey(fromJson: _stringFromDynamic) required this.id, @JsonKey(name: 'media_id', fromJson: _stringFromDynamic) required this.mediaId, required this.title, required this.images, this.scanlator, @JsonKey(name: 'upload_date') this.uploadDate, final  List<ComicTag> tags = const <ComicTag>[], @JsonKey(name: 'num_pages') required this.numPages, @JsonKey(name: 'num_favorites') this.numFavorites}): _tags = tags;
   factory _Comic.fromJson(Map<String, dynamic> json) => _$ComicFromJson(json);
 
 @override@JsonKey(fromJson: _stringFromDynamic) final  String id;

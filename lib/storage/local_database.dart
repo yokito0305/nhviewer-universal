@@ -11,8 +11,8 @@ class LocalDatabase {
   LocalDatabase({
     DatabaseFactory? databaseFactory,
     DatabasePathResolver? databasePathResolver,
-  })  : _databaseFactory = databaseFactory ?? databaseFactorySqflitePlugin,
-        _databasePathResolver = databasePathResolver ?? _defaultDatabasePath;
+  }) : _databaseFactory = databaseFactory ?? databaseFactorySqflitePlugin,
+       _databasePathResolver = databasePathResolver ?? _defaultDatabasePath;
 
   final DatabaseFactory _databaseFactory;
   final DatabasePathResolver _databasePathResolver;
@@ -88,4 +88,3 @@ class LocalDatabase {
     return join(await getDatabasesPath(), 'database.db');
   }
 }
-

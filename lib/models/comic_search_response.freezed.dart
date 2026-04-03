@@ -211,7 +211,7 @@ return $default(_that.result,_that.numPages,_that.perPage);case _:
 @JsonSerializable()
 
 class _ComicSearchResponse implements ComicSearchResponse {
-  const _ComicSearchResponse({final  List<Comic> result = const <Comic>[], @JsonKey(name: 'num_pages') this.numPages, @JsonKey(name: 'per_page') this.perPage}): _result = result;
+   _ComicSearchResponse({final  List<Comic> result = const <Comic>[], @JsonKey(name: 'num_pages') this.numPages, @JsonKey(name: 'per_page') this.perPage}): _result = result;
   factory _ComicSearchResponse.fromJson(Map<String, dynamic> json) => _$ComicSearchResponseFromJson(json);
 
  final  List<Comic> _result;

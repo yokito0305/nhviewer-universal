@@ -211,7 +211,7 @@ return $default(_that.english,_that.japanese,_that.pretty);case _:
 @JsonSerializable()
 
 class _ComicTitle implements ComicTitle {
-  const _ComicTitle({this.english, this.japanese, this.pretty});
+   _ComicTitle({this.english, this.japanese, this.pretty});
   factory _ComicTitle.fromJson(Map<String, dynamic> json) => _$ComicTitleFromJson(json);
 
 @override final  String? english;

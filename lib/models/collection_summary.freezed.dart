@@ -213,7 +213,7 @@ return $default(_that.collectionName,_that.collectedCount,_that.thumbnailUrl,_th
 @JsonSerializable()
 
 class _CollectionSummary implements CollectionSummary {
-  const _CollectionSummary({required this.collectionName, required this.collectedCount, required this.thumbnailUrl, required this.thumbnailWidth, required this.thumbnailHeight});
+   _CollectionSummary({required this.collectionName, required this.collectedCount, required this.thumbnailUrl, required this.thumbnailWidth, required this.thumbnailHeight});
   factory _CollectionSummary.fromJson(Map<String, dynamic> json) => _$CollectionSummaryFromJson(json);
 
 @override final  String collectionName;

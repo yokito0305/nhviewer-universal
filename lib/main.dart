@@ -17,4 +17,3 @@ Future<void> main() async {
 
   runApp(BootstrapApp(localDatabase: localDatabase));
 }
-

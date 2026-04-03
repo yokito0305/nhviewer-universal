@@ -213,7 +213,7 @@ return $default(_that.id,_that.type,_that.name,_that.url,_that.count);case _:
 @JsonSerializable()
 
 class _ComicTag implements ComicTag {
-  const _ComicTag({this.id, this.type, this.name, this.url, this.count});
+   _ComicTag({this.id, this.type, this.name, this.url, this.count});
   factory _ComicTag.fromJson(Map<String, dynamic> json) => _$ComicTagFromJson(json);
 
 @override final  int? id;

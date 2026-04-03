@@ -20,10 +20,10 @@ abstract class StoredComic with _$StoredComic {
       _$StoredComicFromJson(json);
 
   factory StoredComic.fromComic(Comic comic) => StoredComic(
-        id: comic.id,
-        mediaId: comic.mediaId,
-        title: comic.title.english ?? comic.title.pretty ?? comic.id,
-        serializedImages: jsonEncode(comic.images.toJson()),
-        pages: comic.numPages,
-      );
+    id: comic.id,
+    mediaId: comic.mediaId,
+    title: comic.title.english ?? comic.title.pretty ?? comic.id,
+    serializedImages: jsonEncode(comic.images.toJson()),
+    pages: comic.numPages,
+  );
 }

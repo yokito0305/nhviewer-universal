@@ -20,4 +20,3 @@ String imageTypeCodeToExtension(String? code) {
       return 'jpg';
   }
 }
-
