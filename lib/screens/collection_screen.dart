@@ -1,7 +1,6 @@
-import 'package:concept_nhv/application/library/load_collection_comics_use_case.dart';
+import 'package:concept_nhv/application/library/collection_page_coordinator.dart';
 import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/models/comic_card_data.dart';
-import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/favorite_sync_model.dart';
 import 'package:concept_nhv/widgets/comic_grid_sliver.dart';
 import 'package:flutter/material.dart';
@@ -83,49 +82,30 @@ class _CollectionComicSliverState extends State<CollectionComicSliver> {
   @override
   void initState() {
     super.initState();
-    _future = _loadComics();
-    if (widget.collectionType == CollectionType.favorite) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _syncFavoriteCache();
-      });
-    }
+    _future = _loadInitialComics();
   }
 
   @override
   void didUpdateWidget(covariant CollectionComicSliver oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.collectionType != widget.collectionType) {
-      _future = _loadComics();
-      if (widget.collectionType == CollectionType.favorite) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _syncFavoriteCache();
-        });
-      }
+      _future = _loadInitialComics();
     }
   }
 
-  Future<List<ComicCardData>> _loadComics() async {
-    return context.read<LoadCollectionComicsUseCase>().execute(
+  Future<List<ComicCardData>> _loadInitialComics() async {
+    final snapshot = await context.read<CollectionPageCoordinator>().load(
       widget.collectionType,
     );
+    return snapshot.comics;
   }
 
   void _refresh() {
     setState(() {
-      _future = _loadComics();
+      _future = context.read<CollectionPageCoordinator>().refresh(
+        widget.collectionType,
+      );
     });
-  }
-
-  Future<void> _syncFavoriteCache() async {
-    final synced = await context.read<FavoriteSyncModel>().syncFavorites();
-    if (!mounted) {
-      return;
-    }
-
-    if (synced) {
-      context.read<ComicFeedModel>().refreshCollections();
-    }
-    _refresh();
   }
 
   @override

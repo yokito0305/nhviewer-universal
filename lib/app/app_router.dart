@@ -1,10 +1,10 @@
+import 'package:concept_nhv/application/home/app_shell_navigation_controller.dart';
 import 'package:concept_nhv/models/popular_sort_type.dart';
 import 'package:concept_nhv/screens/bootstrap_screen.dart';
 import 'package:concept_nhv/screens/collection_screen.dart';
 import 'package:concept_nhv/screens/comic_reader_screen.dart';
 import 'package:concept_nhv/screens/home_shell.dart';
 import 'package:concept_nhv/screens/settings_screen.dart';
-import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/home_ui_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -112,32 +112,19 @@ class _AppShellScaffold extends StatelessWidget {
     BuildContext context,
     int index,
   ) async {
-    final homeUiModel = context.read<HomeUiModel>();
-    final feedModel = context.read<ComicFeedModel>();
-
-    if (homeUiModel.searchController.isOpen) {
-      homeUiModel.searchController.text = '';
-      homeUiModel.searchController.closeView(null);
-    }
-
-    switch (index) {
-      case 0:
-        homeUiModel.setNavigationIndex(index);
-        homeUiModel.setLoading(true);
-        final statusCode = await feedModel.loadHomeFeed(clearComic: true);
-        if (context.mounted) {
-          _showStatusCodeMessage(context, statusCode);
-        }
-        homeUiModel.setLoading(false);
-        break;
-      case 1:
-      case 2:
-        homeUiModel.setNavigationIndex(index);
-        feedModel.refreshCollections();
-        break;
-    }
+    final result = await context
+        .read<AppShellNavigationController>()
+        .handleDestinationSelected(index);
 
     if (context.mounted) {
+      if (result.statusMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.statusMessage!),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
       context.goNamed('index');
       HapticFeedback.lightImpact();
     }
@@ -147,45 +134,20 @@ class _AppShellScaffold extends StatelessWidget {
     BuildContext context,
     PopularSortType type,
   ) async {
-    final homeUiModel = context.read<HomeUiModel>();
-    final feedModel = context.read<ComicFeedModel>();
-    final previous = feedModel.sortByPopularType;
-
-    feedModel.toggleSort(type);
+    final result = await context
+        .read<AppShellNavigationController>()
+        .toggleSortAndRefresh(type);
     if (!context.mounted) {
       return;
     }
 
-    final current = feedModel.sortByPopularType;
-    final label = current?.label ?? 'None';
-    if (current != previous) {
+    if (result.sortMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Sort by popular type: $label'),
+          content: Text(result.sortMessage!),
           duration: const Duration(seconds: 2),
         ),
       );
     }
-
-    homeUiModel.setLoading(true);
-    await feedModel.fetchNextPage(page: 1);
-    homeUiModel.setLoading(false);
-  }
-
-  void _showStatusCodeMessage(BuildContext context, int? statusCode) {
-    String? message;
-    if (statusCode == 404) {
-      message = 'API issue (404)';
-    } else if (statusCode == 403) {
-      message = 'Authentication issue (403)';
-    }
-
-    if (message == null) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-    );
   }
 }

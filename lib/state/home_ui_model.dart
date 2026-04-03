@@ -8,6 +8,14 @@ class HomeUiModel extends ChangeNotifier {
   int get navigationIndex => _navigationIndex;
   bool get isLoading => _isLoading;
 
+  bool get _isSearchControllerAttached {
+    try {
+      return searchController.isAttached;
+    } on AssertionError {
+      return false;
+    }
+  }
+
   void setNavigationIndex(int value) {
     final doubleClickIndex = _navigationIndex == 0 && value == 0;
     final fromIndexPage = _navigationIndex == 0;
@@ -21,5 +29,23 @@ class HomeUiModel extends ChangeNotifier {
   void setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
+  }
+
+  void closeSearchView([String? selectedText]) {
+    if (_isSearchControllerAttached && searchController.isOpen) {
+      searchController.closeView(selectedText);
+      return;
+    }
+
+    if (selectedText != null) {
+      searchController.text = selectedText;
+    }
+  }
+
+  void resetSearchView() {
+    searchController.text = '';
+    if (_isSearchControllerAttached && searchController.isOpen) {
+      searchController.closeView(null);
+    }
   }
 }

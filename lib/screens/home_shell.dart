@@ -1,6 +1,7 @@
 import 'package:concept_nhv/models/collection_summary.dart';
 import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/models/comic_card_data.dart';
+import 'package:concept_nhv/application/home/home_shell_controller.dart';
 import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/comic_reader_model.dart';
 import 'package:concept_nhv/state/home_ui_model.dart';
@@ -139,47 +140,28 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   Future<void> _handleSearchSubmit(BuildContext context, String value) async {
-    final homeUiModel = context.read<HomeUiModel>();
-    final feedModel = context.read<ComicFeedModel>();
-    final historyRepository = context.read<SearchHistoryRepository>();
+    final controller = context.read<HomeShellController>();
     final readerModel = context.read<ComicReaderModel>();
+    final navigator = GoRouter.of(context);
+    final result = await controller.submitSearch(value);
+    if (!mounted || !result.openComicReader || result.comicId == null) {
+      return;
+    }
 
-    await historyRepository.save(value);
+    await navigator.push(
+      Uri(
+        path: '/third',
+        queryParameters: <String, String>{'id': result.comicId!},
+      ).toString(),
+    );
     if (!mounted) {
       return;
     }
-
-    if (int.tryParse(value) != null) {
-      await readerModel.loadComicDetail(value);
-      if (!context.mounted) {
-        return;
-      }
-      await context.push(
-        Uri(
-          path: '/third',
-          queryParameters: <String, String>{'id': value},
-        ).toString(),
-      );
-      readerModel.clearComic();
-      return;
-    }
-
-    homeUiModel.searchController.closeView(value);
-    if (homeUiModel.navigationIndex != 0) {
-      homeUiModel.setNavigationIndex(0);
-    }
-
-    homeUiModel.setLoading(true);
-    await feedModel.searchComics(query: value, clearComic: true);
-    homeUiModel.setLoading(false);
+    readerModel.clearComic();
   }
 
   Future<void> _retryHomeFeed(BuildContext context) async {
-    final homeUiModel = context.read<HomeUiModel>();
-    final feedModel = context.read<ComicFeedModel>();
-    homeUiModel.setLoading(true);
-    await feedModel.loadHomeFeed(clearComic: true);
-    homeUiModel.setLoading(false);
+    await context.read<HomeShellController>().retryHomeFeed();
   }
 }
 

@@ -1,8 +1,6 @@
-import 'package:concept_nhv/application/library/remove_comic_from_collection_use_case.dart';
-import 'package:concept_nhv/application/library/save_comic_to_collection_use_case.dart';
+import 'package:concept_nhv/application/library/comic_card_action_coordinator.dart';
 import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/models/comic_card_data.dart';
-import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/comic_reader_model.dart';
 import 'package:concept_nhv/state/favorite_sync_model.dart';
 import 'package:flutter/material.dart';
@@ -34,8 +32,9 @@ class ComicCard extends StatelessWidget {
             child: InkWell(
               splashColor: Colors.blue.withAlpha(30),
               onTap: () async {
-                final readerModel = context.read<ComicReaderModel>();
-                await readerModel.loadComicDetail(comic.id);
+                await context.read<ComicCardActionCoordinator>().openComic(
+                  comic,
+                );
                 if (!context.mounted) {
                   return;
                 }
@@ -45,7 +44,10 @@ class ComicCard extends StatelessWidget {
                     queryParameters: <String, String>{'id': comic.id},
                   ).toString(),
                 );
-                readerModel.clearComic();
+                if (!context.mounted) {
+                  return;
+                }
+                context.read<ComicReaderModel>().clearComic();
               },
               onLongPress: collectionType == null
                   ? null
@@ -86,7 +88,6 @@ class ComicCard extends StatelessWidget {
   }
 
   Future<void> _showRemoveDialog(BuildContext context) async {
-    final feedModel = context.read<ComicFeedModel>();
     final shouldRemove = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -113,26 +114,31 @@ class ComicCard extends StatelessWidget {
       return;
     }
 
-    if (collectionType == CollectionType.favorite) {
-      await _toggleFavorite(context);
+    final result = await context.read<ComicCardActionCoordinator>().removeFromCollection(
+      comic: comic,
+      collectionType: collectionType!,
+    );
+    if (!context.mounted) {
       return;
     }
-
-    await context.read<RemoveComicFromCollectionUseCase>().execute(
-      collectionType: collectionType!,
-      comicId: comic.id,
-    );
-    feedModel.refreshCollections();
-    onCollectionChanged?.call();
+    if (result.triggerHaptic) {
+      HapticFeedback.lightImpact();
+    }
+    if (result.message != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result.message!)));
+    }
+    if (result.shouldRefreshCollection) {
+      onCollectionChanged?.call();
+    }
   }
 
   Future<void> _saveToCollection(
     BuildContext context,
     CollectionType targetCollection,
   ) async {
-    final feedModel = context.read<ComicFeedModel>();
-
-    await context.read<SaveComicToCollectionUseCase>().execute(
+    final result = await context.read<ComicCardActionCoordinator>().saveToCollection(
       comic: comic,
       targetCollection: targetCollection,
     );
@@ -141,37 +147,34 @@ class ComicCard extends StatelessWidget {
       return;
     }
 
-    feedModel.refreshCollections();
-    HapticFeedback.lightImpact();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Added comic to ${targetCollection.displayName}')),
-    );
+    if (result.triggerHaptic) {
+      HapticFeedback.lightImpact();
+    }
+    if (result.message != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result.message!)));
+    }
   }
 
   Future<void> _toggleFavorite(BuildContext context) async {
-    final favoriteModel = context.read<FavoriteSyncModel>();
-    final feedModel = context.read<ComicFeedModel>();
-
-    final success = await favoriteModel.toggleFavorite(comic);
+    final result = await context.read<ComicCardActionCoordinator>().toggleFavorite(
+      comic: comic,
+      collectionType: collectionType,
+    );
     if (!context.mounted) {
       return;
     }
 
-    feedModel.refreshCollections();
-    final isFavorite = favoriteModel.isFavorite(comic.id);
-    final message = success
-        ? isFavorite
-              ? 'Added comic to Website Favorite'
-              : 'Removed comic from Website Favorite'
-        : favoriteModel.syncError ?? 'Failed to update Website Favorite';
-    if (success) {
+    if (result.triggerHaptic) {
       HapticFeedback.lightImpact();
     }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-
-    if (success && collectionType == CollectionType.favorite) {
+    if (result.message != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result.message!)));
+    }
+    if (result.shouldRefreshCollection) {
       onCollectionChanged?.call();
     }
   }

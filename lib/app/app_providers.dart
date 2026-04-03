@@ -5,6 +5,10 @@ import 'package:concept_nhv/application/favorites/sync_remote_favorites_use_case
 import 'package:concept_nhv/application/favorites/toggle_favorite_use_case.dart';
 import 'package:concept_nhv/application/feed/load_collection_summaries_use_case.dart';
 import 'package:concept_nhv/application/feed/search_comics_use_case.dart';
+import 'package:concept_nhv/application/home/app_shell_navigation_controller.dart';
+import 'package:concept_nhv/application/home/home_shell_controller.dart';
+import 'package:concept_nhv/application/library/collection_page_coordinator.dart';
+import 'package:concept_nhv/application/library/comic_card_action_coordinator.dart';
 import 'package:concept_nhv/application/library/load_collection_comics_use_case.dart';
 import 'package:concept_nhv/application/library/remove_comic_from_collection_use_case.dart';
 import 'package:concept_nhv/application/library/save_comic_to_collection_use_case.dart';
@@ -181,6 +185,36 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
         loadComicDetailUseCase: context.read(),
         openComicUseCase: context.read(),
         readerProgressRepository: context.read(),
+      ),
+    ),
+    Provider(
+      create: (context) => AppShellNavigationController(
+        homeUiModel: context.read(),
+        feedModel: context.read(),
+      ),
+    ),
+    Provider(
+      create: (context) => HomeShellController(
+        searchHistoryRepository: context.read(),
+        homeUiModel: context.read(),
+        feedModel: context.read(),
+        readerModel: context.read(),
+      ),
+    ),
+    Provider(
+      create: (context) => CollectionPageCoordinator(
+        loadCollectionComicsUseCase: context.read(),
+        favoriteSyncModel: context.read(),
+        feedModel: context.read(),
+      ),
+    ),
+    Provider(
+      create: (context) => ComicCardActionCoordinator(
+        saveComicToCollectionUseCase: context.read(),
+        removeComicFromCollectionUseCase: context.read(),
+        favoriteSyncModel: context.read(),
+        feedModel: context.read(),
+        readerModel: context.read(),
       ),
     ),
   ];
