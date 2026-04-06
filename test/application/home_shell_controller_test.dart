@@ -12,6 +12,7 @@ import 'package:concept_nhv/storage/reader_progress_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../test_support/fakes/fake_nhentai_gateway.dart';
+import '../test_support/fakes/fake_reader_settings_repository.dart';
 import '../test_support/fixtures/sample_comic.dart';
 import '../test_support/storage/sqlite_test_harness.dart';
 
@@ -47,6 +48,7 @@ void main() {
         readerProgressRepository: ReaderProgressStore(
           optionsStore: OptionsStore(localDatabase: harness.localDatabase),
         ),
+        readerSettingsRepository: FakeReaderSettingsRepository(),
       );
       controller = HomeShellController(
         searchHistoryRepository: harness.searchHistoryRepository,
@@ -59,7 +61,6 @@ void main() {
     tearDown(() async {
       homeUiModel.searchController.dispose();
       homeUiModel.dispose();
-      readerModel.scrollController.dispose();
       readerModel.dispose();
       feedModel.dispose();
       await harness.dispose();

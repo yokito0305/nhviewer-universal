@@ -18,6 +18,7 @@ import 'package:concept_nhv/state/comic_reader_model.dart';
 import 'package:concept_nhv/state/favorite_sync_model.dart';
 import 'package:concept_nhv/storage/options_store.dart';
 import 'package:concept_nhv/storage/reader_progress_store.dart';
+import '../test_support/fakes/fake_reader_settings_repository.dart';
 import 'package:concept_nhv/storage/nhentai_api_key_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -91,6 +92,7 @@ void main() {
         readerProgressRepository: ReaderProgressStore(
           optionsStore: OptionsStore(localDatabase: harness.localDatabase),
         ),
+        readerSettingsRepository: FakeReaderSettingsRepository(),
       );
       coordinator = ComicCardActionCoordinator(
         saveComicToCollectionUseCase: SaveComicToCollectionUseCase(
@@ -107,7 +109,6 @@ void main() {
     });
 
     tearDown(() async {
-      readerModel.scrollController.dispose();
       readerModel.dispose();
       favoriteSyncModel.dispose();
       feedModel.dispose();

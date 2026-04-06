@@ -15,6 +15,7 @@ import 'package:concept_nhv/application/library/save_comic_to_collection_use_cas
 import 'package:concept_nhv/application/reader/load_comic_detail_use_case.dart';
 import 'package:concept_nhv/application/reader/open_comic_use_case.dart';
 import 'package:concept_nhv/application/reader/reader_progress_repository.dart';
+import 'package:concept_nhv/application/reader/reader_settings_repository.dart';
 import 'package:concept_nhv/services/image_url_resolver.dart';
 import 'package:concept_nhv/services/library_import_service.dart';
 import 'package:concept_nhv/services/comic_page_source_resolver.dart';
@@ -33,6 +34,7 @@ import 'package:concept_nhv/storage/local_database.dart';
 import 'package:concept_nhv/storage/nhentai_api_key_store.dart';
 import 'package:concept_nhv/storage/options_store.dart';
 import 'package:concept_nhv/storage/reader_progress_store.dart';
+import 'package:concept_nhv/storage/reader_settings_store.dart';
 import 'package:concept_nhv/storage/search_history_repository.dart';
 import 'package:concept_nhv/storage/secure_key_value_store.dart';
 import 'package:provider/provider.dart';
@@ -61,6 +63,9 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
     ),
     Provider<ReaderProgressRepository>(
       create: (context) => ReaderProgressStore(optionsStore: context.read()),
+    ),
+    Provider<ReaderSettingsRepository>(
+      create: (context) => ReaderSettingsStore(optionsStore: context.read()),
     ),
     Provider(create: (_) => const SearchQueryBuilder()),
     Provider(create: (_) => const ComicPageSourceResolver()),
@@ -181,11 +186,16 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
       },
     ),
     ChangeNotifierProvider(
-      create: (context) => ComicReaderModel(
-        loadComicDetailUseCase: context.read(),
-        openComicUseCase: context.read(),
-        readerProgressRepository: context.read(),
-      ),
+      create: (context) {
+        final model = ComicReaderModel(
+          loadComicDetailUseCase: context.read(),
+          openComicUseCase: context.read(),
+          readerProgressRepository: context.read(),
+          readerSettingsRepository: context.read(),
+        );
+        model.loadSettings();
+        return model;
+      },
     ),
     Provider(
       create: (context) => AppShellNavigationController(

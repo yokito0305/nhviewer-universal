@@ -47,6 +47,7 @@ dependencies:
   path_provider: ^2.1.2
   path: ^1.8.3
   cached_network_image: ^3.3.1
+  flutter_cache_manager: ^3.3.1
   flutter_launcher_icons: ^0.14.4
   flutter_displaymode: ^0.7.0
   freezed_annotation: ^3.1.0

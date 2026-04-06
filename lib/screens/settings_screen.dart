@@ -1,9 +1,12 @@
+import 'package:concept_nhv/application/reader/reader_settings_repository.dart';
 import 'package:concept_nhv/models/comic_language.dart';
 import 'package:concept_nhv/services/library_import_service.dart';
 import 'package:concept_nhv/services/nhentai_auth_service.dart';
 import 'package:concept_nhv/state/comic_feed_model.dart';
+import 'package:concept_nhv/state/comic_reader_model.dart';
 import 'package:concept_nhv/state/favorite_sync_model.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:provider/provider.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -17,15 +20,26 @@ class SettingsScreen extends StatelessWidget {
           const SliverAppBar(title: Text('Settings')),
           SliverList.list(
             children: <Widget>[
+              // ── nhentai API ──────────────────────────────────────────────
               const ListTile(title: Text('nhentai API Key')),
               _buildSessionStatusTile(context),
               _buildLoginTile(context),
               _buildSyncFavoritesTile(context),
               _buildLogoutTile(context),
               const Divider(),
+
+              // ── Reader ───────────────────────────────────────────────────
+              const ListTile(title: Text('Reader')),
+              _buildPrefetchCountTile(context),
+              _buildClearCacheTile(context),
+              const Divider(),
+
+              // ── General ──────────────────────────────────────────────────
               _buildLanguageTile(context),
               _buildDiagnoseTile(),
               const Divider(),
+
+              // ── About ────────────────────────────────────────────────────
               const ListTile(title: Text('About')),
               _buildImportTile(context),
               const Divider(),
@@ -36,6 +50,10 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // nhentai API tiles
+  // ---------------------------------------------------------------------------
 
   Widget _buildSessionStatusTile(BuildContext context) {
     final favoriteModel = context.watch<FavoriteSyncModel>();
@@ -94,9 +112,7 @@ class SettingsScreen extends StatelessWidget {
         final favoriteModel = context.read<FavoriteSyncModel>();
         final feedModel = context.read<ComicFeedModel>();
         final ok = await favoriteModel.syncFavorites();
-        if (!context.mounted) {
-          return;
-        }
+        if (!context.mounted) return;
 
         feedModel.refreshCollections();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -157,6 +173,63 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Reader tiles
+  // ---------------------------------------------------------------------------
+
+  /// Shows the current prefetch page count and allows changing it via a slider.
+  Widget _buildPrefetchCountTile(BuildContext context) {
+    final readerModel = context.watch<ComicReaderModel>();
+    final count = readerModel.prefetchPageCount;
+    return ListTile(
+      title: const Text('Pre-fetch Pages'),
+      subtitle: Text(
+        'Cache $count page(s) before and after the current page (default: '
+        '${ReaderSettingsRepository.defaultPrefetchPageCount})',
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _showPrefetchDialog(context, readerModel),
+    );
+  }
+
+  Future<void> _showPrefetchDialog(
+    BuildContext context,
+    ComicReaderModel model,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return _PrefetchCountDialog(model: model);
+      },
+    );
+  }
+
+  /// Clears all cached images from disk and memory.
+  Widget _buildClearCacheTile(BuildContext context) {
+    return ListTile(
+      title: const Text('Clear Image Cache'),
+      subtitle: const Text('Delete all cached comic images from disk'),
+      trailing: const Icon(Icons.delete_outline),
+      onTap: () async {
+        final messenger = ScaffoldMessenger.of(context);
+        // Disk cache (flutter_cache_manager / cached_network_image)
+        await DefaultCacheManager().emptyCache();
+        // Flutter's in-memory image cache
+        PaintingBinding.instance.imageCache.clear();
+        PaintingBinding.instance.imageCache.clearLiveImages();
+
+        if (!context.mounted) return;
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Image cache cleared')),
+        );
+      },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // General tiles
+  // ---------------------------------------------------------------------------
+
   Widget _buildLanguageTile(BuildContext context) {
     final feedModel = context.watch<ComicFeedModel>();
     return ListTile(
@@ -179,9 +252,7 @@ class SettingsScreen extends StatelessWidget {
           },
         );
 
-        if (selected == null || !context.mounted) {
-          return;
-        }
+        if (selected == null || !context.mounted) return;
 
         feedModel.setLanguage(selected);
         messenger.clearSnackBars();
@@ -198,6 +269,10 @@ class SettingsScreen extends StatelessWidget {
       subtitle: Text('Reserved for future diagnostics'),
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // About tiles
+  // ---------------------------------------------------------------------------
 
   Widget _buildImportTile(BuildContext context) {
     return ListTile(
@@ -218,9 +293,7 @@ class SettingsScreen extends StatelessWidget {
           },
         );
 
-        if (url == null || url.isEmpty || !context.mounted) {
-          return;
-        }
+        if (url == null || url.isEmpty || !context.mounted) return;
 
         await context.read<LibraryImportService>().importFromBaseUrl(url);
         feedModel.refreshCollections();
@@ -232,6 +305,80 @@ class SettingsScreen extends StatelessWidget {
     return ListTile(
       title: const Text('Open Source Licenses'),
       onTap: () => showLicensePage(context: context),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Prefetch count dialog widget
+// ---------------------------------------------------------------------------
+
+class _PrefetchCountDialog extends StatefulWidget {
+  const _PrefetchCountDialog({required this.model});
+
+  final ComicReaderModel model;
+
+  @override
+  State<_PrefetchCountDialog> createState() => _PrefetchCountDialogState();
+}
+
+class _PrefetchCountDialogState extends State<_PrefetchCountDialog> {
+  late int _count;
+
+  @override
+  void initState() {
+    super.initState();
+    _count = widget.model.prefetchPageCount;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Pre-fetch Pages'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Pre-cache $_count page(s) before and after the current page.',
+          ),
+          const SizedBox(height: 16),
+          Slider(
+            value: _count.toDouble(),
+            min: ReaderSettingsRepository.minPrefetchPageCount.toDouble(),
+            max: ReaderSettingsRepository.maxPrefetchPageCount.toDouble(),
+            divisions: ReaderSettingsRepository.maxPrefetchPageCount -
+                ReaderSettingsRepository.minPrefetchPageCount,
+            label: '$_count',
+            onChanged: (value) => setState(() => _count = value.round()),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${ReaderSettingsRepository.minPrefetchPageCount}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              Text(
+                '${ReaderSettingsRepository.maxPrefetchPageCount}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            widget.model.savePrefetchPageCount(_count);
+            Navigator.of(context).pop();
+          },
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }
