@@ -21,8 +21,11 @@ class ComicFeedModel extends ChangeNotifier {
   bool _noMorePage = false;
   String _lastQuery = '';
   String? _feedErrorMessage;
+  bool _includePersistentTagFiltersForCurrentQuery = true;
+  ComicLanguage _languageForCurrentQuery = ComicLanguage.chinese;
   ComicLanguage currentLanguage = ComicLanguage.chinese;
   PopularSortType? sortByPopularType;
+  List<String> _tagFilters = <String>[];
 
   List<Comic>? get comics {
     if (_comics.isEmpty) {
@@ -34,6 +37,7 @@ class ComicFeedModel extends ChangeNotifier {
   bool get noMorePage => _noMorePage;
   int get comicsLoaded => _comics.length;
   String? get feedErrorMessage => _feedErrorMessage;
+  List<String> get tagFilters => List<String>.unmodifiable(_tagFilters);
 
   void setLanguage(ComicLanguage language) {
     currentLanguage = language;
@@ -45,13 +49,28 @@ class ComicFeedModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setSortType(PopularSortType? type) {
+    sortByPopularType = type;
+    notifyListeners();
+  }
+
+  void setTagFilters(List<String> tags) {
+    _tagFilters = List<String>.from(tags);
+    notifyListeners();
+  }
+
   void refreshCollections() {
     collectionSummariesFuture = loadCollectionSummariesUseCase.execute();
     notifyListeners();
   }
 
   Future<int?> loadHomeFeed({int page = 1, bool clearComic = false}) {
-    return searchComics(query: '', page: page, clearComic: clearComic);
+    return searchComics(
+      query: '',
+      page: page,
+      clearComic: clearComic,
+      includeTagFilters: true,
+    );
   }
 
   Future<int?> searchComics({
@@ -59,6 +78,8 @@ class ComicFeedModel extends ChangeNotifier {
     int page = 1,
     PopularSortType? sortType,
     bool clearComic = false,
+    bool includeTagFilters = true,
+    ComicLanguage? languageOverride,
   }) async {
     if (clearComic) {
       _comics.clear();
@@ -66,10 +87,19 @@ class ComicFeedModel extends ChangeNotifier {
     }
 
     _lastQuery = query;
+    _includePersistentTagFiltersForCurrentQuery = includeTagFilters;
+    _languageForCurrentQuery = languageOverride ?? currentLanguage;
+    final combinedQuery = [
+      query,
+      if (includeTagFilters) ..._tagFilters,
+    ]
+        .where((s) => s.isNotEmpty)
+        .join(' ')
+        .trim();
     final result = await searchComicsUseCase.execute(
-      query: query,
+      query: combinedQuery,
       page: page,
-      language: currentLanguage,
+      language: _languageForCurrentQuery,
       sortType: sortType ?? sortByPopularType,
     );
 
@@ -83,12 +113,19 @@ class ComicFeedModel extends ChangeNotifier {
     return result.statusCode;
   }
 
-  Future<void> fetchNextPage({int? page}) async {
+  Future<void> fetchNextPage({
+    int? page,
+    bool? includeTagFilters,
+    ComicLanguage? languageOverride,
+  }) async {
     final targetPage = page ?? pageLoaded + 1;
     await searchComics(
       query: _lastQuery,
       page: targetPage,
       clearComic: targetPage == 1,
+      includeTagFilters:
+          includeTagFilters ?? _includePersistentTagFiltersForCurrentQuery,
+      languageOverride: languageOverride ?? _languageForCurrentQuery,
     );
   }
 }

@@ -14,12 +14,16 @@ class ComicGridSliver extends StatelessWidget {
     this.pageLoaded,
     this.collectionType,
     this.onCollectionChanged,
+    this.onTagSelected,
   });
 
   final List<ComicCardData> comics;
   final int? pageLoaded;
   final CollectionType? collectionType;
   final VoidCallback? onCollectionChanged;
+
+  /// Forwarded to each [ComicCard]; called when a tag chip is tapped.
+  final ValueChanged<List<String>>? onTagSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +63,7 @@ class ComicGridSliver extends StatelessWidget {
           comic: comics[index],
           collectionType: collectionType,
           onCollectionChanged: onCollectionChanged,
+          onTagSelected: onTagSelected,
         );
       }, childCount: comics.length),
     );

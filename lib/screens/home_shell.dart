@@ -5,10 +5,10 @@ import 'package:concept_nhv/application/home/home_shell_controller.dart';
 import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/comic_reader_model.dart';
 import 'package:concept_nhv/state/home_ui_model.dart';
-import 'package:concept_nhv/storage/search_history_repository.dart';
 import 'package:concept_nhv/widgets/collection_grid_sliver.dart';
 import 'package:concept_nhv/widgets/comic_grid_sliver.dart';
 import 'package:concept_nhv/widgets/loading_indicator_bar.dart';
+import 'package:concept_nhv/widgets/search_suggestions_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -57,27 +57,15 @@ class _HomeShellState extends State<HomeShell> {
                   barHintText: 'Search comic',
                   barElevation: WidgetStateProperty.all(0),
                   suggestionsBuilder: (buildContext, controller) {
-                    return context.read<SearchHistoryRepository>().load().then(
-                      (entries) => entries.map((entry) {
-                        return ListTile(
-                          titleAlignment: ListTileTitleAlignment.center,
-                          title: Text(entry.query),
-                          trailing: Text(entry.createdAt.toString()),
-                          onTap: () =>
-                              _handleSearchSubmit(context, entry.query),
-                          onLongPress: () async {
-                            await context
-                                .read<SearchHistoryRepository>()
-                                .remove(entry.query);
-                            if (!mounted) {
-                              return;
-                            }
-                            homeUiModel.searchController.text =
-                                homeUiModel.searchController.text;
-                          },
-                        );
-                      }),
-                    );
+                    return <Widget>[
+                      SizedBox(
+                        height: MediaQuery.sizeOf(buildContext).height * 0.56,
+                        child: SearchSuggestionsPanel(
+                          onHistorySelected: (query) =>
+                              _handleSearchSubmit(context, query),
+                        ),
+                      ),
+                    ];
                   },
                 ),
               ),
@@ -133,6 +121,8 @@ class _HomeShellState extends State<HomeShell> {
             return ComicGridSliver(
               comics: comics.map(ComicCardData.fromComic).toList(),
               pageLoaded: feedModel.pageLoaded,
+              onTagSelected: (tagQueries) =>
+                  _handleTagSelected(context, tagQueries),
             );
           },
         );
@@ -158,6 +148,13 @@ class _HomeShellState extends State<HomeShell> {
       return;
     }
     readerModel.clearComic();
+  }
+
+  Future<void> _handleTagSelected(
+    BuildContext context,
+    List<String> tagQueries,
+  ) async {
+    await context.read<HomeShellController>().submitTagSearch(tagQueries);
   }
 
   Future<void> _retryHomeFeed(BuildContext context) async {

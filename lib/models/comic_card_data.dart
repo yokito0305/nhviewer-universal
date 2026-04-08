@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:concept_nhv/models/comic.dart';
 import 'package:concept_nhv/models/comic_images.dart';
 import 'package:concept_nhv/models/comic_page_image.dart';
+import 'package:concept_nhv/models/comic_tag.dart';
 import 'package:concept_nhv/models/collection_summary.dart';
 import 'package:concept_nhv/models/image_format.dart';
 import 'package:concept_nhv/models/stored_comic.dart';
@@ -17,6 +18,7 @@ class ComicCardData {
     required this.thumbnailUrl,
     required this.thumbnailWidth,
     required this.thumbnailHeight,
+    this.tags = const <ComicTag>[],
   });
 
   final String id;
@@ -27,6 +29,7 @@ class ComicCardData {
   final String thumbnailUrl;
   final int thumbnailWidth;
   final int thumbnailHeight;
+  final List<ComicTag> tags;
 
   factory ComicCardData.fromComic(Comic comic) {
     final thumbnail = comic.images.thumbnail;
@@ -39,6 +42,7 @@ class ComicCardData {
       thumbnailUrl: _buildThumbnailUrl(comic.mediaId, thumbnail),
       thumbnailWidth: thumbnail?.w ?? 9,
       thumbnailHeight: thumbnail?.h ?? 16,
+      tags: comic.tags,
     );
   }
 

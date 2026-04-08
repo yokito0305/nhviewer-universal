@@ -1,4 +1,5 @@
 import 'package:concept_nhv/application/library/collection_page_coordinator.dart';
+import 'package:concept_nhv/application/home/home_shell_controller.dart';
 import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/models/comic_card_data.dart';
 import 'package:concept_nhv/state/favorite_sync_model.dart';
@@ -144,6 +145,8 @@ class _CollectionComicSliverState extends State<CollectionComicSliver> {
           comics: comics,
           collectionType: widget.collectionType,
           onCollectionChanged: _refresh,
+          onTagSelected: (tagQueries) =>
+              context.read<HomeShellController>().submitTagSearch(tagQueries),
         );
       },
     );

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:concept_nhv/models/tag_catalog_type.dart';
 import 'package:concept_nhv/services/nhentai_api_client.dart';
 import 'package:concept_nhv/services/nhentai_cdn_config_service.dart';
 import 'package:concept_nhv/storage/nhentai_api_key_store.dart';
@@ -141,6 +142,85 @@ void main() {
       expect(result.comic.images.pages.single.t, 'w');
       expect(result.comic.tags.single.name, 'sample');
       expect(result.comic.numFavorites, 10);
+    });
+
+    test('loadComicTags reuses cached detail tags on repeated requests', () async {
+      final adapter = _QueueHttpClientAdapter(<_StubbedResponse>[
+        _StubbedResponse(
+          body: jsonEncode(<String, Object?>{
+            'id': 123,
+            'media_id': '456',
+            'title': <String, Object?>{
+              'english': 'Detail Comic',
+              'japanese': 'Detail Comic JP',
+              'pretty': 'Detail Comic Pretty',
+            },
+            'pages': <Map<String, Object?>>[],
+            'tags': <Map<String, Object?>>[
+              <String, Object?>{
+                'id': 2,
+                'type': 'language',
+                'name': 'chinese',
+                'slug': 'chinese',
+                'url': '/language/chinese/',
+                'count': 5,
+              },
+            ],
+            'num_pages': 0,
+          }),
+        ),
+      ]);
+      final dio = Dio()..httpClientAdapter = adapter;
+      final client = NhentaiApiClient(
+        apiKeyStore: apiKeyStore,
+        cdnConfigService: NhentaiCdnConfigService(dio: dio),
+        dio: dio,
+      );
+
+      final first = await client.loadComicTags('123');
+      final second = await client.loadComicTags('123');
+
+      expect(first.single.name, 'chinese');
+      expect(second.single.name, 'chinese');
+      expect(adapter.requests, hasLength(1));
+    });
+
+    test('loadTagCatalog maps tag catalog pagination payload', () async {
+      final adapter = _QueueHttpClientAdapter(<_StubbedResponse>[
+        _StubbedResponse(
+          body: jsonEncode(<String, Object?>{
+            'num_pages': 7,
+            'per_page': 120,
+            'result': <Map<String, Object?>>[
+              <String, Object?>{
+                'id': 29963,
+                'type': 'language',
+                'name': 'chinese',
+                'slug': 'chinese',
+                'url': '/language/chinese/',
+                'count': 9,
+              },
+            ],
+          }),
+        ),
+      ]);
+      final dio = Dio()..httpClientAdapter = adapter;
+      final client = NhentaiApiClient(
+        apiKeyStore: apiKeyStore,
+        cdnConfigService: NhentaiCdnConfigService(dio: dio),
+        dio: dio,
+      );
+
+      final result = await client.loadTagCatalog(
+        type: TagCatalogType.language,
+        page: 3,
+      );
+
+      expect(result.page, 3);
+      expect(result.numPages, 7);
+      expect(result.perPage, 120);
+      expect(result.result.single.query, 'language:chinese');
+      expect(adapter.requests.single.options.uri.queryParameters['sort'], 'popular');
     });
   });
 }

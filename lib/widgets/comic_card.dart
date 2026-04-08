@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'comic_tag_bottom_sheet.dart';
 import 'fallback_cached_network_image.dart';
 
 class ComicCard extends StatelessWidget {
@@ -16,11 +17,16 @@ class ComicCard extends StatelessWidget {
     required this.comic,
     this.collectionType,
     this.onCollectionChanged,
+    this.onTagSelected,
   });
 
   final ComicCardData comic;
   final CollectionType? collectionType;
   final VoidCallback? onCollectionChanged;
+
+  /// Called when user taps a tag inside the tag sheet.
+  /// Receives the selected search queries (e.g. ["tag:full-color"]).
+  final ValueChanged<List<String>>? onTagSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -49,9 +55,7 @@ class ComicCard extends StatelessWidget {
                 }
                 context.read<ComicReaderModel>().clearComic();
               },
-              onLongPress: collectionType == null
-                  ? null
-                  : () => _showRemoveDialog(context),
+              onLongPress: () => _showTagSheet(context),
               child: FallbackCachedNetworkImage(
                 url: comic.thumbnailUrl,
                 width: comic.thumbnailWidth,
@@ -87,7 +91,22 @@ class ComicCard extends StatelessWidget {
     );
   }
 
-  Future<void> _showRemoveDialog(BuildContext context) async {
+  Future<void> _showTagSheet(BuildContext context) async {
+    HapticFeedback.selectionClick();
+    await ComicTagBottomSheet.show(
+      context: context,
+      title: comic.title,
+      tags: comic.tags,
+      loadTags: () => context.read<ComicCardActionCoordinator>().loadComicTags(comic),
+      onSearchSelected: (queries) => onTagSelected?.call(queries),
+      collectionType: collectionType,
+      onRemoveFromCollection: collectionType != null
+          ? () => _removeFromCollection(context)
+          : null,
+    );
+  }
+
+  Future<void> _removeFromCollection(BuildContext context) async {
     final shouldRemove = await showDialog<bool>(
       context: context,
       builder: (context) {

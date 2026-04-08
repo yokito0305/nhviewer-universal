@@ -4,6 +4,9 @@ import 'package:concept_nhv/models/comic_page_image.dart';
 import 'package:concept_nhv/models/comic_search_response.dart';
 import 'package:concept_nhv/models/comic_tag.dart';
 import 'package:concept_nhv/models/comic_title.dart';
+import 'package:concept_nhv/models/tag_catalog_item.dart';
+import 'package:concept_nhv/models/tag_catalog_page.dart';
+import 'package:concept_nhv/models/tag_catalog_type.dart';
 import 'package:concept_nhv/services/nhentai_cdn_config_service.dart';
 import 'package:concept_nhv/storage/nhentai_api_key_store.dart';
 import 'package:dio/dio.dart';
@@ -16,6 +19,13 @@ abstract class NhentaiGateway {
   Future<({Comic comic, Map<String, String>? headers})> loadComicDetail(
     String comicId,
   );
+
+  Future<List<ComicTag>> loadComicTags(String comicId);
+
+  Future<TagCatalogPage> loadTagCatalog({
+    required TagCatalogType type,
+    required int page,
+  });
 }
 
 class NhentaiApiClient implements NhentaiGateway {
@@ -28,6 +38,7 @@ class NhentaiApiClient implements NhentaiGateway {
   final NhentaiApiKeyStore apiKeyStore;
   final NhentaiCdnConfigService cdnConfigService;
   final Dio _dio;
+  final Map<String, List<ComicTag>> _comicTagCache = <String, List<ComicTag>>{};
 
   @override
   Future<void> pingHomepage() async {
@@ -56,6 +67,40 @@ class NhentaiApiClient implements NhentaiGateway {
     return (
       comic: _mapComicDetail(result.data as Map<String, dynamic>),
       headers: null,
+    );
+  }
+
+  @override
+  Future<List<ComicTag>> loadComicTags(String comicId) async {
+    final cached = _comicTagCache[comicId];
+    if (cached != null) {
+      return cached;
+    }
+
+    final result = await _get(
+      Uri.https('nhentai.net', '/api/v2/galleries/$comicId'),
+    );
+    final comic = _mapComicDetail(result.data as Map<String, dynamic>);
+    _comicTagCache[comic.id] = comic.tags;
+    return comic.tags;
+  }
+
+  @override
+  Future<TagCatalogPage> loadTagCatalog({
+    required TagCatalogType type,
+    required int page,
+  }) async {
+    final result = await _get(
+      Uri.https(
+        'nhentai.net',
+        '/api/v2/tags/${type.apiValue}',
+        <String, String>{'sort': 'popular', 'page': '$page'},
+      ),
+    );
+
+    return _mapTagCatalogPage(
+      result.data as Map<String, dynamic>,
+      page: page,
     );
   }
 
@@ -118,7 +163,7 @@ class NhentaiApiClient implements NhentaiGateway {
     final cover = json['cover'] as Map<String, dynamic>?;
     final thumbnail = json['thumbnail'] as Map<String, dynamic>?;
 
-    return Comic(
+    final comic = Comic(
       id: '${json['id']}',
       mediaId: '${json['media_id']}',
       title: ComicTitle.fromJson(json['title'] as Map<String, dynamic>),
@@ -132,6 +177,35 @@ class NhentaiApiClient implements NhentaiGateway {
       tags: tags.map(ComicTag.fromJson).toList(growable: false),
       numPages: (json['num_pages'] as num?)?.toInt() ?? pages.length,
       numFavorites: (json['num_favorites'] as num?)?.toInt(),
+    );
+    _comicTagCache[comic.id] = comic.tags;
+    return comic;
+  }
+
+  TagCatalogPage _mapTagCatalogPage(
+    Map<String, dynamic> json, {
+    required int page,
+  }) {
+    final result = List<Map<String, dynamic>>.from(
+      json['result'] as List<dynamic>? ?? const <dynamic>[],
+    );
+
+    return TagCatalogPage(
+      result: result.map(_mapTagCatalogItem).toList(growable: false),
+      numPages: (json['num_pages'] as num?)?.toInt() ?? 1,
+      perPage: (json['per_page'] as num?)?.toInt() ?? result.length,
+      page: page,
+    );
+  }
+
+  TagCatalogItem _mapTagCatalogItem(Map<String, dynamic> json) {
+    return TagCatalogItem(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      type: json['type'] as String? ?? 'tag',
+      name: json['name'] as String? ?? '',
+      slug: json['slug'] as String? ?? '',
+      url: json['url'] as String? ?? '',
+      count: (json['count'] as num?)?.toInt() ?? 0,
     );
   }
 

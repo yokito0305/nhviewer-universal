@@ -4,6 +4,7 @@ import 'package:concept_nhv/application/home/home_shell_controller.dart';
 import 'package:concept_nhv/application/reader/load_comic_detail_use_case.dart';
 import 'package:concept_nhv/application/reader/open_comic_use_case.dart';
 import 'package:concept_nhv/services/search_query_builder.dart';
+import 'package:concept_nhv/services/tag_search_query_builder.dart';
 import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/comic_reader_model.dart';
 import 'package:concept_nhv/state/home_ui_model.dart';
@@ -23,14 +24,16 @@ void main() {
     late ComicFeedModel feedModel;
     late ComicReaderModel readerModel;
     late HomeShellController controller;
+    late FakeNhentaiGateway gateway;
 
     setUp(() async {
       harness = SqliteTestHarness();
       await harness.initialize();
       homeUiModel = HomeUiModel();
+      gateway = FakeNhentaiGateway();
       feedModel = ComicFeedModel(
         searchComicsUseCase: SearchComicsUseCase(
-          nhentaiGateway: FakeNhentaiGateway(),
+          nhentaiGateway: gateway,
           searchQueryBuilder: const SearchQueryBuilder(),
         ),
         loadCollectionSummariesUseCase: LoadCollectionSummariesUseCase(
@@ -55,6 +58,7 @@ void main() {
         homeUiModel: homeUiModel,
         feedModel: feedModel,
         readerModel: readerModel,
+        tagSearchQueryBuilder: const TagSearchQueryBuilder(),
       );
     });
 
@@ -87,6 +91,25 @@ void main() {
       expect(homeUiModel.isLoading, isFalse);
       expect(feedModel.comicsLoaded, greaterThan(0));
       expect(history.first.query, 'tag:test');
+    });
+
+    test('submitTagSearch saves history and ignores persistent tag filters', () async {
+      homeUiModel.setNavigationIndex(2);
+      feedModel.setTagFilters(<String>['tag:ignored']);
+
+      await controller.submitTagSearch(<String>[
+        'language:chinese',
+        'tag:full-color',
+      ]);
+      final history = await harness.searchHistoryRepository.load();
+
+      expect(homeUiModel.navigationIndex, 0);
+      expect(homeUiModel.searchController.text, 'language:chinese tag:full-color');
+      expect(history.first.query, 'language:chinese tag:full-color');
+      expect(
+        gateway.searchedUris.single.queryParameters['query'],
+        'language:chinese tag:full-color',
+      );
     });
   });
 }

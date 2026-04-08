@@ -1,11 +1,13 @@
 import 'package:concept_nhv/application/home/app_shell_navigation_controller.dart';
-import 'package:concept_nhv/models/popular_sort_type.dart';
+import 'package:concept_nhv/application/home/home_shell_controller.dart';
 import 'package:concept_nhv/screens/bootstrap_screen.dart';
 import 'package:concept_nhv/screens/collection_screen.dart';
 import 'package:concept_nhv/screens/comic_reader_screen.dart';
 import 'package:concept_nhv/screens/home_shell.dart';
 import 'package:concept_nhv/screens/settings_screen.dart';
+import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/home_ui_model.dart';
+import 'package:concept_nhv/widgets/sort_filter_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -68,15 +70,7 @@ class _AppShellScaffold extends StatelessWidget {
             return const SizedBox.shrink();
           }
 
-          return GestureDetector(
-            onLongPress: () =>
-                _toggleSortAndRefresh(context, PopularSortType.allTime),
-            child: FloatingActionButton(
-              onPressed: () =>
-                  _toggleSortAndRefresh(context, PopularSortType.month),
-              child: const Icon(Icons.sort),
-            ),
-          );
+          return _SortFilterFab();
         },
       ),
       bottomNavigationBar: Consumer<HomeUiModel>(
@@ -129,25 +123,34 @@ class _AppShellScaffold extends StatelessWidget {
       HapticFeedback.lightImpact();
     }
   }
+}
 
-  Future<void> _toggleSortAndRefresh(
-    BuildContext context,
-    PopularSortType type,
-  ) async {
-    final result = await context
-        .read<AppShellNavigationController>()
-        .toggleSortAndRefresh(type);
-    if (!context.mounted) {
-      return;
-    }
+/// FAB that opens the sort & filter sheet.
+///
+/// Shows a badge dot when any filter is active (sort type or tag filters).
+class _SortFilterFab extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ComicFeedModel>(
+      builder: (context, feedModel, _) {
+        final hasActiveFilters = feedModel.sortByPopularType != null ||
+            feedModel.tagFilters.isNotEmpty;
 
-    if (result.sortMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.sortMessage!),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
+        return Badge(
+          isLabelVisible: hasActiveFilters,
+          child: FloatingActionButton(
+            tooltip: 'Sort & Filter',
+            onPressed: () => _openSortFilter(context),
+            child: const Icon(Icons.tune),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openSortFilter(BuildContext context) async {
+    final applied = await SortFilterBottomSheet.show(context);
+    if (!context.mounted || !applied) return;
+    await context.read<HomeShellController>().applySortAndFilters();
   }
 }

@@ -10,6 +10,7 @@ import 'package:concept_nhv/application/library/remove_comic_from_collection_use
 import 'package:concept_nhv/application/library/save_comic_to_collection_use_case.dart';
 import 'package:concept_nhv/application/reader/load_comic_detail_use_case.dart';
 import 'package:concept_nhv/application/reader/open_comic_use_case.dart';
+import 'package:concept_nhv/application/tags/load_comic_tags_use_case.dart';
 import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/models/comic_card_data.dart';
 import 'package:concept_nhv/services/search_query_builder.dart';
@@ -105,6 +106,9 @@ void main() {
         favoriteSyncModel: favoriteSyncModel,
         feedModel: feedModel,
         readerModel: readerModel,
+        loadComicTagsUseCase: LoadComicTagsUseCase(
+          nhentaiGateway: FakeNhentaiGateway(),
+        ),
       );
     });
 
