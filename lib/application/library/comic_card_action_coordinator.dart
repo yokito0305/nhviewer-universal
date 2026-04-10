@@ -1,4 +1,4 @@
-import 'package:concept_nhv/application/tags/load_comic_tags_use_case.dart';
+import 'package:concept_nhv/application/tags/load_comic_meta_use_case.dart';
 import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/models/comic_card_data.dart';
 import 'package:concept_nhv/models/comic_tag.dart';
@@ -17,7 +17,7 @@ class ComicCardActionCoordinator {
     required this.favoriteSyncModel,
     required this.feedModel,
     required this.readerModel,
-    required this.loadComicTagsUseCase,
+    required this.loadComicMetaUseCase,
   });
 
   final SaveComicToCollectionUseCase saveComicToCollectionUseCase;
@@ -25,17 +25,19 @@ class ComicCardActionCoordinator {
   final FavoriteSyncModel favoriteSyncModel;
   final ComicFeedModel feedModel;
   final ComicReaderModel readerModel;
-  final LoadComicTagsUseCase loadComicTagsUseCase;
+  final LoadComicMetaUseCase loadComicMetaUseCase;
 
   Future<void> openComic(ComicCardData comic) {
     return readerModel.loadComicDetail(comic.id);
   }
 
-  Future<List<ComicTag>> loadComicTags(ComicCardData comic) async {
+  Future<({List<ComicTag> tags, int? numFavorites})> loadComicMeta(
+    ComicCardData comic,
+  ) async {
     if (comic.tags.isNotEmpty) {
-      return comic.tags;
+      return (tags: comic.tags, numFavorites: null);
     }
-    return loadComicTagsUseCase.execute(comic.id);
+    return loadComicMetaUseCase.execute(comic.id);
   }
 
   Future<ComicCardActionResult> saveToCollection({

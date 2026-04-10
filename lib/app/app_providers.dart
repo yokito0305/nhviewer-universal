@@ -16,7 +16,7 @@ import 'package:concept_nhv/application/reader/load_comic_detail_use_case.dart';
 import 'package:concept_nhv/application/reader/open_comic_use_case.dart';
 import 'package:concept_nhv/application/reader/reader_progress_repository.dart';
 import 'package:concept_nhv/application/reader/reader_settings_repository.dart';
-import 'package:concept_nhv/application/tags/load_comic_tags_use_case.dart';
+import 'package:concept_nhv/application/tags/load_comic_meta_use_case.dart';
 import 'package:concept_nhv/application/tags/load_tag_catalog_use_case.dart';
 import 'package:concept_nhv/services/image_url_resolver.dart';
 import 'package:concept_nhv/services/library_import_service.dart';
@@ -127,7 +127,7 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
       ),
     ),
     Provider(
-      create: (context) => LoadComicTagsUseCase(nhentaiGateway: context.read()),
+      create: (context) => LoadComicMetaUseCase(nhentaiGateway: context.read()),
     ),
     Provider(
       create: (context) => LoadTagCatalogUseCase(nhentaiGateway: context.read()),
@@ -242,7 +242,7 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
         favoriteSyncModel: context.read(),
         feedModel: context.read(),
         readerModel: context.read(),
-        loadComicTagsUseCase: context.read(),
+        loadComicMetaUseCase: context.read(),
       ),
     ),
   ];

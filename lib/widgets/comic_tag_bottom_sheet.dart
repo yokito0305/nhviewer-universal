@@ -9,14 +9,14 @@ class ComicTagBottomSheet extends StatefulWidget {
     required this.title,
     required this.initialTags,
     required this.onSearchSelected,
-    this.loadTags,
+    this.loadMeta,
     this.collectionType,
     this.onRemoveFromCollection,
   });
 
   final String title;
   final List<ComicTag> initialTags;
-  final Future<List<ComicTag>> Function()? loadTags;
+  final Future<({List<ComicTag> tags, int? numFavorites})> Function()? loadMeta;
   final ValueChanged<List<String>> onSearchSelected;
   final CollectionType? collectionType;
   final VoidCallback? onRemoveFromCollection;
@@ -26,7 +26,7 @@ class ComicTagBottomSheet extends StatefulWidget {
     required String title,
     required List<ComicTag> tags,
     required ValueChanged<List<String>> onSearchSelected,
-    Future<List<ComicTag>> Function()? loadTags,
+    Future<({List<ComicTag> tags, int? numFavorites})> Function()? loadMeta,
     CollectionType? collectionType,
     VoidCallback? onRemoveFromCollection,
   }) {
@@ -40,7 +40,7 @@ class ComicTagBottomSheet extends StatefulWidget {
       builder: (_) => ComicTagBottomSheet(
         title: title,
         initialTags: tags,
-        loadTags: loadTags,
+        loadMeta: loadMeta,
         onSearchSelected: onSearchSelected,
         collectionType: collectionType,
         onRemoveFromCollection: onRemoveFromCollection,
@@ -54,6 +54,7 @@ class ComicTagBottomSheet extends StatefulWidget {
 
 class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
   List<ComicTag>? _tags;
+  int? _numFavorites;
   String? _errorMessage;
   bool _isLoading = false;
   final Set<String> _selectedQueries = <String>{};
@@ -65,7 +66,7 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
       _tags = widget.initialTags;
       return;
     }
-    _loadTags();
+    _loadMeta();
   }
 
   @override
@@ -95,7 +96,7 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
               child: Text(
                 widget.title,
                 maxLines: 2,
@@ -103,6 +104,24 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
                 style: Theme.of(context).textTheme.titleSmall,
               ),
             ),
+            if (_numFavorites != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Row(
+                  children: <Widget>[
+                    Icon(
+                      Icons.favorite,
+                      size: 13,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _formatFavorites(_numFavorites),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
             const Divider(height: 1),
             Expanded(
               child: _buildBody(
@@ -201,7 +220,7 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
             Text(_errorMessage!),
             const SizedBox(height: 8),
             FilledButton(
-              onPressed: _loadTags,
+              onPressed: _loadMeta,
               child: const Text('Retry'),
             ),
           ],
@@ -238,9 +257,9 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
     );
   }
 
-  Future<void> _loadTags() async {
-    final loadTags = widget.loadTags;
-    if (loadTags == null) {
+  Future<void> _loadMeta() async {
+    final loadMeta = widget.loadMeta;
+    if (loadMeta == null) {
       setState(() {
         _tags = widget.initialTags;
       });
@@ -253,12 +272,13 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
     });
 
     try {
-      final tags = await loadTags();
+      final meta = await loadMeta();
       if (!mounted) {
         return;
       }
       setState(() {
-        _tags = tags;
+        _tags = meta.tags;
+        _numFavorites = meta.numFavorites;
         _isLoading = false;
       });
     } catch (_) {
@@ -270,6 +290,13 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
         _isLoading = false;
       });
     }
+  }
+
+  String _formatFavorites(int? count) {
+    if (count == null || count <= 0) return '0';
+    if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M';
+    if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}k';
+    return '$count';
   }
 
   void _handleSearch() {

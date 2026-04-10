@@ -104,8 +104,10 @@ class _SequenceNhentaiGateway implements NhentaiGateway {
   Future<void> pingHomepage() async {}
 
   @override
-  Future<List<ComicTag>> loadComicTags(String comicId) async {
-    return const <ComicTag>[];
+  Future<({List<ComicTag> tags, int? numFavorites})> loadComicMeta(
+    String comicId,
+  ) async {
+    return (tags: const <ComicTag>[], numFavorites: null);
   }
 
   @override

@@ -42,6 +42,9 @@ class ComicReaderModel extends ChangeNotifier {
 
   int get totalPages => _currentComic?.numPages ?? 0;
 
+  /// Favorites count of the current comic, or null if not yet loaded.
+  int? get numFavorites => _currentComic?.numFavorites;
+
   /// Whether the bottom controls overlay should be visible.
   bool get showControls => _showControls;
 

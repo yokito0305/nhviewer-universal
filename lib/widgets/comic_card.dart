@@ -97,7 +97,7 @@ class ComicCard extends StatelessWidget {
       context: context,
       title: comic.title,
       tags: comic.tags,
-      loadTags: () => context.read<ComicCardActionCoordinator>().loadComicTags(comic),
+      loadMeta: () => context.read<ComicCardActionCoordinator>().loadComicMeta(comic),
       onSearchSelected: (queries) => onTagSelected?.call(queries),
       collectionType: collectionType,
       onRemoveFromCollection: collectionType != null

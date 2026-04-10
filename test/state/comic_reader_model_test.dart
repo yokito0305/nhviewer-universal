@@ -50,6 +50,23 @@ void main() {
     expect(historyIds, <String>{'77'});
   });
 
+  test('numFavorites reflects loaded comic favorites count', () async {
+    expect(model.numFavorites, isNull);
+
+    await model.loadComicDetail('77');
+
+    expect(model.numFavorites, sampleComic(id: '77').numFavorites);
+  });
+
+  test('numFavorites is null after comic is cleared', () async {
+    await model.loadComicDetail('77');
+    expect(model.numFavorites, isNotNull);
+
+    model.clearComic();
+
+    expect(model.numFavorites, isNull);
+  });
+
   test('loadLastSeenOffset returns stored progress', () async {
     await model.readerProgressRepository.saveLastSeenOffset('88', 123.5);
 

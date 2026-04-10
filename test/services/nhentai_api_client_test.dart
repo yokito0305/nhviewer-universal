@@ -144,7 +144,7 @@ void main() {
       expect(result.comic.numFavorites, 10);
     });
 
-    test('loadComicTags reuses cached detail tags on repeated requests', () async {
+    test('loadComicMeta returns tags and numFavorites, reuses cache on repeated requests', () async {
       final adapter = _QueueHttpClientAdapter(<_StubbedResponse>[
         _StubbedResponse(
           body: jsonEncode(<String, Object?>{
@@ -167,6 +167,7 @@ void main() {
               },
             ],
             'num_pages': 0,
+            'num_favorites': 42,
           }),
         ),
       ]);
@@ -177,11 +178,14 @@ void main() {
         dio: dio,
       );
 
-      final first = await client.loadComicTags('123');
-      final second = await client.loadComicTags('123');
+      final first = await client.loadComicMeta('123');
+      final second = await client.loadComicMeta('123');
 
-      expect(first.single.name, 'chinese');
-      expect(second.single.name, 'chinese');
+      expect(first.tags.single.name, 'chinese');
+      expect(first.numFavorites, 42);
+      expect(second.tags.single.name, 'chinese');
+      expect(second.numFavorites, 42);
+      // Cache should prevent a second API request.
       expect(adapter.requests, hasLength(1));
     });
 

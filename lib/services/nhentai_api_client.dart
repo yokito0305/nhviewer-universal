@@ -20,7 +20,9 @@ abstract class NhentaiGateway {
     String comicId,
   );
 
-  Future<List<ComicTag>> loadComicTags(String comicId);
+  Future<({List<ComicTag> tags, int? numFavorites})> loadComicMeta(
+    String comicId,
+  );
 
   Future<TagCatalogPage> loadTagCatalog({
     required TagCatalogType type,
@@ -39,6 +41,7 @@ class NhentaiApiClient implements NhentaiGateway {
   final NhentaiCdnConfigService cdnConfigService;
   final Dio _dio;
   final Map<String, List<ComicTag>> _comicTagCache = <String, List<ComicTag>>{};
+  final Map<String, int?> _comicFavoritesCache = <String, int?>{};
 
   @override
   Future<void> pingHomepage() async {
@@ -71,10 +74,12 @@ class NhentaiApiClient implements NhentaiGateway {
   }
 
   @override
-  Future<List<ComicTag>> loadComicTags(String comicId) async {
+  Future<({List<ComicTag> tags, int? numFavorites})> loadComicMeta(
+    String comicId,
+  ) async {
     final cached = _comicTagCache[comicId];
     if (cached != null) {
-      return cached;
+      return (tags: cached, numFavorites: _comicFavoritesCache[comicId]);
     }
 
     final result = await _get(
@@ -82,7 +87,8 @@ class NhentaiApiClient implements NhentaiGateway {
     );
     final comic = _mapComicDetail(result.data as Map<String, dynamic>);
     _comicTagCache[comic.id] = comic.tags;
-    return comic.tags;
+    _comicFavoritesCache[comic.id] = comic.numFavorites;
+    return (tags: comic.tags, numFavorites: comic.numFavorites);
   }
 
   @override

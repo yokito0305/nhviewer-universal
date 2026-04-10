@@ -100,6 +100,7 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
                     visible: model.showControls,
                     currentPage: model.currentPage,
                     totalPages: model.totalPages,
+                    numFavorites: model.numFavorites,
                   ),
                 ),
               ),
@@ -180,6 +181,19 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
       },
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// Formats a raw favorites count into a compact display string.
+/// e.g. 345 → "345", 12345 → "12.3k", 1234567 → "1.2M"
+String _formatFavorites(int? count) {
+  if (count == null || count <= 0) return '0';
+  if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M';
+  if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}k';
+  return '$count';
 }
 
 // ---------------------------------------------------------------------------
@@ -285,11 +299,13 @@ class _AnimatedTopBar extends StatelessWidget {
     required this.visible,
     required this.currentPage,
     required this.totalPages,
+    this.numFavorites,
   });
 
   final bool visible;
   final int currentPage;
   final int totalPages;
+  final int? numFavorites;
 
   @override
   Widget build(BuildContext context) {
@@ -319,6 +335,22 @@ class _AnimatedTopBar extends StatelessWidget {
                 children: [
                   const BackButton(color: Colors.white),
                   const Spacer(),
+                  if (numFavorites != null) ...[
+                    const Icon(
+                      Icons.favorite,
+                      color: Colors.redAccent,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _formatFavorites(numFavorites),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
                   Text(
                     '$currentPage / $totalPages',
                     style: const TextStyle(color: Colors.white, fontSize: 14),
