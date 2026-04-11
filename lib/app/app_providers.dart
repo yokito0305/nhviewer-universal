@@ -1,3 +1,4 @@
+import 'package:concept_nhv/application/downloads/download_settings_repository.dart';
 import 'package:concept_nhv/application/favorites/clear_favorite_auth_use_case.dart';
 import 'package:concept_nhv/application/favorites/initialize_favorites_use_case.dart';
 import 'package:concept_nhv/application/favorites/save_api_key_use_case.dart';
@@ -19,21 +20,28 @@ import 'package:concept_nhv/application/reader/reader_settings_repository.dart';
 import 'package:concept_nhv/application/tags/load_comic_meta_use_case.dart';
 import 'package:concept_nhv/application/tags/load_tag_catalog_use_case.dart';
 import 'package:concept_nhv/services/image_url_resolver.dart';
+import 'package:concept_nhv/services/download_asset_store.dart';
+import 'package:concept_nhv/services/image_compression_service.dart';
 import 'package:concept_nhv/services/library_import_service.dart';
 import 'package:concept_nhv/services/comic_page_source_resolver.dart';
 import 'package:concept_nhv/services/nhentai_auth_service.dart';
 import 'package:concept_nhv/services/nhentai_api_client.dart';
 import 'package:concept_nhv/services/nhentai_cdn_config_service.dart';
+import 'package:concept_nhv/services/remote_asset_fetcher.dart';
 import 'package:concept_nhv/services/remote_favorite_gateway.dart';
 import 'package:concept_nhv/services/search_query_builder.dart';
 import 'package:concept_nhv/services/tag_search_query_builder.dart';
 import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/comic_reader_model.dart';
+import 'package:concept_nhv/state/download_manager_model.dart';
 import 'package:concept_nhv/state/favorite_sync_model.dart';
 import 'package:concept_nhv/state/home_ui_model.dart';
 import 'package:concept_nhv/state/tag_catalog_browser_model.dart';
 import 'package:concept_nhv/storage/collection_repository.dart';
 import 'package:concept_nhv/storage/comic_repository.dart';
+import 'package:concept_nhv/storage/download_queue_repository.dart';
+import 'package:concept_nhv/storage/download_settings_store.dart';
+import 'package:concept_nhv/storage/downloaded_library_repository.dart';
 import 'package:concept_nhv/storage/local_database.dart';
 import 'package:concept_nhv/storage/nhentai_api_key_store.dart';
 import 'package:concept_nhv/storage/options_store.dart';
@@ -71,9 +79,24 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
     Provider<ReaderSettingsRepository>(
       create: (context) => ReaderSettingsStore(optionsStore: context.read()),
     ),
+    Provider<DownloadSettingsRepository>(
+      create: (context) => DownloadSettingsStore(optionsStore: context.read()),
+    ),
+    Provider(
+      create: (context) => DownloadQueueRepository(localDatabase: context.read()),
+    ),
+    Provider(
+      create: (context) =>
+          DownloadedLibraryRepository(localDatabase: context.read()),
+    ),
     Provider(create: (_) => const SearchQueryBuilder()),
     Provider(create: (_) => const TagSearchQueryBuilder()),
     Provider(create: (_) => const ComicPageSourceResolver()),
+    Provider(create: (_) => DownloadAssetStore()),
+    Provider<ImageCompressionService>(
+      create: (_) => const FlutterImageCompressionService(),
+    ),
+    Provider<RemoteAssetFetcher>(create: (_) => DioRemoteAssetFetcher()),
     Provider(
       create: (_) {
         final service = NhentaiCdnConfigService();
@@ -203,11 +226,28 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
     ),
     ChangeNotifierProvider(
       create: (context) {
+        final model = DownloadManagerModel(
+          nhentaiGateway: context.read(),
+          cdnConfigService: context.read(),
+          downloadQueueRepository: context.read(),
+          downloadedLibraryRepository: context.read(),
+          downloadSettingsRepository: context.read(),
+          downloadAssetStore: context.read(),
+          imageCompressionService: context.read(),
+          remoteAssetFetcher: context.read(),
+        );
+        model.initialize();
+        return model;
+      },
+    ),
+    ChangeNotifierProvider(
+      create: (context) {
         final model = ComicReaderModel(
           loadComicDetailUseCase: context.read(),
           openComicUseCase: context.read(),
           readerProgressRepository: context.read(),
           readerSettingsRepository: context.read(),
+          downloadedLibraryRepository: context.read(),
         );
         model.loadSettings();
         return model;

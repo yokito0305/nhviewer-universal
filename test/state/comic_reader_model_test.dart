@@ -31,6 +31,7 @@ void main() {
         optionsStore: OptionsStore(localDatabase: harness.localDatabase),
       ),
       readerSettingsRepository: FakeReaderSettingsRepository(),
+      downloadedLibraryRepository: harness.downloadedLibraryRepository,
     );
   });
 

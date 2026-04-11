@@ -3,6 +3,7 @@ import 'package:concept_nhv/application/reader/open_comic_use_case.dart';
 import 'package:concept_nhv/application/reader/reader_progress_repository.dart';
 import 'package:concept_nhv/application/reader/reader_settings_repository.dart';
 import 'package:concept_nhv/models/comic.dart';
+import 'package:concept_nhv/storage/downloaded_library_repository.dart';
 import 'package:flutter/material.dart';
 
 /// State model for the comic reader.
@@ -15,12 +16,14 @@ class ComicReaderModel extends ChangeNotifier {
     required this.openComicUseCase,
     required this.readerProgressRepository,
     required this.readerSettingsRepository,
+    required this.downloadedLibraryRepository,
   });
 
   final LoadComicDetailUseCase loadComicDetailUseCase;
   final OpenComicUseCase openComicUseCase;
   final ReaderProgressRepository readerProgressRepository;
   final ReaderSettingsRepository readerSettingsRepository;
+  final DownloadedLibraryRepository downloadedLibraryRepository;
 
   final PageController pageController = PageController();
 
@@ -83,6 +86,7 @@ class ComicReaderModel extends ChangeNotifier {
     _currentPage = 1;
     _showControls = false;
     await openComicUseCase.execute(comic);
+    await downloadedLibraryRepository.saveLastReadAt(comic.id, DateTime.now());
     notifyListeners();
   }
 
@@ -96,6 +100,7 @@ class ComicReaderModel extends ChangeNotifier {
     _currentPage = pageIndex + 1;
     notifyListeners();
     readerSettingsRepository.saveLastSeenPage(comicId, _currentPage);
+    downloadedLibraryRepository.saveLastReadAt(comicId, DateTime.now());
   }
 
   /// Animates [pageController] to the given 1-indexed [page].
