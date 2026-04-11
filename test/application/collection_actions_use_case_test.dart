@@ -5,8 +5,9 @@ import 'package:concept_nhv/models/comic_card_data.dart';
 import 'package:concept_nhv/storage/collection_repository.dart';
 import 'package:concept_nhv/storage/comic_repository.dart';
 import 'package:concept_nhv/storage/local_database.dart';
+import 'package:drift/drift.dart';
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
   late LocalDatabase localDatabase;
@@ -16,10 +17,11 @@ void main() {
   late RemoveComicFromCollectionUseCase removeComicFromCollectionUseCase;
 
   setUp(() async {
-    sqfliteFfiInit();
     localDatabase = LocalDatabase(
-      databaseFactory: databaseFactoryFfi,
-      databasePathResolver: () async => inMemoryDatabasePath,
+      executor: DatabaseConnection(
+        NativeDatabase.memory(),
+        closeStreamsSynchronously: true,
+      ),
     );
     await localDatabase.initialize();
     comicRepository = ComicRepository(localDatabase: localDatabase);

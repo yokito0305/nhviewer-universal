@@ -37,14 +37,15 @@ void main() {
 
       await service.importFromBaseUrl('https://example.com/library');
 
-      final db = await harness.localDatabase.database;
-      final comicRows = await db.query('Comic');
+      final comicRows = await harness.localDatabase
+          .customSelect('SELECT title FROM Comic')
+          .get();
       final favoriteIds = await harness.collectionRepository.loadCollectedComicIds(
         CollectionType.favorite,
       );
 
       expect(comicRows, hasLength(1));
-      expect(comicRows.single['title'], 'Imported Comic');
+      expect(comicRows.single.read<String>('title'), 'Imported Comic');
       expect(favoriteIds, <String>{'1'});
     });
 

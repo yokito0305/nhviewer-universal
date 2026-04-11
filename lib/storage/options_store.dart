@@ -1,5 +1,5 @@
 import 'package:concept_nhv/storage/local_database.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:drift/drift.dart' as drift;
 
 class OptionsStore {
   const OptionsStore({required this.localDatabase});
@@ -7,33 +7,36 @@ class OptionsStore {
   final LocalDatabase localDatabase;
 
   Future<void> saveOption(String name, String value) async {
-    final db = await localDatabase.database;
-    await db.insert('Options', <String, Object?>{
-      'name': name,
-      'value': value,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    await localDatabase.into(localDatabase.appOptions).insert(
+      AppOptionsCompanion.insert(
+        id: drift.Value.absent(),
+        name: name,
+        value: value,
+      ),
+      mode: drift.InsertMode.insertOrReplace,
+    );
   }
 
   Future<String> loadOption(String name) async {
-    final db = await localDatabase.database;
-    final option = await db.query(
-      'Options',
-      where: 'name = ?',
-      whereArgs: <Object?>[name],
-    );
-    if (option.isEmpty) {
+    final query =
+        localDatabase.select(localDatabase.appOptions)
+          ..where((table) => table.name.equals(name))
+          ..limit(1);
+    final option = await query.getSingleOrNull();
+    if (option == null) {
       return '';
     }
-    return option.first['value']! as String;
+    return option.value;
   }
 
   Future<int> deleteOptions(Iterable<String> names) async {
-    final db = await localDatabase.database;
-    final placeholders = List<String>.filled(names.length, '?').join(', ');
-    return db.delete(
-      'Options',
-      where: 'name IN ($placeholders)',
-      whereArgs: names.toList(),
-    );
+    final nameList = names.toList(growable: false);
+    if (nameList.isEmpty) {
+      return 0;
+    }
+
+    final statement = localDatabase.delete(localDatabase.appOptions)
+      ..where((table) => table.name.isIn(nameList));
+    return statement.go();
   }
 }

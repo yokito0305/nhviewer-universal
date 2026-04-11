@@ -27,13 +27,14 @@ void main() {
         ),
       );
 
-      final db = await harness.localDatabase.database;
-      final rows = await db.query('Comic');
+      final rows = await harness.localDatabase
+          .customSelect('SELECT id, mid, title FROM Comic')
+          .get();
 
       expect(rows, hasLength(1));
-      expect(rows.single['id'], '1');
-      expect(rows.single['mid'], '9');
-      expect(rows.single['title'], 'Stored Comic');
+      expect(rows.single.read<String>('id'), '1');
+      expect(rows.single.read<String>('mid'), '9');
+      expect(rows.single.read<String>('title'), 'Stored Comic');
     });
   });
 }

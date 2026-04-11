@@ -4,7 +4,7 @@ import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/models/comic_card_data.dart';
 import 'package:concept_nhv/models/stored_comic.dart';
 import 'package:concept_nhv/storage/local_database.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:drift/drift.dart' as drift;
 
 class CollectionRepository {
   const CollectionRepository({required this.localDatabase});
@@ -16,51 +16,36 @@ class CollectionRepository {
     required String comicId,
     String? dateCreated,
   }) async {
-    final db = await localDatabase.database;
-    return db.insert('Collection', <String, Object?>{
-      'name': collectionType.storageName,
-      'comicid': comicId,
-      'dateCreated': dateCreated ?? DateTime.now().toIso8601String(),
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    return localDatabase.into(localDatabase.collections).insert(
+      CollectionsCompanion.insert(
+        name: collectionType.storageName,
+        comicid: comicId,
+        dateCreated: dateCreated ?? DateTime.now().toIso8601String(),
+      ),
+      mode: drift.InsertMode.insertOrReplace,
+    );
   }
 
   Future<int> removeComicFromCollection({
     required CollectionType collectionType,
     required String comicId,
   }) async {
-    final db = await localDatabase.database;
-    return db.delete(
-      'Collection',
-      where: 'name = ? AND comicid = ?',
-      whereArgs: <Object?>[collectionType.storageName, comicId],
-    );
+    final statement = localDatabase.delete(localDatabase.collections)
+      ..where((table) {
+        return table.name.equals(collectionType.storageName) &
+            table.comicid.equals(comicId);
+      });
+    return statement.go();
   }
 
   Future<List<CollectedComic>> loadCollectionComics(
     CollectionType collectionType,
   ) async {
-    final db = await localDatabase.database;
-    final rows = await db.rawQuery(
-      '''
-      SELECT
-        col.name AS collection_name,
-        col.comicid AS comic_id,
-        col.dateCreated AS date_created,
-        com.id AS id,
-        com.mid AS mid,
-        com.title AS title,
-        com.images AS images,
-        com.pages AS pages
-      FROM Collection col
-      LEFT JOIN Comic com ON col.comicid = com.id
-      WHERE col.name = ?
-      ORDER BY col.dateCreated DESC
-      ''',
-      <Object?>[collectionType.storageName],
+    final rows = await _loadCollectionJoinRows(
+      collectionType: collectionType,
     );
-
     return rows
-        .where((row) => row['id'] != null)
+        .where((row) => row.readTableOrNull(localDatabase.comics) != null)
         .map(_mapCollectedComic)
         .toList();
   }
@@ -68,14 +53,10 @@ class CollectionRepository {
   Future<Set<String>> loadCollectedComicIds(
     CollectionType collectionType,
   ) async {
-    final db = await localDatabase.database;
-    final rows = await db.query(
-      'Collection',
-      columns: <String>['comicid'],
-      where: 'name = ?',
-      whereArgs: <Object?>[collectionType.storageName],
-    );
-    return rows.map((row) => row['comicid']).whereType<String>().toSet();
+    final query = localDatabase.select(localDatabase.collections)
+      ..where((table) => table.name.equals(collectionType.storageName));
+    final rows = await query.get();
+    return rows.map((row) => row.comicid).toSet();
   }
 
   Future<List<CollectionSummary>> loadCollectionSummaries() async {
@@ -111,24 +92,9 @@ class CollectionRepository {
   }
 
   Future<List<CollectedComic>> _loadAllCollectedComics() async {
-    final db = await localDatabase.database;
-    final rows = await db.rawQuery('''
-      SELECT
-        col.name AS collection_name,
-        col.comicid AS comic_id,
-        col.dateCreated AS date_created,
-        com.id AS id,
-        com.mid AS mid,
-        com.title AS title,
-        com.images AS images,
-        com.pages AS pages
-      FROM Collection col
-      LEFT JOIN Comic com ON col.comicid = com.id
-      ORDER BY col.dateCreated DESC
-      ''');
-
+    final rows = await _loadCollectionJoinRows();
     return rows
-        .where((row) => row['id'] != null)
+        .where((row) => row.readTableOrNull(localDatabase.comics) != null)
         .map(_mapCollectedComic)
         .toList();
   }
@@ -137,43 +103,73 @@ class CollectionRepository {
     required CollectionType collectionType,
     required Iterable<StoredComic> comics,
   }) async {
-    final db = await localDatabase.database;
     final now = DateTime.now().toIso8601String();
-    await db.transaction((txn) async {
-      await txn.delete(
-        'Collection',
-        where: 'name = ?',
-        whereArgs: <Object?>[collectionType.storageName],
-      );
+    await localDatabase.transaction(() async {
+      final deleteStatement = localDatabase.delete(localDatabase.collections)
+        ..where((table) => table.name.equals(collectionType.storageName));
+      await deleteStatement.go();
 
-      final batch = txn.batch();
-      for (final comic in comics) {
-        batch.insert(
-          'Comic',
-          comic.toJson(),
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-        batch.insert('Collection', <String, Object?>{
-          'name': collectionType.storageName,
-          'comicid': comic.id,
-          'dateCreated': now,
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
-      }
-      await batch.commit(noResult: true);
+      await localDatabase.batch((batch) {
+        for (final comic in comics) {
+          batch.insert(
+            localDatabase.comics,
+            ComicsCompanion.insert(
+              id: comic.id,
+              mid: comic.mediaId,
+              title: comic.title,
+              images: comic.serializedImages,
+              pages: comic.pages,
+            ),
+            mode: drift.InsertMode.insertOrReplace,
+          );
+          batch.insert(
+            localDatabase.collections,
+            CollectionsCompanion.insert(
+              name: collectionType.storageName,
+              comicid: comic.id,
+              dateCreated: now,
+            ),
+            mode: drift.InsertMode.insertOrReplace,
+          );
+        }
+      });
     });
   }
 
-  CollectedComic _mapCollectedComic(Map<String, Object?> row) {
+  Future<List<drift.TypedResult>> _loadCollectionJoinRows({
+    CollectionType? collectionType,
+  }) {
+    final collectionQuery = localDatabase.select(localDatabase.collections);
+    if (collectionType != null) {
+      collectionQuery.where(
+        (table) => table.name.equals(collectionType.storageName),
+      );
+    }
+    collectionQuery.orderBy([
+      (table) => drift.OrderingTerm.desc(table.dateCreated),
+    ]);
+
+    return collectionQuery.join([
+      drift.leftOuterJoin(
+        localDatabase.comics,
+        localDatabase.comics.id.equalsExp(localDatabase.collections.comicid),
+      ),
+    ]).get();
+  }
+
+  CollectedComic _mapCollectedComic(drift.TypedResult row) {
+    final collection = row.readTable(localDatabase.collections);
+    final comic = row.readTable(localDatabase.comics);
     return CollectedComic(
-      collectionName: row['collection_name']! as String,
-      comicId: row['comic_id']! as String,
-      dateCreated: DateTime.parse(row['date_created']! as String),
+      collectionName: collection.name,
+      comicId: collection.comicid,
+      dateCreated: DateTime.parse(collection.dateCreated),
       comic: StoredComic(
-        id: row['id']! as String,
-        mediaId: row['mid']! as String,
-        title: row['title']! as String,
-        serializedImages: row['images']! as String,
-        pages: row['pages']! as int,
+        id: comic.id,
+        mediaId: comic.mid,
+        title: comic.title,
+        serializedImages: comic.images,
+        pages: comic.pages,
       ),
     );
   }

@@ -1,6 +1,6 @@
 import 'package:concept_nhv/models/stored_comic.dart';
 import 'package:concept_nhv/storage/local_database.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:drift/drift.dart' as drift;
 
 class ComicRepository {
   const ComicRepository({required this.localDatabase});
@@ -8,24 +8,33 @@ class ComicRepository {
   final LocalDatabase localDatabase;
 
   Future<int> upsertComic(StoredComic comic) async {
-    final db = await localDatabase.database;
-    return db.insert(
-      'Comic',
-      comic.toJson(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
+    return localDatabase.into(localDatabase.comics).insert(
+      ComicsCompanion.insert(
+        id: comic.id,
+        mid: comic.mediaId,
+        title: comic.title,
+        images: comic.serializedImages,
+        pages: comic.pages,
+      ),
+      mode: drift.InsertMode.insertOrReplace,
     );
   }
 
   Future<void> upsertComics(Iterable<StoredComic> comics) async {
-    final db = await localDatabase.database;
-    final batch = db.batch();
-    for (final comic in comics) {
-      batch.insert(
-        'Comic',
-        comic.toJson(),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-    }
-    await batch.commit(noResult: true);
+    await localDatabase.batch((batch) {
+      for (final comic in comics) {
+        batch.insert(
+          localDatabase.comics,
+          ComicsCompanion.insert(
+            id: comic.id,
+            mid: comic.mediaId,
+            title: comic.title,
+            images: comic.serializedImages,
+            pages: comic.pages,
+          ),
+          mode: drift.InsertMode.insertOrReplace,
+        );
+      }
+    });
   }
 }

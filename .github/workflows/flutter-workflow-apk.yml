@@ -25,6 +25,15 @@ jobs:
     - name: Get dependencies
       run: flutter pub get
 
+    - name: Generate database code
+      run: dart run build_runner build --delete-conflicting-outputs
+
+    - name: Analyze
+      run: flutter analyze
+
+    - name: Test
+      run: flutter test
+
     - name: Build APK
       run: flutter build apk --release
 
