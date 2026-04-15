@@ -1,5 +1,6 @@
 import 'package:concept_nhv/models/comic_tag.dart';
 import 'package:concept_nhv/models/collection_type.dart';
+import 'package:concept_nhv/models/download_job_status.dart';
 import 'package:concept_nhv/models/tag_type_l10n.dart';
 import 'package:flutter/material.dart';
 
@@ -9,6 +10,9 @@ class ComicTagBottomSheet extends StatefulWidget {
     required this.title,
     required this.initialTags,
     required this.onSearchSelected,
+    this.downloadStatus,
+    this.isDownloadActionInProgress = false,
+    this.onDownload,
     this.loadMeta,
     this.collectionType,
     this.onRemoveFromCollection,
@@ -18,6 +22,9 @@ class ComicTagBottomSheet extends StatefulWidget {
   final List<ComicTag> initialTags;
   final Future<({List<ComicTag> tags, int? numFavorites})> Function()? loadMeta;
   final ValueChanged<List<String>> onSearchSelected;
+  final DownloadJobStatus? downloadStatus;
+  final bool isDownloadActionInProgress;
+  final Future<void> Function()? onDownload;
   final CollectionType? collectionType;
   final VoidCallback? onRemoveFromCollection;
 
@@ -26,6 +33,9 @@ class ComicTagBottomSheet extends StatefulWidget {
     required String title,
     required List<ComicTag> tags,
     required ValueChanged<List<String>> onSearchSelected,
+    DownloadJobStatus? downloadStatus,
+    bool isDownloadActionInProgress = false,
+    Future<void> Function()? onDownload,
     Future<({List<ComicTag> tags, int? numFavorites})> Function()? loadMeta,
     CollectionType? collectionType,
     VoidCallback? onRemoveFromCollection,
@@ -42,6 +52,9 @@ class ComicTagBottomSheet extends StatefulWidget {
         initialTags: tags,
         loadMeta: loadMeta,
         onSearchSelected: onSearchSelected,
+        downloadStatus: downloadStatus,
+        isDownloadActionInProgress: isDownloadActionInProgress,
+        onDownload: onDownload,
         collectionType: collectionType,
         onRemoveFromCollection: onRemoveFromCollection,
       ),
@@ -57,6 +70,7 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
   int? _numFavorites;
   String? _errorMessage;
   bool _isLoading = false;
+  bool _isRunningDownloadAction = false;
   final Set<String> _selectedQueries = <String>{};
 
   @override
@@ -169,9 +183,10 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    _buildDownloadSection(context),
                     if (widget.collectionType != null &&
                         widget.onRemoveFromCollection != null) ...<Widget>[
-                      const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
@@ -305,6 +320,56 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
     widget.onSearchSelected(selected);
   }
 
+  Widget _buildDownloadSection(BuildContext context) {
+    final status = widget.downloadStatus;
+    final isDownloadActionInProgress =
+        widget.isDownloadActionInProgress || _isRunningDownloadAction;
+    if (status == null) {
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: isDownloadActionInProgress ? null : _handleDownload,
+          icon: isDownloadActionInProgress
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.download_outlined),
+          label: Text(
+            isDownloadActionInProgress ? 'Starting download...' : 'Download',
+          ),
+        ),
+      );
+    }
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(_downloadStatusIcon(status)),
+      title: Text(_downloadStatusLabel(status)),
+      subtitle: const Text('Manage in Downloads tab'),
+    );
+  }
+
+  Future<void> _handleDownload() async {
+    final onDownload = widget.onDownload;
+    if (onDownload == null || _isRunningDownloadAction) {
+      return;
+    }
+    setState(() {
+      _isRunningDownloadAction = true;
+    });
+    try {
+      await onDownload();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRunningDownloadAction = false;
+        });
+      }
+    }
+  }
+
   Map<String, List<ComicTag>> _groupTagsByType(List<ComicTag> tags) {
     final result = <String, List<ComicTag>>{};
     for (final tag in tags) {
@@ -342,6 +407,26 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
     final type = tag.type ?? 'tag';
     final name = (tag.name ?? '').toLowerCase().replaceAll(' ', '-');
     return '$type:$name';
+  }
+
+  IconData _downloadStatusIcon(DownloadJobStatus status) {
+    return switch (status) {
+      DownloadJobStatus.queued => Icons.schedule,
+      DownloadJobStatus.downloading => Icons.downloading,
+      DownloadJobStatus.paused => Icons.pause_circle_outline,
+      DownloadJobStatus.failed => Icons.error_outline,
+      DownloadJobStatus.completed => Icons.download_done,
+    };
+  }
+
+  String _downloadStatusLabel(DownloadJobStatus status) {
+    return switch (status) {
+      DownloadJobStatus.queued => 'Queued',
+      DownloadJobStatus.downloading => 'Downloading',
+      DownloadJobStatus.paused => 'Paused',
+      DownloadJobStatus.failed => 'Failed',
+      DownloadJobStatus.completed => 'Downloaded',
+    };
   }
 }
 

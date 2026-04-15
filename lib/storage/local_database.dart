@@ -68,6 +68,7 @@ class DownloadJobs extends Table {
   TextColumn get comicId => text().named('comic_id')();
   TextColumn get mediaId => text().named('media_id')();
   TextColumn get title => text()();
+  TextColumn get thumbnailPath => text().named('thumbnail_path').nullable()();
   TextColumn get status => text()();
   IntColumn get totalPages => integer().named('total_pages')();
   IntColumn get completedPages =>
@@ -150,7 +151,7 @@ class LocalDatabase extends _$LocalDatabase {
   final DatabasePathResolver _databasePathResolver;
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -234,6 +235,11 @@ class LocalDatabase extends _$LocalDatabase {
           'WHERE DownloadJob.comic_id = DownloadJobPage.comic_id'
           "), '') "
           'WHERE media_id = \'\'',
+        );
+      }
+      if (from < 7) {
+        await customStatement(
+          'ALTER TABLE DownloadJob ADD COLUMN thumbnail_path TEXT',
         );
       }
     },

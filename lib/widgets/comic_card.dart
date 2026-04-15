@@ -1,7 +1,9 @@
 import 'package:concept_nhv/application/library/comic_card_action_coordinator.dart';
 import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/models/comic_card_data.dart';
+import 'package:concept_nhv/models/download_job_status.dart';
 import 'package:concept_nhv/state/comic_reader_model.dart';
+import 'package:concept_nhv/state/download_manager_model.dart';
 import 'package:concept_nhv/state/favorite_sync_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -64,7 +66,31 @@ class ComicCard extends StatelessWidget {
             ),
           ),
         ),
-        Text(comic.title, overflow: TextOverflow.ellipsis, maxLines: 2),
+        Consumer<DownloadManagerModel>(
+          builder: (context, downloadManagerModel, _) {
+            final downloadJob = downloadManagerModel.jobForComic(comic.id);
+            final icon = _cardStatusIcon(downloadJob?.status);
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    comic.title,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                  ),
+                ),
+                if (icon != null) ...<Widget>[
+                  const SizedBox(width: 6),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Icon(icon, size: 18),
+                  ),
+                ],
+              ],
+            );
+          },
+        ),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: <Widget>[
@@ -93,12 +119,17 @@ class ComicCard extends StatelessWidget {
 
   Future<void> _showTagSheet(BuildContext context) async {
     HapticFeedback.selectionClick();
+    final downloadManagerModel = context.read<DownloadManagerModel>();
+    final downloadJob = downloadManagerModel.jobForComic(comic.id);
     await ComicTagBottomSheet.show(
       context: context,
       title: comic.title,
       tags: comic.tags,
       loadMeta: () => context.read<ComicCardActionCoordinator>().loadComicMeta(comic),
       onSearchSelected: (queries) => onTagSelected?.call(queries),
+      downloadStatus: downloadJob?.status,
+      isDownloadActionInProgress: downloadManagerModel.isMutating(comic.id),
+      onDownload: () => _enqueueDownload(context),
       collectionType: collectionType,
       onRemoveFromCollection: collectionType != null
           ? () => _removeFromCollection(context)
@@ -196,5 +227,35 @@ class ComicCard extends StatelessWidget {
     if (result.shouldRefreshCollection) {
       onCollectionChanged?.call();
     }
+  }
+
+  Future<void> _enqueueDownload(BuildContext context) async {
+    final result = await context.read<ComicCardActionCoordinator>().enqueueDownload(
+      comic,
+    );
+    if (!context.mounted) {
+      return;
+    }
+
+    if (result.success) {
+      Navigator.of(context).pop();
+    }
+
+    if (result.triggerHaptic) {
+      HapticFeedback.lightImpact();
+    }
+    if (result.message != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result.message!)));
+    }
+  }
+
+  IconData? _cardStatusIcon(DownloadJobStatus? status) {
+    return switch (status) {
+      DownloadJobStatus.downloading => Icons.downloading,
+      DownloadJobStatus.completed => Icons.download_done,
+      _ => null,
+    };
   }
 }

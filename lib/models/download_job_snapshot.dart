@@ -5,6 +5,7 @@ class DownloadJobSnapshot {
     required this.comicId,
     required this.mediaId,
     required this.title,
+    this.thumbnailPath,
     required this.status,
     required this.totalPages,
     required this.completedPages,
@@ -20,6 +21,7 @@ class DownloadJobSnapshot {
   final String comicId;
   final String mediaId;
   final String title;
+  final String? thumbnailPath;
   final DownloadJobStatus status;
   final int totalPages;
   final int completedPages;

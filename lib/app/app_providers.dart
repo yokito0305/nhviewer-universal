@@ -282,6 +282,7 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
         favoriteSyncModel: context.read(),
         feedModel: context.read(),
         readerModel: context.read(),
+        downloadManagerModel: context.read(),
         loadComicMetaUseCase: context.read(),
       ),
     ),

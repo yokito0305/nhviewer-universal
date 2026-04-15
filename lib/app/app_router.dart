@@ -83,12 +83,12 @@ class _AppShellScaffold extends StatelessWidget {
               NavigationDestination(
                 selectedIcon: Icon(Icons.home),
                 icon: Icon(Icons.home_outlined),
-                label: 'Index',
+                label: 'Home',
               ),
               NavigationDestination(
-                selectedIcon: Icon(Icons.favorite),
-                icon: Icon(Icons.favorite_border),
-                label: 'Favorites',
+                selectedIcon: Icon(Icons.download),
+                icon: Icon(Icons.download_outlined),
+                label: 'Downloads',
               ),
               NavigationDestination(
                 selectedIcon: Icon(Icons.folder),

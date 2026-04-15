@@ -1,192 +1,225 @@
-<!-- Improved compatibility of back to top link: See: https://github.com/othneildrew/Best-README-Template/pull/73 -->
 <a name="readme-top"></a>
-<!--
-*** Thanks for checking out the Best-README-Template. If you have a suggestion
-*** that would make this better, please fork the repo and create a pull request
-*** or simply open an issue with the tag "enhancement".
-*** Don't forget to give the project a star!
-*** Thanks again! Now go create something AMAZING! :D
--->
 
-
-
-<!-- PROJECT SHIELDS -->
-<!--
-*** I'm using markdown "reference style" links for readability.
-*** Reference links are enclosed in brackets [ ] instead of parentheses ( ).
-*** See the bottom of this document for the declaration of the reference variables
-*** for contributors-url, forks-url, etc. This is an optional, concise syntax you may use.
-*** https://www.markdownguide.org/basic-syntax/#reference-style-links
--->
-[![Flutter CI](https://github.com/ttdyce/nhviewer-universal/actions/workflows/flutter-workflow.yml/badge.svg)](https://github.com/ttdyce/nhviewer-universal/actions/workflows/flutter-workflow.yml)
-<br />
+[![APK Build](https://github.com/ttdyce/nhviewer-universal/actions/workflows/flutter-workflow-apk.yml/badge.svg)](https://github.com/ttdyce/nhviewer-universal/actions/workflows/flutter-workflow-apk.yml)
 [![Contributors][contributors-shield]][contributors-url]
 [![MIT License][license-shield]][license-url]
-<!-- [![Forks][forks-shield]][forks-url]
-[![Stargazers][stars-shield]][stars-url]
-[![Issues][issues-shield]][issues-url] -->
-<!-- [![LinkedIn][linkedin-shield]][linkedin-url] -->
 
-
-
-<!-- PROJECT LOGO -->
 <br />
 <div align="center">
-  <!-- <a href="https://github.com/ttdyce/nhviewer-universal">
-    <img src="assets/icon/icon.png" alt="Logo" width="80" height="80">
-  </a> -->
-
-<h3 align="center">nhviewer-universal</h3>
+  <h3 align="center">nhviewer-universal</h3>
 
   <p align="center">
-    A complete rewrite of NHViewer. <br />
-    Featuring Material Design 3, iOS Support, and smaller codebase. 
+    A Flutter rewrite of NHViewer. <br />
+    Built with Material 3, cross-platform support, Drift-based local persistence,
+    and an incremental download management flow.
     <br />
     <br />
-    <img src='https://storage.googleapis.com/cms-storage-bucket/916809aa4c8f73ad70d2.svg' width=160>
+    <img src="https://storage.googleapis.com/cms-storage-bucket/916809aa4c8f73ad70d2.svg" width="160">
     <br />
     <br />
-    <!-- <a href="https://github.com/ttdyce/nhviewer-universal"><strong>Explore the docs »</strong></a> -->
-    <!-- <br /> -->
     <a href="https://github.com/ttdyce/nhviewer-universal/issues">Report Bug</a>
     ·
     <a href="https://github.com/ttdyce/nhviewer-universal/issues">Request Feature</a>
   </p>
 </div>
 
-<!-- ABOUT THE PROJECT -->
-<!-- ## About The Project -->
-
-<!-- todo 20240329 provide in-app screenshots -->
-<!-- [![Product Name Screen Shot][product-screenshot]](https://example.com) -->
-
-<!-- Here's a blank template to get started: To avoid retyping too much info. Do a search and replace with your text editor for the following: `ttdyce`, `nhviewer-universal`, `twitter_handle`, `linkedin_username`, `email_client`, `email`, `nhviewer-universal`, `A complete rewrite of NHViewer, with flutter. Featuring Material Design 3, better performance, and smaller codebase. `
-
-<p align="right"> <a href="#readme-top"> ‣ back to top</a> </p> -->
-
 <p>
-<img src="./readme-asset/index-and-search.png" alt="Search result display demo" width="270">
-<img src="./readme-asset/favorites.png" alt="Favorite page demo" width="270">
-<img src="./readme-asset/collections.png" alt="Collection display demo" width="270">
+<img src="./readme-asset/index-and-search.png" alt="Home and search demo" width="270">
+<img src="./readme-asset/favorites.png" alt="Downloads and favorites era UI demo" width="270">
+<img src="./readme-asset/collections.png" alt="Collections demo" width="270">
 </p>
 
-<hr>
+---
 
 ## Features
 
-- Collection system
-  - Add / remove comic from Favorite / Read later / History
-- Vertical scrolling
-- Basic Comic list sorting (by popularity / uploaded recently)
-- Search with specific language (Chinese / English / Japanese)
+- Home feed with search and language-aware fallback queries
+- Collections flow for `Favorite / Next / History`
+- Downloads tab for queued, paused, failed, and completed download jobs
+- Resumable page-by-page download foundation with offline asset persistence
+- Vertical reader experience
+- Basic list sorting by popularity / uploaded recently
+- Android build pipeline and GitHub-hosted unsigned iOS build verification
 
-<p align="right"> <a href="#readme-top"> ‣ back to top</a> </p>
+<p align="right"><a href="#readme-top">‣ back to top</a></p>
 
-<!-- GETTING STARTED -->
+## Tech Stack
+
+- Flutter
+- Provider
+- Go Router
+- Drift + sqlite3
+- Dio
+- cached_network_image / flutter_cache_manager
+- flutter_image_compress
+- Freezed / json_serializable / build_runner
+
+<p align="right"><a href="#readme-top">‣ back to top</a></p>
+
 ## Getting Started
 
 ### Prerequisites
 
-- Flutter 3.29.2, usually the latest one on app releasing
-- [Editor](https://docs.flutter.dev/get-started/editor), suggested VSCode
+- Flutter `3.41.5` recommended to match CI
+- Dart SDK compatible with `>=3.10.3 <4.0.0`
+- Android Studio or Xcode if you want to build mobile targets locally
+- A Flutter editor setup such as [VS Code](https://docs.flutter.dev/get-started/editor)
+
+`pubspec.yaml` currently allows Flutter `>=3.38.4`, but using the same version as CI is the safest choice when generating code and running tests.
 
 ### Installation
 
 1. Clone the repo
    ```sh
    git clone https://github.com/ttdyce/nhviewer-universal.git
+   cd nhviewer-universal
    ```
 2. Install dependencies
    ```sh
    flutter pub get
    ```
-3. Run
+3. Generate source files used by Drift / Freezed / JSON serialization
+   ```sh
+   dart run build_runner build --delete-conflicting-outputs
+   ```
+4. Run static analysis
+   ```sh
+   flutter analyze
+   ```
+5. Run tests
+   ```sh
+   flutter test
+   ```
+6. Start the app
    ```sh
    flutter run
    ```
 
-<p align="right"> <a href="#readme-top"> ‣ back to top</a> </p>
+### When To Re-run Code Generation
 
+Run the `build_runner` command again after changing:
 
-<!-- USAGE EXAMPLES -->
-<!-- ## Usage
+- Drift tables or database models
+- `@freezed` models
+- `@JsonSerializable` / JSON-mapped models
 
-Use this space to show useful examples of how a project can be used. Additional screenshots, code examples and demos work well in this space. You may also link to more resources.
+If generated files drift out of sync, build or analysis errors are expected until regeneration is complete.
 
-_For more examples, please refer to the [Documentation](https://example.com)_
+<p align="right"><a href="#readme-top">‣ back to top</a></p>
 
-<p align="right"> <a href="#readme-top"> ‣ back to top</a> </p>
- -->
- 
-## APIs
+## Local Build Commands
 
-_refer to the [API-README](API-README.md)_
+### Debug APK
 
-<p align="right"> <a href="#readme-top"> ‣ back to top</a> </p>
+```sh
+flutter build apk --debug
+```
 
+### Release APK
 
-## GitHub-hosted iOS build
+```sh
+flutter build apk --release
+```
+
+### iOS build without code signing
+
+```sh
+flutter build ios --release --no-codesign
+```
+
+This is useful for local verification only. It does not produce a TestFlight-ready artifact by itself.
+
+<p align="right"><a href="#readme-top">‣ back to top</a></p>
+
+## Project Build Flow
+
+The repository currently uses code generation as part of the standard build pipeline:
+
+1. `flutter pub get`
+2. `dart run build_runner build --delete-conflicting-outputs`
+3. `flutter analyze`
+4. `flutter test`
+5. platform build command such as `flutter build apk --release`
+
+This is the same order used by the GitHub Actions workflows.
+
+<p align="right"><a href="#readme-top">‣ back to top</a></p>
+
+## GitHub Actions
+
+### Android APK workflow
+
+Workflow file: [.github/workflows/flutter-workflow-apk.yml](./.github/workflows/flutter-workflow-apk.yml)
+
+Current CI steps:
+
+1. Checkout
+2. Set up Flutter `3.41.5`
+3. `flutter pub get`
+4. `dart run build_runner build --delete-conflicting-outputs`
+5. `flutter analyze`
+6. `flutter test`
+7. `flutter build apk --release`
+
+### GitHub-hosted unsigned iOS build
+
+Workflow file: [.github/workflows/flutter-workflow-ipa.yml](./.github/workflows/flutter-workflow-ipa.yml)
 
 If you cannot build iOS locally, you can produce an unsigned IPA from GitHub Actions:
 
-1. Open the `flutter-workflow-ipa` workflow in the Actions tab.
-2. Trigger it with `workflow_dispatch`.
-3. Download the `nhviewer-ios-unsigned` artifact after the macOS job finishes.
+1. Open the `flutter-workflow-ipa` workflow in the Actions tab
+2. Trigger it with `workflow_dispatch`
+3. Download the `nhviewer-ios-unsigned` artifact after the macOS job finishes
 
 The generated IPA is unsigned. It is useful for remote build verification, but it is not ready for TestFlight or App Store submission.
 
-<p align="right"> <a href="#readme-top"> ??back to top</a> </p>
+<p align="right"><a href="#readme-top">‣ back to top</a></p>
 
-<!-- LICENSE -->
+## Project Notes
+
+- Local persistence is now Drift-based rather than sqflite-managed application code
+- Downloaded files are stored separately from image cache so cache clearing does not remove downloads
+- The current downloads implementation focuses on job management UI and offline asset persistence
+- Offline reader switching and richer downloaded-library browsing are still later-phase work
+
+<p align="right"><a href="#readme-top">‣ back to top</a></p>
+
+## APIs
+
+API notes and endpoint references live in [API-README.md](API-README.md).
+
+<p align="right"><a href="#readme-top">‣ back to top</a></p>
+
 ## License
 
 Distributed under the MIT License. See `LICENSE.txt` for more information.
 
-<p align="right"> <a href="#readme-top"> ‣ back to top</a> </p>
+<p align="right"><a href="#readme-top">‣ back to top</a></p>
 
-
-<!-- CONTACT -->
 ## Contact
 
-Auther: ttdyce - i@ttdyce.com
+Author: ttdyce - i@ttdyce.com
 
 Project Link: [https://github.com/ttdyce/nhviewer-universal](https://github.com/ttdyce/nhviewer-universal)
 
-<p align="right"> <a href="#readme-top"> ‣ back to top</a> </p>
+<p align="right"><a href="#readme-top">‣ back to top</a></p>
 
-
-<!-- ACKNOWLEDGMENTS -->
 ## Acknowledgments
 
-Big Thanks!
+- [ttdyce/nhviewer](https://github.com/ttdyce/NHentai-NHViewer)
+- [nhentai.net](https://nhentai.net)
+- [NHBooks](https://github.com/NHMoeDev/NHentai-android)
+- [EhViewer (deprecated)](https://github.com/seven332/EhViewer)
+- [rrousselGit/provider](https://github.com/rrousselGit/provider)
+- [cfug/dio](https://github.com/cfug/dio)
+- [simolus3/drift](https://github.com/simolus3/drift)
+- [Baseflow/flutter_cached_network_image](https://github.com/Baseflow/flutter_cached_network_image)
+- [fluttercommunity/flutter_launcher_icons](https://github.com/fluttercommunity/flutter_launcher_icons/)
+- Flutter
 
-- Inspired by
-  - [ttdyce/nhviewer](https://github.com/ttdyce/NHentai-NHViewer)
-  - [nhentai.net](https://nhentai.net)
-  - [NHBooks](https://github.com/NHMoeDev/NHentai-android)
-  - [EhViewer (deprecated)](https://github.com/seven332/EhViewer)
+<p align="right"><a href="#readme-top">‣ back to top</a></p>
 
-- Dependencies
-  - [rrousselGit/provider](https://github.com/rrousselGit/provider)
-  - [cfug/dio](https://github.com/cfug/dio)
-  - [tekartik/sqfite](https://github.com/tekartik/sqflite)
-  - [Baseflow/flutter_cached_network_image](https://github.com/Baseflow/flutter_cached_network_image)
-  - [fluttercommunity/flutter_launcher_icons](https://github.com/fluttercommunity/flutter_launcher_icons/)
-  - Flutter
-
-<p align="right"> <a href="#readme-top"> ‣ back to top</a> </p>
-
-
-<!-- MARKDOWN LINKS & IMAGES -->
-<!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
 [contributors-shield]: https://img.shields.io/github/contributors/ttdyce/nhviewer-universal.svg?style=for-the-badge
 [contributors-url]: https://github.com/ttdyce/nhviewer-universal/graphs/contributors
-[stars-shield]: https://img.shields.io/github/stars/ttdyce/nhviewer-universal.svg?style=for-the-badge
-[stars-url]: https://github.com/ttdyce/nhviewer-universal/stargazers
-[issues-shield]: https://img.shields.io/github/issues/ttdyce/nhviewer-universal.svg?style=for-the-badge
-[issues-url]: https://github.com/ttdyce/nhviewer-universal/issues
 [license-shield]: https://img.shields.io/github/license/ttdyce/nhviewer-universal.svg?style=for-the-badge
 [license-url]: https://github.com/ttdyce/nhviewer-universal/blob/main/LICENSE.txt
-[product-screenshot]: images/screenshot.png
-[Flutter]: https://img.shields.io/badge/flutter-blue?style=for-the-badge&logo=flutter
-[Flutter-url]: https://Flutter.dev/

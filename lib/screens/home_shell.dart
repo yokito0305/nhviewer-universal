@@ -1,19 +1,18 @@
 import 'package:concept_nhv/models/collection_summary.dart';
-import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/models/comic_card_data.dart';
 import 'package:concept_nhv/application/home/home_shell_controller.dart';
 import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/comic_reader_model.dart';
+import 'package:concept_nhv/state/download_manager_model.dart';
 import 'package:concept_nhv/state/home_ui_model.dart';
 import 'package:concept_nhv/widgets/collection_grid_sliver.dart';
 import 'package:concept_nhv/widgets/comic_grid_sliver.dart';
+import 'package:concept_nhv/widgets/download_job_list_sliver.dart';
 import 'package:concept_nhv/widgets/loading_indicator_bar.dart';
 import 'package:concept_nhv/widgets/search_suggestions_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-
-import 'collection_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -24,56 +23,101 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   final FocusScopeNode _focusNode = FocusScopeNode();
+  final TextEditingController _downloadsSearchController =
+      TextEditingController();
+  String _downloadsSearchQuery = '';
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    _downloadsSearchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: <Widget>[
-        Consumer<HomeUiModel>(
-          builder: (context, homeUiModel, child) {
-            return SliverAppBar(
-              clipBehavior: Clip.none,
-              backgroundColor: Colors.transparent,
-              floating: true,
-              snap: true,
-              bottom: LoadingIndicatorBar(isLoading: homeUiModel.isLoading),
-              title: FocusScope(
-                node: _focusNode,
-                onFocusChange: (isFocused) {
-                  if (isFocused) {
-                    _focusNode.unfocus();
-                  }
-                },
-                child: SearchAnchor.bar(
-                  searchController: homeUiModel.searchController,
-                  onSubmitted: (value) => _handleSearchSubmit(context, value),
-                  barTrailing: <Widget>[
-                    IconButton.filledTonal(
-                      onPressed: () => context.push('/settings'),
-                      icon: const Icon(Icons.settings),
-                    ),
-                  ],
-                  barHintText: 'Search comic',
-                  barElevation: WidgetStateProperty.all(0),
-                  suggestionsBuilder: (buildContext, controller) {
-                    return <Widget>[
-                      SizedBox(
-                        height: MediaQuery.sizeOf(buildContext).height * 0.56,
-                        child: SearchSuggestionsPanel(
-                          onHistorySelected: (query) =>
-                              _handleSearchSubmit(context, query),
-                        ),
-                      ),
-                    ];
-                  },
-                ),
-              ),
-            );
-          },
-        ),
+        _buildTopBar(context),
         _buildBodyByNavigationIndex(context),
       ],
+    );
+  }
+
+  Widget _buildTopBar(BuildContext context) {
+    final navigationIndex = context.watch<HomeUiModel>().navigationIndex;
+    if (navigationIndex == 1) {
+      return Consumer<DownloadManagerModel>(
+        builder: (context, model, _) {
+          return SliverAppBar(
+            floating: true,
+            snap: true,
+            title: TextField(
+              controller: _downloadsSearchController,
+              onChanged: (value) {
+                setState(() {
+                  _downloadsSearchQuery = value;
+                });
+              },
+              decoration: const InputDecoration(
+                hintText: 'Search downloads',
+                border: InputBorder.none,
+              ),
+            ),
+            actions: <Widget>[
+              IconButton(
+                onPressed: () => context.push('/settings'),
+                icon: const Icon(Icons.settings),
+              ),
+            ],
+            bottom: LoadingIndicatorBar(isLoading: model.isRefreshing),
+          );
+        },
+      );
+    }
+
+    return Consumer<HomeUiModel>(
+      builder: (context, homeUiModel, child) {
+        return SliverAppBar(
+          clipBehavior: Clip.none,
+          backgroundColor: Colors.transparent,
+          floating: true,
+          snap: true,
+          bottom: LoadingIndicatorBar(isLoading: homeUiModel.isLoading),
+          title: FocusScope(
+            node: _focusNode,
+            onFocusChange: (isFocused) {
+              if (isFocused) {
+                _focusNode.unfocus();
+              }
+            },
+            child: SearchAnchor.bar(
+              searchController: homeUiModel.searchController,
+              onSubmitted: (value) => _handleSearchSubmit(context, value),
+              barTrailing: <Widget>[
+                IconButton.filledTonal(
+                  onPressed: () => context.push('/settings'),
+                  icon: const Icon(Icons.settings),
+                ),
+              ],
+              barHintText: 'Search comic',
+              barElevation: WidgetStateProperty.all(0),
+              suggestionsBuilder: (buildContext, controller) {
+                return <Widget>[
+                  SizedBox(
+                    height: MediaQuery.sizeOf(buildContext).height * 0.56,
+                    child: SearchSuggestionsPanel(
+                      onHistorySelected: (query) =>
+                          _handleSearchSubmit(context, query),
+                    ),
+                  ),
+                ];
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -81,7 +125,7 @@ class _HomeShellState extends State<HomeShell> {
     final navigationIndex = context.watch<HomeUiModel>().navigationIndex;
     switch (navigationIndex) {
       case 1:
-        return CollectionComicSliver(collectionType: CollectionType.favorite);
+        return DownloadJobListSliver(searchQuery: _downloadsSearchQuery);
       case 2:
         return const CollectionOverviewScreen();
       case 0:

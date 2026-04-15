@@ -61,4 +61,12 @@ class DownloadedLibraryRepository {
       ),
     );
   }
+
+  Future<String?> loadCoverLocalPath(String comicId) async {
+    final query = localDatabase.select(localDatabase.downloadedComics)
+      ..where((table) => table.comicId.equals(comicId))
+      ..limit(1);
+    final row = await query.getSingleOrNull();
+    return row?.coverLocalPath;
+  }
 }

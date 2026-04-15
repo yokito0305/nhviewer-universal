@@ -1150,6 +1150,17 @@ class $DownloadJobsTable extends DownloadJobs
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _thumbnailPathMeta = const VerificationMeta(
+    'thumbnailPath',
+  );
+  @override
+  late final GeneratedColumn<String> thumbnailPath = GeneratedColumn<String>(
+    'thumbnail_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
   late final GeneratedColumn<String> status = GeneratedColumn<String>(
@@ -1266,6 +1277,7 @@ class $DownloadJobsTable extends DownloadJobs
     comicId,
     mediaId,
     title,
+    thumbnailPath,
     status,
     totalPages,
     completedPages,
@@ -1312,6 +1324,15 @@ class $DownloadJobsTable extends DownloadJobs
       );
     } else if (isInserting) {
       context.missing(_titleMeta);
+    }
+    if (data.containsKey('thumbnail_path')) {
+      context.handle(
+        _thumbnailPathMeta,
+        thumbnailPath.isAcceptableOrUnknown(
+          data['thumbnail_path']!,
+          _thumbnailPathMeta,
+        ),
+      );
     }
     if (data.containsKey('status')) {
       context.handle(
@@ -1414,6 +1435,10 @@ class $DownloadJobsTable extends DownloadJobs
         DriftSqlType.string,
         data['${effectivePrefix}title'],
       )!,
+      thumbnailPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}thumbnail_path'],
+      ),
       status: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}status'],
@@ -1467,6 +1492,7 @@ class DownloadJob extends DataClass implements Insertable<DownloadJob> {
   final String comicId;
   final String mediaId;
   final String title;
+  final String? thumbnailPath;
   final String status;
   final int totalPages;
   final int completedPages;
@@ -1481,6 +1507,7 @@ class DownloadJob extends DataClass implements Insertable<DownloadJob> {
     required this.comicId,
     required this.mediaId,
     required this.title,
+    this.thumbnailPath,
     required this.status,
     required this.totalPages,
     required this.completedPages,
@@ -1498,6 +1525,9 @@ class DownloadJob extends DataClass implements Insertable<DownloadJob> {
     map['comic_id'] = Variable<String>(comicId);
     map['media_id'] = Variable<String>(mediaId);
     map['title'] = Variable<String>(title);
+    if (!nullToAbsent || thumbnailPath != null) {
+      map['thumbnail_path'] = Variable<String>(thumbnailPath);
+    }
     map['status'] = Variable<String>(status);
     map['total_pages'] = Variable<int>(totalPages);
     map['completed_pages'] = Variable<int>(completedPages);
@@ -1522,6 +1552,9 @@ class DownloadJob extends DataClass implements Insertable<DownloadJob> {
       comicId: Value(comicId),
       mediaId: Value(mediaId),
       title: Value(title),
+      thumbnailPath: thumbnailPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(thumbnailPath),
       status: Value(status),
       totalPages: Value(totalPages),
       completedPages: Value(completedPages),
@@ -1550,6 +1583,7 @@ class DownloadJob extends DataClass implements Insertable<DownloadJob> {
       comicId: serializer.fromJson<String>(json['comicId']),
       mediaId: serializer.fromJson<String>(json['mediaId']),
       title: serializer.fromJson<String>(json['title']),
+      thumbnailPath: serializer.fromJson<String?>(json['thumbnailPath']),
       status: serializer.fromJson<String>(json['status']),
       totalPages: serializer.fromJson<int>(json['totalPages']),
       completedPages: serializer.fromJson<int>(json['completedPages']),
@@ -1569,6 +1603,7 @@ class DownloadJob extends DataClass implements Insertable<DownloadJob> {
       'comicId': serializer.toJson<String>(comicId),
       'mediaId': serializer.toJson<String>(mediaId),
       'title': serializer.toJson<String>(title),
+      'thumbnailPath': serializer.toJson<String?>(thumbnailPath),
       'status': serializer.toJson<String>(status),
       'totalPages': serializer.toJson<int>(totalPages),
       'completedPages': serializer.toJson<int>(completedPages),
@@ -1586,6 +1621,7 @@ class DownloadJob extends DataClass implements Insertable<DownloadJob> {
     String? comicId,
     String? mediaId,
     String? title,
+    Value<String?> thumbnailPath = const Value.absent(),
     String? status,
     int? totalPages,
     int? completedPages,
@@ -1600,6 +1636,9 @@ class DownloadJob extends DataClass implements Insertable<DownloadJob> {
     comicId: comicId ?? this.comicId,
     mediaId: mediaId ?? this.mediaId,
     title: title ?? this.title,
+    thumbnailPath: thumbnailPath.present
+        ? thumbnailPath.value
+        : this.thumbnailPath,
     status: status ?? this.status,
     totalPages: totalPages ?? this.totalPages,
     completedPages: completedPages ?? this.completedPages,
@@ -1616,6 +1655,9 @@ class DownloadJob extends DataClass implements Insertable<DownloadJob> {
       comicId: data.comicId.present ? data.comicId.value : this.comicId,
       mediaId: data.mediaId.present ? data.mediaId.value : this.mediaId,
       title: data.title.present ? data.title.value : this.title,
+      thumbnailPath: data.thumbnailPath.present
+          ? data.thumbnailPath.value
+          : this.thumbnailPath,
       status: data.status.present ? data.status.value : this.status,
       totalPages: data.totalPages.present
           ? data.totalPages.value
@@ -1647,6 +1689,7 @@ class DownloadJob extends DataClass implements Insertable<DownloadJob> {
           ..write('comicId: $comicId, ')
           ..write('mediaId: $mediaId, ')
           ..write('title: $title, ')
+          ..write('thumbnailPath: $thumbnailPath, ')
           ..write('status: $status, ')
           ..write('totalPages: $totalPages, ')
           ..write('completedPages: $completedPages, ')
@@ -1666,6 +1709,7 @@ class DownloadJob extends DataClass implements Insertable<DownloadJob> {
     comicId,
     mediaId,
     title,
+    thumbnailPath,
     status,
     totalPages,
     completedPages,
@@ -1684,6 +1728,7 @@ class DownloadJob extends DataClass implements Insertable<DownloadJob> {
           other.comicId == this.comicId &&
           other.mediaId == this.mediaId &&
           other.title == this.title &&
+          other.thumbnailPath == this.thumbnailPath &&
           other.status == this.status &&
           other.totalPages == this.totalPages &&
           other.completedPages == this.completedPages &&
@@ -1700,6 +1745,7 @@ class DownloadJobsCompanion extends UpdateCompanion<DownloadJob> {
   final Value<String> comicId;
   final Value<String> mediaId;
   final Value<String> title;
+  final Value<String?> thumbnailPath;
   final Value<String> status;
   final Value<int> totalPages;
   final Value<int> completedPages;
@@ -1715,6 +1761,7 @@ class DownloadJobsCompanion extends UpdateCompanion<DownloadJob> {
     this.comicId = const Value.absent(),
     this.mediaId = const Value.absent(),
     this.title = const Value.absent(),
+    this.thumbnailPath = const Value.absent(),
     this.status = const Value.absent(),
     this.totalPages = const Value.absent(),
     this.completedPages = const Value.absent(),
@@ -1731,6 +1778,7 @@ class DownloadJobsCompanion extends UpdateCompanion<DownloadJob> {
     required String comicId,
     required String mediaId,
     required String title,
+    this.thumbnailPath = const Value.absent(),
     required String status,
     required int totalPages,
     this.completedPages = const Value.absent(),
@@ -1753,6 +1801,7 @@ class DownloadJobsCompanion extends UpdateCompanion<DownloadJob> {
     Expression<String>? comicId,
     Expression<String>? mediaId,
     Expression<String>? title,
+    Expression<String>? thumbnailPath,
     Expression<String>? status,
     Expression<int>? totalPages,
     Expression<int>? completedPages,
@@ -1769,6 +1818,7 @@ class DownloadJobsCompanion extends UpdateCompanion<DownloadJob> {
       if (comicId != null) 'comic_id': comicId,
       if (mediaId != null) 'media_id': mediaId,
       if (title != null) 'title': title,
+      if (thumbnailPath != null) 'thumbnail_path': thumbnailPath,
       if (status != null) 'status': status,
       if (totalPages != null) 'total_pages': totalPages,
       if (completedPages != null) 'completed_pages': completedPages,
@@ -1787,6 +1837,7 @@ class DownloadJobsCompanion extends UpdateCompanion<DownloadJob> {
     Value<String>? comicId,
     Value<String>? mediaId,
     Value<String>? title,
+    Value<String?>? thumbnailPath,
     Value<String>? status,
     Value<int>? totalPages,
     Value<int>? completedPages,
@@ -1803,6 +1854,7 @@ class DownloadJobsCompanion extends UpdateCompanion<DownloadJob> {
       comicId: comicId ?? this.comicId,
       mediaId: mediaId ?? this.mediaId,
       title: title ?? this.title,
+      thumbnailPath: thumbnailPath ?? this.thumbnailPath,
       status: status ?? this.status,
       totalPages: totalPages ?? this.totalPages,
       completedPages: completedPages ?? this.completedPages,
@@ -1828,6 +1880,9 @@ class DownloadJobsCompanion extends UpdateCompanion<DownloadJob> {
     }
     if (title.present) {
       map['title'] = Variable<String>(title.value);
+    }
+    if (thumbnailPath.present) {
+      map['thumbnail_path'] = Variable<String>(thumbnailPath.value);
     }
     if (status.present) {
       map['status'] = Variable<String>(status.value);
@@ -1871,6 +1926,7 @@ class DownloadJobsCompanion extends UpdateCompanion<DownloadJob> {
           ..write('comicId: $comicId, ')
           ..write('mediaId: $mediaId, ')
           ..write('title: $title, ')
+          ..write('thumbnailPath: $thumbnailPath, ')
           ..write('status: $status, ')
           ..write('totalPages: $totalPages, ')
           ..write('completedPages: $completedPages, ')
@@ -3979,6 +4035,7 @@ typedef $$DownloadJobsTableCreateCompanionBuilder =
       required String comicId,
       required String mediaId,
       required String title,
+      Value<String?> thumbnailPath,
       required String status,
       required int totalPages,
       Value<int> completedPages,
@@ -3996,6 +4053,7 @@ typedef $$DownloadJobsTableUpdateCompanionBuilder =
       Value<String> comicId,
       Value<String> mediaId,
       Value<String> title,
+      Value<String?> thumbnailPath,
       Value<String> status,
       Value<int> totalPages,
       Value<int> completedPages,
@@ -4030,6 +4088,11 @@ class $$DownloadJobsTableFilterComposer
 
   ColumnFilters<String> get title => $composableBuilder(
     column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get thumbnailPath => $composableBuilder(
+    column: $table.thumbnailPath,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4108,6 +4171,11 @@ class $$DownloadJobsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get thumbnailPath => $composableBuilder(
+    column: $table.thumbnailPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get status => $composableBuilder(
     column: $table.status,
     builder: (column) => ColumnOrderings(column),
@@ -4176,6 +4244,11 @@ class $$DownloadJobsTableAnnotationComposer
 
   GeneratedColumn<String> get title =>
       $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get thumbnailPath => $composableBuilder(
+    column: $table.thumbnailPath,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
@@ -4254,6 +4327,7 @@ class $$DownloadJobsTableTableManager
                 Value<String> comicId = const Value.absent(),
                 Value<String> mediaId = const Value.absent(),
                 Value<String> title = const Value.absent(),
+                Value<String?> thumbnailPath = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<int> totalPages = const Value.absent(),
                 Value<int> completedPages = const Value.absent(),
@@ -4269,6 +4343,7 @@ class $$DownloadJobsTableTableManager
                 comicId: comicId,
                 mediaId: mediaId,
                 title: title,
+                thumbnailPath: thumbnailPath,
                 status: status,
                 totalPages: totalPages,
                 completedPages: completedPages,
@@ -4286,6 +4361,7 @@ class $$DownloadJobsTableTableManager
                 required String comicId,
                 required String mediaId,
                 required String title,
+                Value<String?> thumbnailPath = const Value.absent(),
                 required String status,
                 required int totalPages,
                 Value<int> completedPages = const Value.absent(),
@@ -4301,6 +4377,7 @@ class $$DownloadJobsTableTableManager
                 comicId: comicId,
                 mediaId: mediaId,
                 title: title,
+                thumbnailPath: thumbnailPath,
                 status: status,
                 totalPages: totalPages,
                 completedPages: completedPages,

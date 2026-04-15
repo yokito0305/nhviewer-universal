@@ -26,6 +26,8 @@ class AppShellNavigationController {
           statusMessage: _statusMessageFromCode(statusCode),
         );
       case 1:
+        homeUiModel.setNavigationIndex(index);
+        return const AppShellNavigationResult();
       case 2:
         homeUiModel.setNavigationIndex(index);
         feedModel.refreshCollections();

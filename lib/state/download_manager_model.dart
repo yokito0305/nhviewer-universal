@@ -44,9 +44,11 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
   bool _isProcessing = false;
   bool _isRefreshing = false;
   bool _isDisposed = false;
+  final Set<String> _mutatingComicIds = <String>{};
 
   List<DownloadJobSnapshot> get jobs => _jobs;
   bool get isRefreshing => _isRefreshing;
+  bool isMutating(String comicId) => _mutatingComicIds.contains(comicId);
 
   Future<void> initialize() async {
     if (_isInitialized) {
@@ -89,38 +91,58 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> enqueue(DownloadRequest request) async {
-    final result = await nhentaiGateway.loadComicDetail(request.comicId);
-    await downloadQueueRepository.upsertJobManifest(
-      comic: result.comic,
-      title: request.title,
-    );
-    await refresh();
-    unawaited(_processQueue());
+    await _runMutatingJobAction(request.comicId, () async {
+      final existingJob = await downloadQueueRepository.loadJob(request.comicId);
+      if (existingJob != null) {
+        await refresh();
+        return;
+      }
+
+      final result = await nhentaiGateway.loadComicDetail(request.comicId);
+      await downloadQueueRepository.upsertJobManifest(
+        comic: result.comic,
+        title: request.title,
+      );
+      await refresh();
+      unawaited(_processQueue());
+    });
   }
 
   Future<void> pause(String comicId) async {
-    await downloadQueueRepository.markJobPaused(comicId);
-    await refresh();
+    await _runMutatingJobAction(comicId, () async {
+      await downloadQueueRepository.markJobPaused(comicId);
+      await refresh();
+    });
   }
 
   Future<void> resume(String comicId) async {
-    await downloadQueueRepository.requeueJob(comicId);
-    await refresh();
-    unawaited(_processQueue());
+    await _runMutatingJobAction(comicId, () async {
+      await downloadQueueRepository.requeueJob(comicId);
+      await refresh();
+      unawaited(_processQueue());
+    });
   }
 
   Future<void> retry(String comicId) async {
-    await downloadQueueRepository.requeueJob(comicId);
-    await refresh();
-    unawaited(_processQueue());
+    await _runMutatingJobAction(comicId, () async {
+      await downloadQueueRepository.requeueJob(comicId);
+      await refresh();
+      unawaited(_processQueue());
+    });
   }
 
   Future<void> deleteJob(String comicId) async {
-    await downloadQueueRepository.markJobPaused(comicId);
-    await downloadQueueRepository.deleteJob(comicId);
-    await downloadedLibraryRepository.deleteDownloadedComic(comicId);
-    await downloadAssetStore.deleteComicAssets(comicId);
-    await refresh();
+    await _runMutatingJobAction(comicId, () async {
+      await downloadQueueRepository.markJobPaused(comicId);
+      await downloadQueueRepository.deleteJob(comicId);
+      await downloadedLibraryRepository.deleteDownloadedComic(comicId);
+      await downloadAssetStore.deleteComicAssets(comicId);
+      await refresh();
+    });
+  }
+
+  Future<String?> loadCoverLocalPath(String comicId) {
+    return downloadedLibraryRepository.loadCoverLocalPath(comicId);
   }
 
   Future<void> _maybeAutoResume() async {
@@ -344,6 +366,25 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> waitForIdle() async {
     while (_isProcessing) {
       await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+  }
+
+  Future<void> _runMutatingJobAction(
+    String comicId,
+    Future<void> Function() action,
+  ) async {
+    if (_mutatingComicIds.contains(comicId)) {
+      return;
+    }
+    _mutatingComicIds.add(comicId);
+    notifyListeners();
+    try {
+      await action();
+    } finally {
+      _mutatingComicIds.remove(comicId);
+      if (!_isDisposed) {
+        notifyListeners();
+      }
     }
   }
 }

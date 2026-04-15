@@ -70,5 +70,64 @@ void main() {
       expect(pages.last.status, DownloadPageStatus.pending);
       expect(pages.last.localPath, isNull);
     });
+
+    test('markPageCompleted preserves a paused job status', () async {
+      final comic = sampleComic(id: '702', mediaId: '99');
+      await harness.downloadQueueRepository.upsertJobManifest(
+        comic: comic,
+        title: 'Paused Comic',
+      );
+      await harness.downloadQueueRepository.markJobDownloading('702');
+      await harness.downloadQueueRepository.markJobPaused('702');
+
+      await harness.downloadQueueRepository.markPageCompleted(
+        comicId: '702',
+        pageNumber: 1,
+        sourceServer: 'i1.nhentai.net',
+        localPath: '/tmp/1.webp',
+        storedFormat: 'webp',
+        byteSize: 123,
+      );
+
+      final job = await harness.downloadQueueRepository.loadJob('702');
+
+      expect(job, isNotNull);
+      expect(job!.status, DownloadJobStatus.paused);
+      expect(job.completedPages, 1);
+      expect(job.nextPageNumber, 2);
+      expect(job.completedAt, isNull);
+    });
+
+    test('markPageCompleted preserves a failed job status', () async {
+      final comic = sampleComic(id: '703', mediaId: '100');
+      await harness.downloadQueueRepository.upsertJobManifest(
+        comic: comic,
+        title: 'Failed Comic',
+      );
+      await harness.downloadQueueRepository.markJobDownloading('703');
+      await harness.downloadQueueRepository.markPageFailed(
+        comicId: '703',
+        pageNumber: 1,
+        error: 'network',
+      );
+
+      await harness.downloadQueueRepository.markPageCompleted(
+        comicId: '703',
+        pageNumber: 2,
+        sourceServer: 'i1.nhentai.net',
+        localPath: '/tmp/2.webp',
+        storedFormat: 'webp',
+        byteSize: 456,
+      );
+
+      final job = await harness.downloadQueueRepository.loadJob('703');
+
+      expect(job, isNotNull);
+      expect(job!.status, DownloadJobStatus.failed);
+      expect(job.completedPages, 1);
+      expect(job.nextPageNumber, 1);
+      expect(job.lastError, 'network');
+      expect(job.completedAt, isNull);
+    });
   });
 }

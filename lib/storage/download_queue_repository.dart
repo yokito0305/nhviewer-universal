@@ -33,6 +33,7 @@ class DownloadQueueRepository {
           comicId: comic.id,
           mediaId: comic.mediaId,
           title: title,
+          thumbnailPath: drift.Value(comic.images.thumbnail?.path),
           status: DownloadJobStatus.queued.storageValue,
           totalPages: comic.numPages,
           completedPages: drift.Value(completedPages),
@@ -248,6 +249,11 @@ class DownloadQueueRepository {
       final completedPages = pages.where(
         (page) => page.status == DownloadPageStatus.completed,
       ).length;
+      final nextJobStatus = switch (job.status) {
+        DownloadJobStatus.paused => DownloadJobStatus.paused,
+        DownloadJobStatus.failed => DownloadJobStatus.failed,
+        _ => DownloadJobStatus.downloading,
+      };
       final jobStatement = localDatabase.update(localDatabase.downloadJobs)
         ..where((table) => table.comicId.equals(comicId));
       await jobStatement.write(
@@ -256,10 +262,12 @@ class DownloadQueueRepository {
           nextPageNumber: drift.Value(
             _nextIncompletePage(pages, job.totalPages),
           ),
-          status: drift.Value(DownloadJobStatus.downloading.storageValue),
+          status: drift.Value(nextJobStatus.storageValue),
           completedAt: const drift.Value(null),
           updatedAt: drift.Value(timestamp.toIso8601String()),
-          lastError: const drift.Value(null),
+          lastError: drift.Value(
+            nextJobStatus == DownloadJobStatus.downloading ? null : job.lastError,
+          ),
         ),
       );
     });
@@ -370,6 +378,7 @@ class DownloadQueueRepository {
       comicId: row.comicId,
       mediaId: row.mediaId,
       title: row.title,
+      thumbnailPath: row.thumbnailPath,
       status: DownloadJobStatus.fromStorage(row.status),
       totalPages: row.totalPages,
       completedPages: row.completedPages,
