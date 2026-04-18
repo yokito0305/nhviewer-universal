@@ -149,6 +149,8 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
     final autoResumeEnabled =
         await downloadSettingsRepository.loadAutoResumeEnabled();
     if (!autoResumeEnabled) {
+      await downloadQueueRepository.pauseInterruptedJobs();
+      await refresh();
       return;
     }
     await downloadQueueRepository.requeueInterruptedJobs();

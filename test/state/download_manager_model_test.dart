@@ -13,6 +13,7 @@ import 'package:concept_nhv/services/nhentai_cdn_config_service.dart';
 import 'package:concept_nhv/state/download_manager_model.dart';
 import 'package:concept_nhv/storage/download_settings_store.dart';
 import 'package:concept_nhv/storage/options_store.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../test_support/fakes/fake_image_compression_service.dart';
@@ -260,6 +261,162 @@ void main() {
       expect(pages[1].status, DownloadPageStatus.completed);
       expect(pages, hasLength(comic.numPages));
       expect(pages[2].status, DownloadPageStatus.pending);
+
+      manager.dispose();
+    });
+
+    test('initialize pauses interrupted downloading jobs when auto resume is disabled', () async {
+      final comic = sampleComic(id: '904', mediaId: '779');
+      final downloadSettingsStore = DownloadSettingsStore(
+        optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+      );
+      await downloadSettingsStore.saveAutoResumeEnabled(false);
+      await harness.downloadQueueRepository.upsertJobManifest(
+        comic: comic,
+        title: 'Interrupted',
+      );
+      await harness.downloadQueueRepository.markJobDownloading('904');
+      await harness.downloadQueueRepository.markPageCompleted(
+        comicId: '904',
+        pageNumber: 1,
+        sourceServer: 'i1.nhentai.net',
+        localPath: '/tmp/904-1.webp',
+        storedFormat: 'webp',
+        byteSize: 123,
+      );
+      final remoteAssetFetcher = FakeRemoteAssetFetcher(
+        responses: <String, Uint8List>{
+          'https://i1.nhentai.net/galleries/779/1.jpg': Uint8List.fromList(<int>[1]),
+          'https://i1.nhentai.net/galleries/779/2.jpg': Uint8List.fromList(<int>[2]),
+          'https://i1.nhentai.net/galleries/779/cover.jpg': Uint8List.fromList(<int>[3]),
+        },
+      );
+      final manager = DownloadManagerModel(
+        nhentaiGateway: FakeNhentaiGateway(detailComic: comic),
+        cdnConfigService: _FakeCdnConfigService(),
+        downloadQueueRepository: harness.downloadQueueRepository,
+        downloadedLibraryRepository: harness.downloadedLibraryRepository,
+        downloadSettingsRepository: downloadSettingsStore,
+        downloadAssetStore: DownloadAssetStore(
+          directoryResolver: () async => tempDirectory,
+        ),
+        imageCompressionService: FakeImageCompressionService(),
+        remoteAssetFetcher: remoteAssetFetcher,
+      );
+
+      await manager.initialize();
+      await manager.waitForIdle();
+
+      final job = await harness.downloadQueueRepository.loadJob('904');
+
+      expect(job, isNotNull);
+      expect(job!.status, DownloadJobStatus.paused);
+      expect(job.completedPages, 1);
+      expect(job.nextPageNumber, 2);
+      expect(remoteAssetFetcher.requestedUrls, isEmpty);
+
+      manager.dispose();
+    });
+
+    test('resumed lifecycle pauses interrupted downloads when auto resume is disabled', () async {
+      final comic = sampleComic(id: '905', mediaId: '780');
+      final downloadSettingsStore = DownloadSettingsStore(
+        optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+      );
+      final manager = DownloadManagerModel(
+        nhentaiGateway: FakeNhentaiGateway(detailComic: comic),
+        cdnConfigService: _FakeCdnConfigService(),
+        downloadQueueRepository: harness.downloadQueueRepository,
+        downloadedLibraryRepository: harness.downloadedLibraryRepository,
+        downloadSettingsRepository: downloadSettingsStore,
+        downloadAssetStore: DownloadAssetStore(
+          directoryResolver: () async => tempDirectory,
+        ),
+        imageCompressionService: FakeImageCompressionService(),
+        remoteAssetFetcher: FakeRemoteAssetFetcher(),
+      );
+
+      await manager.initialize();
+      await harness.downloadQueueRepository.upsertJobManifest(
+        comic: comic,
+        title: 'Resume Disabled',
+      );
+      await harness.downloadQueueRepository.markJobDownloading('905');
+      await harness.downloadQueueRepository.markPageCompleted(
+        comicId: '905',
+        pageNumber: 1,
+        sourceServer: 'i1.nhentai.net',
+        localPath: '/tmp/905-1.webp',
+        storedFormat: 'webp',
+        byteSize: 123,
+      );
+      await downloadSettingsStore.saveAutoResumeEnabled(false);
+
+      manager.didChangeAppLifecycleState(AppLifecycleState.resumed);
+      await _waitForJobStatus(
+        harness: harness,
+        comicId: '905',
+        status: 'paused',
+      );
+      await manager.waitForIdle();
+
+      final job = await harness.downloadQueueRepository.loadJob('905');
+      expect(job, isNotNull);
+      expect(job!.status, DownloadJobStatus.paused);
+
+      manager.dispose();
+    });
+
+    test('disabling auto resume during an active foreground download does not stop the current job', () async {
+      final comic = _threePageComic(id: '906', mediaId: '781');
+      final secondPageCompleter = Completer<Uint8List>();
+      final downloadSettingsStore = DownloadSettingsStore(
+        optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+      );
+      final manager = DownloadManagerModel(
+        nhentaiGateway: FakeNhentaiGateway(detailComic: comic),
+        cdnConfigService: _FakeCdnConfigService(),
+        downloadQueueRepository: harness.downloadQueueRepository,
+        downloadedLibraryRepository: harness.downloadedLibraryRepository,
+        downloadSettingsRepository: downloadSettingsStore,
+        downloadAssetStore: DownloadAssetStore(
+          directoryResolver: () async => tempDirectory,
+        ),
+        imageCompressionService: FakeImageCompressionService(),
+        remoteAssetFetcher: FakeRemoteAssetFetcher(
+          responses: <String, Uint8List>{
+            'https://i1.nhentai.net/galleries/781/1.jpg': Uint8List.fromList(<int>[1]),
+            'https://i1.nhentai.net/galleries/781/3.jpg': Uint8List.fromList(<int>[3]),
+            'https://i1.nhentai.net/galleries/781/cover.jpg': Uint8List.fromList(<int>[4]),
+          },
+          deferredResponses: <String, Future<Uint8List> Function()>{
+            'https://i1.nhentai.net/galleries/781/2.jpg': () => secondPageCompleter.future,
+          },
+        ),
+      );
+
+      await manager.initialize();
+      await manager.enqueue(const DownloadRequest(comicId: '906', title: 'Toggle Auto Resume'));
+      await _waitForPageStatus(
+        harness: harness,
+        comicId: '906',
+        pageNumber: 2,
+        status: 'downloading',
+      );
+
+      await downloadSettingsStore.saveAutoResumeEnabled(false);
+      secondPageCompleter.complete(Uint8List.fromList(<int>[2]));
+
+      await _waitForJobStatus(
+        harness: harness,
+        comicId: '906',
+        status: 'completed',
+      );
+      await manager.waitForIdle();
+
+      final job = await harness.downloadQueueRepository.loadJob('906');
+      expect(job, isNotNull);
+      expect(job!.status, DownloadJobStatus.completed);
 
       manager.dispose();
     });

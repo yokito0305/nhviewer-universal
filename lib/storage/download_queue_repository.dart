@@ -200,6 +200,16 @@ class DownloadQueueRepository {
     );
   }
 
+  Future<void> pauseInterruptedJobs() async {
+    final query = localDatabase.select(localDatabase.downloadJobs)
+      ..where((table) =>
+          table.status.equals(DownloadJobStatus.downloading.storageValue));
+    final rows = await query.get();
+    for (final row in rows) {
+      await markJobPaused(row.comicId);
+    }
+  }
+
   Future<void> markPageDownloading({
     required String comicId,
     required int pageNumber,

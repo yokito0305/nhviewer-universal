@@ -129,5 +129,58 @@ void main() {
       expect(job.lastError, 'network');
       expect(job.completedAt, isNull);
     });
+
+    test('pauseInterruptedJobs pauses only downloading jobs and preserves progress', () async {
+      final downloadingComic = sampleComic(id: '704', mediaId: '101');
+      final queuedComic = sampleComic(id: '705', mediaId: '102');
+      final failedComic = sampleComic(id: '706', mediaId: '103');
+
+      await harness.downloadQueueRepository.upsertJobManifest(
+        comic: downloadingComic,
+        title: 'Downloading Comic',
+      );
+      await harness.downloadQueueRepository.upsertJobManifest(
+        comic: queuedComic,
+        title: 'Queued Comic',
+      );
+      await harness.downloadQueueRepository.upsertJobManifest(
+        comic: failedComic,
+        title: 'Failed Comic',
+      );
+
+      await harness.downloadQueueRepository.markJobDownloading('704');
+      await harness.downloadQueueRepository.markPageCompleted(
+        comicId: '704',
+        pageNumber: 1,
+        sourceServer: 'i1.nhentai.net',
+        localPath: '/tmp/704-1.webp',
+        storedFormat: 'webp',
+        byteSize: 111,
+      );
+      await harness.downloadQueueRepository.markJobDownloading('706');
+      await harness.downloadQueueRepository.markPageFailed(
+        comicId: '706',
+        pageNumber: 1,
+        error: 'network',
+      );
+
+      await harness.downloadQueueRepository.pauseInterruptedJobs();
+
+      final pausedJob = await harness.downloadQueueRepository.loadJob('704');
+      final queuedJob = await harness.downloadQueueRepository.loadJob('705');
+      final failedJob = await harness.downloadQueueRepository.loadJob('706');
+
+      expect(pausedJob, isNotNull);
+      expect(pausedJob!.status, DownloadJobStatus.paused);
+      expect(pausedJob.completedPages, 1);
+      expect(pausedJob.nextPageNumber, 2);
+
+      expect(queuedJob, isNotNull);
+      expect(queuedJob!.status, DownloadJobStatus.queued);
+
+      expect(failedJob, isNotNull);
+      expect(failedJob!.status, DownloadJobStatus.failed);
+      expect(failedJob.lastError, 'network');
+    });
   });
 }
