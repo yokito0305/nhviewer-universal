@@ -1,16 +1,34 @@
 import 'package:concept_nhv/application/downloads/download_settings_repository.dart';
+import 'package:concept_nhv/application/feed/load_collection_summaries_use_case.dart';
+import 'package:concept_nhv/application/feed/search_comics_use_case.dart';
+import 'package:concept_nhv/application/home/home_shell_controller.dart';
+import 'package:concept_nhv/application/reader/load_comic_detail_use_case.dart';
+import 'package:concept_nhv/application/reader/open_comic_use_case.dart';
 import 'package:concept_nhv/models/download_job_snapshot.dart';
 import 'package:concept_nhv/models/download_job_status.dart';
+import 'package:concept_nhv/models/download_list_item_snapshot.dart';
+import 'package:concept_nhv/models/downloaded_comic_snapshot.dart';
+import 'package:concept_nhv/models/downloads_sort_mode.dart';
+import 'package:concept_nhv/services/search_query_builder.dart';
+import 'package:concept_nhv/services/tag_search_query_builder.dart';
 import 'package:concept_nhv/services/download_asset_store.dart';
 import 'package:concept_nhv/services/nhentai_cdn_config_service.dart';
+import 'package:concept_nhv/state/comic_feed_model.dart';
+import 'package:concept_nhv/state/comic_reader_model.dart';
 import 'package:concept_nhv/state/download_manager_model.dart';
+import 'package:concept_nhv/state/home_ui_model.dart';
+import 'package:concept_nhv/storage/options_store.dart';
+import 'package:concept_nhv/storage/reader_progress_store.dart';
 import 'package:concept_nhv/widgets/download_job_list_sliver.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:provider/single_child_widget.dart';
 
 import '../test_support/fakes/fake_image_compression_service.dart';
 import '../test_support/fakes/fake_nhentai_gateway.dart';
+import '../test_support/fakes/fake_reader_settings_repository.dart';
+import '../test_support/fixtures/sample_comic.dart';
 import '../test_support/fakes/fake_remote_asset_fetcher.dart';
 import '../test_support/storage/sqlite_test_harness.dart';
 
@@ -27,75 +45,21 @@ void main() {
       await harness.dispose();
     });
 
-    testWidgets('orders jobs by status group and requested time', (tester) async {
-      final sortedTitles = sortDownloadJobs(<DownloadJobSnapshot>[
-        _job(
-          comicId: 'completed',
-          title: 'Completed Comic',
-          status: DownloadJobStatus.completed,
-          requestedAt: DateTime(2026, 4, 10),
-        ),
-        _job(
-          comicId: 'failed',
-          title: 'Failed Comic',
-          status: DownloadJobStatus.failed,
-          requestedAt: DateTime(2026, 4, 11),
-        ),
-        _job(
-          comicId: 'downloading',
-          title: 'Downloading Comic',
-          status: DownloadJobStatus.downloading,
-          requestedAt: DateTime(2026, 4, 9),
-        ),
-        _job(
-          comicId: 'queued-new',
-          title: 'Queued New',
-          status: DownloadJobStatus.queued,
-          requestedAt: DateTime(2026, 4, 12),
-        ),
-        _job(
-          comicId: 'paused',
-          title: 'Paused Comic',
-          status: DownloadJobStatus.paused,
-          requestedAt: DateTime(2026, 4, 8),
-        ),
-        _job(
-          comicId: 'queued-old',
-          title: 'Queued Old',
-          status: DownloadJobStatus.queued,
-          requestedAt: DateTime(2026, 4, 1),
-        ),
-      ]).map((job) => job.title).toList(growable: false);
-
-      expect(
-        sortedTitles,
-        <String>[
-          'Downloading Comic',
-          'Queued New',
-          'Queued Old',
-          'Failed Comic',
-          'Paused Comic',
-          'Completed Comic',
-        ],
-      );
-    });
-
     testWidgets('filters by title and shows per-status actions when expanded', (
       tester,
     ) async {
       final model = _FakeDownloadManagerModel(
         harness: harness,
-        jobsOverride: <DownloadJobSnapshot>[
-          _job(
+        itemsOverride: <DownloadListItemSnapshot>[
+          _itemFromJob(
             comicId: 'paused',
             title: 'Paused Comic',
             status: DownloadJobStatus.paused,
             requestedAt: DateTime(2026, 4, 11),
           ),
-          _job(
+          _itemFromDownloadedComic(
             comicId: 'completed',
             title: 'Downloaded Comic',
-            status: DownloadJobStatus.completed,
             requestedAt: DateTime(2026, 4, 10),
           ),
         ],
@@ -116,16 +80,98 @@ void main() {
       expect(find.text('Remove'), findsOneWidget);
       expect(find.text('Delete Download'), findsNothing);
     });
+
+    testWidgets('shows Active and Completed section headers', (tester) async {
+      final model = _FakeDownloadManagerModel(
+        harness: harness,
+        itemsOverride: <DownloadListItemSnapshot>[
+          _itemFromJob(
+            comicId: 'paused',
+            title: 'Paused Comic',
+            status: DownloadJobStatus.paused,
+            requestedAt: DateTime(2026, 4, 11),
+          ),
+          _itemFromDownloadedComic(
+            comicId: 'completed',
+            title: 'Downloaded Comic',
+            requestedAt: DateTime(2026, 4, 10),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(_buildTestWidget(model: model));
+      await tester.pump();
+
+      expect(find.text('Active Downloads'), findsOneWidget);
+      expect(find.text('Completed Downloads'), findsOneWidget);
+    });
+
+    testWidgets('shows updated unified empty state copy', (tester) async {
+      final model = _FakeDownloadManagerModel(
+        harness: harness,
+        itemsOverride: const <DownloadListItemSnapshot>[],
+      );
+
+      await tester.pumpWidget(_buildTestWidget(model: model));
+      await tester.pump();
+
+      expect(find.text('No downloads yet'), findsOneWidget);
+    });
+
+    testWidgets('completed cards show tags and route tag chips through global tag search', (
+      tester,
+    ) async {
+      final model = _FakeDownloadManagerModel(
+        harness: harness,
+        itemsOverride: <DownloadListItemSnapshot>[
+          _itemFromDownloadedComic(
+            comicId: 'completed',
+            title: 'Downloaded Comic',
+            requestedAt: DateTime(2026, 4, 10),
+          ),
+        ],
+      );
+      final controller = _FakeHomeShellController(harness: harness);
+
+      await tester.pumpWidget(
+        _buildTestWidget(
+          model: model,
+          controller: controller,
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Downloaded Comic'), findsOneWidget);
+      expect(find.text('2 pages'), findsOneWidget);
+
+      await tester.tap(find.text('Downloaded Comic'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('sample'), findsOneWidget);
+      expect(find.text('Delete Download'), findsOneWidget);
+
+      await tester.tap(find.text('sample'));
+      await tester.pumpAndSettle();
+
+      expect(controller.submittedTagQueries, <String>['tag:sample']);
+    });
   });
 }
 
 Widget _buildTestWidget({
   required DownloadManagerModel model,
+  HomeShellController? controller,
   String searchQuery = '',
 }) {
+  final providers = <SingleChildWidget>[
+    ChangeNotifierProvider<DownloadManagerModel>.value(value: model),
+    if (controller != null)
+      Provider<HomeShellController>.value(value: controller),
+  ];
+
   return MaterialApp(
-    home: ChangeNotifierProvider<DownloadManagerModel>.value(
-      value: model,
+    home: MultiProvider(
+      providers: providers,
       child: Scaffold(
         body: CustomScrollView(
           slivers: <Widget>[
@@ -157,10 +203,58 @@ DownloadJobSnapshot _job({
   );
 }
 
+DownloadListItemSnapshot _itemFromJob({
+  required String comicId,
+  required String title,
+  required DownloadJobStatus status,
+  required DateTime requestedAt,
+  DateTime? downloadedAt,
+}) {
+  return DownloadListItemSnapshot.fromJob(
+    _job(
+      comicId: comicId,
+      title: title,
+      status: status,
+      requestedAt: requestedAt,
+    ),
+    downloadedComic: status == DownloadJobStatus.completed
+        ? DownloadedComicSnapshot(
+            comicId: comicId,
+            mediaId: comicId,
+            title: title,
+            coverLocalPath: null,
+            rootDirectoryPath: '/downloads/$comicId',
+            pageCount: 10,
+            downloadedAt: downloadedAt ?? requestedAt,
+            tags: sampleComic().tags,
+          )
+        : null,
+  );
+}
+
+DownloadListItemSnapshot _itemFromDownloadedComic({
+  required String comicId,
+  required String title,
+  required DateTime requestedAt,
+}) {
+  return DownloadListItemSnapshot.fromDownloadedComic(
+    DownloadedComicSnapshot(
+      comicId: comicId,
+      mediaId: comicId,
+      title: title,
+      coverLocalPath: null,
+      rootDirectoryPath: '/downloads/$comicId',
+      pageCount: 2,
+      downloadedAt: requestedAt,
+      tags: sampleComic().tags,
+    ),
+  );
+}
+
 class _FakeDownloadManagerModel extends DownloadManagerModel {
   _FakeDownloadManagerModel({
     required this.harness,
-    required this.jobsOverride,
+    required this.itemsOverride,
   }) : super(
           nhentaiGateway: FakeNhentaiGateway(),
           cdnConfigService: NhentaiCdnConfigService(),
@@ -175,10 +269,43 @@ class _FakeDownloadManagerModel extends DownloadManagerModel {
         );
 
   final SqliteTestHarness harness;
-  final List<DownloadJobSnapshot> jobsOverride;
+  final List<DownloadListItemSnapshot> itemsOverride;
 
   @override
-  List<DownloadJobSnapshot> get jobs => jobsOverride;
+  List<DownloadJobSnapshot> get jobs => itemsOverride
+      .map(
+        (item) => _job(
+          comicId: item.comicId,
+          title: item.title,
+          status: item.status,
+          requestedAt: item.requestedAt,
+        ),
+      )
+      .toList(growable: false);
+
+  @override
+  List<DownloadListItemSnapshot> get downloadItems => itemsOverride;
+
+  @override
+  DownloadsSortMode get downloadsSortMode => DownloadsSortMode.latestDownloaded;
+
+  @override
+  List<DownloadListItemSnapshot> get sortedDownloadItems {
+    final activeItems = itemsOverride
+        .where((item) => !item.isCompletedCard)
+        .toList(growable: false)
+      ..sort((a, b) => b.requestedAt.compareTo(a.requestedAt));
+    final completedItems = itemsOverride
+        .where((item) => item.isCompletedCard)
+        .toList(growable: false)
+      ..sort((a, b) => (b.downloadedAt ?? b.updatedAt).compareTo(
+            a.downloadedAt ?? a.updatedAt,
+          ));
+    return <DownloadListItemSnapshot>[
+      ...activeItems,
+      ...completedItems,
+    ];
+  }
 
   @override
   Future<void> refresh() async {}
@@ -188,6 +315,47 @@ class _FakeDownloadManagerModel extends DownloadManagerModel {
 
   @override
   Future<String?> loadCoverLocalPath(String comicId) async => null;
+}
+
+class _FakeHomeShellController extends HomeShellController {
+  _FakeHomeShellController({required SqliteTestHarness harness})
+      : super(
+          searchHistoryRepository: harness.searchHistoryRepository,
+          homeUiModel: HomeUiModel(),
+          feedModel: ComicFeedModel(
+            searchComicsUseCase: SearchComicsUseCase(
+              nhentaiGateway: FakeNhentaiGateway(),
+              searchQueryBuilder: const SearchQueryBuilder(),
+            ),
+            loadCollectionSummariesUseCase: LoadCollectionSummariesUseCase(
+              collectionRepository: harness.collectionRepository,
+            ),
+          ),
+          readerModel: ComicReaderModel(
+            loadComicDetailUseCase: LoadComicDetailUseCase(
+              nhentaiGateway: FakeNhentaiGateway(detailComic: sampleComic()),
+            ),
+            openComicUseCase: OpenComicUseCase(
+              comicRepository: harness.comicRepository,
+              collectionRepository: harness.collectionRepository,
+            ),
+            readerProgressRepository: ReaderProgressStore(
+              optionsStore: OptionsStore(
+                localDatabase: harness.localDatabase,
+              ),
+            ),
+            readerSettingsRepository: FakeReaderSettingsRepository(),
+            downloadedLibraryRepository: harness.downloadedLibraryRepository,
+          ),
+          tagSearchQueryBuilder: const TagSearchQueryBuilder(),
+        );
+
+  final List<String> submittedTagQueries = <String>[];
+
+  @override
+  Future<void> submitTagSearch(Iterable<String> tagQueries) async {
+    submittedTagQueries.addAll(tagQueries);
+  }
 }
 
 class _FakeDownloadSettingsRepository

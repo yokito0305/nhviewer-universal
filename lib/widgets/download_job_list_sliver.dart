@@ -1,36 +1,13 @@
 import 'dart:io';
 
-import 'package:concept_nhv/models/download_job_snapshot.dart';
+import 'package:concept_nhv/application/home/home_shell_controller.dart';
+import 'package:concept_nhv/models/comic_tag.dart';
 import 'package:concept_nhv/models/download_job_status.dart';
+import 'package:concept_nhv/models/download_list_item_snapshot.dart';
 import 'package:concept_nhv/state/download_manager_model.dart';
 import 'package:concept_nhv/widgets/fallback_cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-List<DownloadJobSnapshot> sortDownloadJobs(Iterable<DownloadJobSnapshot> jobs) {
-  final sortedJobs = jobs.toList(growable: false);
-  return sortedJobs..sort(compareDownloadJobs);
-}
-
-int compareDownloadJobs(DownloadJobSnapshot a, DownloadJobSnapshot b) {
-  final statusComparison = downloadJobStatusPriority(a.status).compareTo(
-    downloadJobStatusPriority(b.status),
-  );
-  if (statusComparison != 0) {
-    return statusComparison;
-  }
-  return b.requestedAt.compareTo(a.requestedAt);
-}
-
-int downloadJobStatusPriority(DownloadJobStatus status) {
-  return switch (status) {
-    DownloadJobStatus.downloading => 0,
-    DownloadJobStatus.queued => 1,
-    DownloadJobStatus.failed => 2,
-    DownloadJobStatus.paused => 3,
-    DownloadJobStatus.completed => 4,
-  };
-}
 
 class DownloadJobListSliver extends StatefulWidget {
   const DownloadJobListSliver({
@@ -51,72 +28,106 @@ class _DownloadJobListSliverState extends State<DownloadJobListSliver> {
   Widget build(BuildContext context) {
     return Consumer<DownloadManagerModel>(
       builder: (context, model, _) {
-        final filteredJobs = model.jobs
+        final filteredItems = model.sortedDownloadItems
             .where(
-              (job) => job.title.toLowerCase().contains(
+              (item) => item.title.toLowerCase().contains(
                 widget.searchQuery.trim().toLowerCase(),
               ),
             )
             .toList(growable: false);
-        final sortedJobs = sortDownloadJobs(filteredJobs);
+        final activeItems = filteredItems
+            .where((item) => !item.isCompletedCard)
+            .toList(growable: false);
+        final completedItems = filteredItems
+            .where((item) => item.isCompletedCard)
+            .toList(growable: false);
 
-        if (sortedJobs.isEmpty) {
+        if (filteredItems.isEmpty) {
           return SliverFillRemaining(
             hasScrollBody: false,
             child: Center(
               child: Text(
                 widget.searchQuery.trim().isEmpty
-                    ? 'No download jobs yet'
+                    ? 'No downloads yet'
                     : 'No downloads match "${widget.searchQuery.trim()}"',
               ),
             ),
           );
         }
 
-        return SliverList.builder(
-          itemCount: sortedJobs.length,
-          itemBuilder: (context, index) {
-            final job = sortedJobs[index];
-            return _DownloadJobCard(
-              key: ValueKey<String>(job.comicId),
-              job: job,
-              isExpanded: _expandedComicId == job.comicId,
-              isMutating: model.isMutating(job.comicId),
-              onToggleExpanded: () {
-                setState(() {
-                  _expandedComicId = _expandedComicId == job.comicId
-                      ? null
-                      : job.comicId;
-                });
-              },
-            );
-          },
+        return SliverList(
+          delegate: SliverChildListDelegate.fixed(
+            <Widget>[
+              if (activeItems.isNotEmpty) ...<Widget>[
+                const _DownloadsSectionHeader(title: 'Active Downloads'),
+                for (final item in activeItems)
+                  _buildItemCard(model, item),
+              ],
+              if (completedItems.isNotEmpty) ...<Widget>[
+                const _DownloadsSectionHeader(title: 'Completed Downloads'),
+                for (final item in completedItems)
+                  _buildItemCard(model, item),
+              ],
+            ],
+          ),
         );
+      },
+    );
+  }
+
+  Widget _buildItemCard(DownloadManagerModel model, DownloadListItemSnapshot item) {
+    return _DownloadItemCard(
+      key: ValueKey<String>(item.comicId),
+      item: item,
+      isExpanded: _expandedComicId == item.comicId,
+      isMutating: model.isMutating(item.comicId),
+      onToggleExpanded: () {
+        setState(() {
+          _expandedComicId = _expandedComicId == item.comicId
+              ? null
+              : item.comicId;
+        });
       },
     );
   }
 }
 
-class _DownloadJobCard extends StatelessWidget {
-  const _DownloadJobCard({
+class _DownloadsSectionHeader extends StatelessWidget {
+  const _DownloadsSectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w600,
+            ),
+      ),
+    );
+  }
+}
+
+class _DownloadItemCard extends StatelessWidget {
+  const _DownloadItemCard({
     super.key,
-    required this.job,
+    required this.item,
     required this.isExpanded,
     required this.isMutating,
     required this.onToggleExpanded,
   });
 
-  final DownloadJobSnapshot job;
+  final DownloadListItemSnapshot item;
   final bool isExpanded;
   final bool isMutating;
   final VoidCallback onToggleExpanded;
 
   @override
   Widget build(BuildContext context) {
-    final progress = job.totalPages == 0
-        ? 0.0
-        : (job.completedPages / job.totalPages).clamp(0.0, 1.0);
-
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: InkWell(
@@ -133,28 +144,14 @@ class _DownloadJobCard extends StatelessWidget {
                     width: 72,
                     child: AspectRatio(
                       aspectRatio: 0.72,
-                      child: _DownloadJobCover(job: job),
+                      child: _DownloadItemCover(item: item),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          job.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(_statusLabel(job)),
-                        const SizedBox(height: 8),
-                        Text('${job.completedPages} / ${job.totalPages}'),
-                        const SizedBox(height: 8),
-                        LinearProgressIndicator(value: progress),
-                      ],
-                    ),
+                    child: item.isCompletedCard
+                        ? _CompletedCardSummary(item: item)
+                        : _ActiveCardSummary(item: item),
                   ),
                   const SizedBox(width: 8),
                   Icon(
@@ -170,11 +167,16 @@ class _DownloadJobCard extends StatelessWidget {
                 firstChild: const SizedBox.shrink(),
                 secondChild: Padding(
                   padding: const EdgeInsets.only(top: 12),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _buildActionButtons(context),
-                  ),
+                  child: item.isCompletedCard
+                      ? _CompletedCardDetails(
+                          item: item,
+                          isMutating: isMutating,
+                        )
+                      : Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _buildActionButtons(context),
+                        ),
                 ),
               ),
             ],
@@ -186,7 +188,7 @@ class _DownloadJobCard extends StatelessWidget {
 
   List<Widget> _buildActionButtons(BuildContext context) {
     final model = context.read<DownloadManagerModel>();
-    return switch (job.status) {
+    return switch (item.status) {
       DownloadJobStatus.downloading => <Widget>[
         FilledButton.tonal(
           onPressed: isMutating
@@ -194,7 +196,7 @@ class _DownloadJobCard extends StatelessWidget {
               : () => _runAction(
                   context,
                   successMessage: 'Download paused',
-                  action: () => model.pause(job.comicId),
+                  action: () => model.pause(item.comicId),
                 ),
           child: const Text('Pause'),
         ),
@@ -206,7 +208,7 @@ class _DownloadJobCard extends StatelessWidget {
               : () => _runAction(
                   context,
                   successMessage: 'Download paused',
-                  action: () => model.pause(job.comicId),
+                  action: () => model.pause(item.comicId),
                 ),
           child: const Text('Pause'),
         ),
@@ -218,7 +220,7 @@ class _DownloadJobCard extends StatelessWidget {
               : () => _runAction(
                   context,
                   successMessage: 'Download resumed',
-                  action: () => model.resume(job.comicId),
+                  action: () => model.resume(item.comicId),
                 ),
           child: const Text('Resume'),
         ),
@@ -242,7 +244,7 @@ class _DownloadJobCard extends StatelessWidget {
               : () => _runAction(
                   context,
                   successMessage: 'Download retried',
-                  action: () => model.retry(job.comicId),
+                  action: () => model.retry(item.comicId),
                 ),
           child: const Text('Retry'),
         ),
@@ -259,20 +261,7 @@ class _DownloadJobCard extends StatelessWidget {
           child: const Text('Remove'),
         ),
       ],
-      DownloadJobStatus.completed => <Widget>[
-        OutlinedButton(
-          onPressed: isMutating
-              ? null
-              : () => _confirmAndDelete(
-                  context,
-                  title: 'Delete downloaded comic?',
-                  message:
-                      'This deletes the saved download, cover, offline snapshot, and the completed job record.',
-                  successMessage: 'Downloaded comic deleted',
-                ),
-          child: const Text('Delete Download'),
-        ),
-      ],
+      DownloadJobStatus.completed => <Widget>[],
     };
   }
 
@@ -309,7 +298,7 @@ class _DownloadJobCard extends StatelessWidget {
     await _runAction(
       context,
       successMessage: successMessage,
-      action: () => context.read<DownloadManagerModel>().deleteJob(job.comicId),
+      action: () => context.read<DownloadManagerModel>().deleteJob(item.comicId),
     );
   }
 
@@ -335,46 +324,182 @@ class _DownloadJobCard extends StatelessWidget {
       );
     }
   }
-
-  String _statusLabel(DownloadJobSnapshot job) {
-    return switch (job.status) {
-      DownloadJobStatus.downloading => 'Downloading',
-      DownloadJobStatus.queued => 'Queued',
-      DownloadJobStatus.paused => 'Paused',
-      DownloadJobStatus.failed => 'Failed',
-      DownloadJobStatus.completed => 'Completed',
-    };
-  }
 }
 
-class _DownloadJobCover extends StatelessWidget {
-  const _DownloadJobCover({required this.job});
+class _ActiveCardSummary extends StatelessWidget {
+  const _ActiveCardSummary({required this.item});
 
-  final DownloadJobSnapshot job;
+  final DownloadListItemSnapshot item;
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<String?>(
-      future: context.read<DownloadManagerModel>().loadCoverLocalPath(job.comicId),
-      builder: (context, snapshot) {
-        final localCoverPath = snapshot.data;
-        if (localCoverPath != null && localCoverPath.isNotEmpty) {
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.file(
-              File(localCoverPath),
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => _buildFallback(context),
-            ),
-          );
-        }
-        return _buildFallback(context);
-      },
+    final progress = item.totalPages == 0
+        ? 0.0
+        : (item.completedPages / item.totalPages).clamp(0.0, 1.0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          item.title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        Text(_statusLabel(item.status)),
+        const SizedBox(height: 8),
+        Text('${item.completedPages} / ${item.totalPages}'),
+        const SizedBox(height: 8),
+        LinearProgressIndicator(value: progress),
+      ],
+    );
+  }
+}
+
+class _CompletedCardSummary extends StatelessWidget {
+  const _CompletedCardSummary({required this.item});
+
+  final DownloadListItemSnapshot item;
+
+  @override
+  Widget build(BuildContext context) {
+    final pageCount = item.pageCount ?? item.totalPages;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          item.title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        const Text('Completed'),
+        const SizedBox(height: 8),
+        Text('$pageCount page${pageCount == 1 ? '' : 's'}'),
+      ],
+    );
+  }
+}
+
+class _CompletedCardDetails extends StatelessWidget {
+  const _CompletedCardDetails({
+    required this.item,
+    required this.isMutating,
+  });
+
+  final DownloadListItemSnapshot item;
+  final bool isMutating;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        if (item.tags.isNotEmpty) ...<Widget>[
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: item.tags.map((tag) {
+              return ActionChip(
+                label: Text(tag.name ?? ''),
+                onPressed: () async {
+                  final query = _buildTagQuery(tag);
+                  await context.read<HomeShellController>().submitTagSearch(
+                    <String>[query],
+                  );
+                },
+              );
+            }).toList(growable: false),
+          ),
+          const SizedBox(height: 12),
+        ],
+        OutlinedButton(
+          onPressed: isMutating
+              ? null
+              : () => _confirmAndDeleteCompleted(context),
+          child: const Text('Delete Download'),
+        ),
+      ],
     );
   }
 
+  Future<void> _confirmAndDeleteCompleted(BuildContext context) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete downloaded comic?'),
+          content: const Text(
+            'This deletes the saved download, cover, offline snapshot, and the completed job record.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete != true || !context.mounted) {
+      return;
+    }
+
+    try {
+      await context.read<DownloadManagerModel>().deleteJob(item.comicId);
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Downloaded comic deleted')));
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$error')));
+    }
+  }
+
+  String _buildTagQuery(ComicTag tag) {
+    final type = tag.type ?? 'tag';
+    final name = (tag.name ?? '').toLowerCase().replaceAll(' ', '-');
+    return '$type:$name';
+  }
+}
+
+class _DownloadItemCover extends StatelessWidget {
+  const _DownloadItemCover({required this.item});
+
+  final DownloadListItemSnapshot item;
+
+  @override
+  Widget build(BuildContext context) {
+    final localCoverPath = item.coverLocalPath;
+    if (localCoverPath != null && localCoverPath.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.file(
+          File(localCoverPath),
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => _buildFallback(context),
+        ),
+      );
+    }
+    return _buildFallback(context);
+  }
+
   Widget _buildFallback(BuildContext context) {
-    final thumbnailPath = job.thumbnailPath;
+    final thumbnailPath = item.thumbnailPath;
     if (thumbnailPath == null || thumbnailPath.isEmpty) {
       return DecoratedBox(
         decoration: BoxDecoration(
@@ -393,4 +518,14 @@ class _DownloadJobCover extends StatelessWidget {
       ),
     );
   }
+}
+
+String _statusLabel(DownloadJobStatus status) {
+  return switch (status) {
+    DownloadJobStatus.downloading => 'Downloading',
+    DownloadJobStatus.queued => 'Queued',
+    DownloadJobStatus.paused => 'Paused',
+    DownloadJobStatus.failed => 'Failed',
+    DownloadJobStatus.completed => 'Completed',
+  };
 }

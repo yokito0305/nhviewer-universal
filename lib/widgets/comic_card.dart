@@ -56,6 +56,7 @@ class ComicCard extends StatelessWidget {
                   return;
                 }
                 context.read<ComicReaderModel>().clearComic();
+                await context.read<DownloadManagerModel>().refresh();
               },
               onLongPress: () => _showTagSheet(context),
               child: FallbackCachedNetworkImage(

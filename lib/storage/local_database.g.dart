@@ -2744,6 +2744,17 @@ class $DownloadedComicsTable extends DownloadedComics
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _numFavoritesMeta = const VerificationMeta(
+    'numFavorites',
+  );
+  @override
+  late final GeneratedColumn<int> numFavorites = GeneratedColumn<int>(
+    'num_favorites',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _tagsJsonMeta = const VerificationMeta(
     'tagsJson',
   );
@@ -2767,6 +2778,7 @@ class $DownloadedComicsTable extends DownloadedComics
     pageCount,
     downloadedAt,
     lastReadAt,
+    numFavorites,
     tagsJson,
   ];
   @override
@@ -2872,6 +2884,15 @@ class $DownloadedComicsTable extends DownloadedComics
         ),
       );
     }
+    if (data.containsKey('num_favorites')) {
+      context.handle(
+        _numFavoritesMeta,
+        numFavorites.isAcceptableOrUnknown(
+          data['num_favorites']!,
+          _numFavoritesMeta,
+        ),
+      );
+    }
     if (data.containsKey('tags_json')) {
       context.handle(
         _tagsJsonMeta,
@@ -2929,6 +2950,10 @@ class $DownloadedComicsTable extends DownloadedComics
         DriftSqlType.string,
         data['${effectivePrefix}last_read_at'],
       ),
+      numFavorites: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}num_favorites'],
+      ),
       tagsJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}tags_json'],
@@ -2953,6 +2978,7 @@ class DownloadedComic extends DataClass implements Insertable<DownloadedComic> {
   final int pageCount;
   final String downloadedAt;
   final String? lastReadAt;
+  final int? numFavorites;
   final String tagsJson;
   const DownloadedComic({
     required this.comicId,
@@ -2965,6 +2991,7 @@ class DownloadedComic extends DataClass implements Insertable<DownloadedComic> {
     required this.pageCount,
     required this.downloadedAt,
     this.lastReadAt,
+    this.numFavorites,
     required this.tagsJson,
   });
   @override
@@ -2989,6 +3016,9 @@ class DownloadedComic extends DataClass implements Insertable<DownloadedComic> {
     map['downloaded_at'] = Variable<String>(downloadedAt);
     if (!nullToAbsent || lastReadAt != null) {
       map['last_read_at'] = Variable<String>(lastReadAt);
+    }
+    if (!nullToAbsent || numFavorites != null) {
+      map['num_favorites'] = Variable<int>(numFavorites);
     }
     map['tags_json'] = Variable<String>(tagsJson);
     return map;
@@ -3016,6 +3046,9 @@ class DownloadedComic extends DataClass implements Insertable<DownloadedComic> {
       lastReadAt: lastReadAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastReadAt),
+      numFavorites: numFavorites == null && nullToAbsent
+          ? const Value.absent()
+          : Value(numFavorites),
       tagsJson: Value(tagsJson),
     );
   }
@@ -3036,6 +3069,7 @@ class DownloadedComic extends DataClass implements Insertable<DownloadedComic> {
       pageCount: serializer.fromJson<int>(json['pageCount']),
       downloadedAt: serializer.fromJson<String>(json['downloadedAt']),
       lastReadAt: serializer.fromJson<String?>(json['lastReadAt']),
+      numFavorites: serializer.fromJson<int?>(json['numFavorites']),
       tagsJson: serializer.fromJson<String>(json['tagsJson']),
     );
   }
@@ -3053,6 +3087,7 @@ class DownloadedComic extends DataClass implements Insertable<DownloadedComic> {
       'pageCount': serializer.toJson<int>(pageCount),
       'downloadedAt': serializer.toJson<String>(downloadedAt),
       'lastReadAt': serializer.toJson<String?>(lastReadAt),
+      'numFavorites': serializer.toJson<int?>(numFavorites),
       'tagsJson': serializer.toJson<String>(tagsJson),
     };
   }
@@ -3068,6 +3103,7 @@ class DownloadedComic extends DataClass implements Insertable<DownloadedComic> {
     int? pageCount,
     String? downloadedAt,
     Value<String?> lastReadAt = const Value.absent(),
+    Value<int?> numFavorites = const Value.absent(),
     String? tagsJson,
   }) => DownloadedComic(
     comicId: comicId ?? this.comicId,
@@ -3084,6 +3120,7 @@ class DownloadedComic extends DataClass implements Insertable<DownloadedComic> {
     pageCount: pageCount ?? this.pageCount,
     downloadedAt: downloadedAt ?? this.downloadedAt,
     lastReadAt: lastReadAt.present ? lastReadAt.value : this.lastReadAt,
+    numFavorites: numFavorites.present ? numFavorites.value : this.numFavorites,
     tagsJson: tagsJson ?? this.tagsJson,
   );
   DownloadedComic copyWithCompanion(DownloadedComicsCompanion data) {
@@ -3112,6 +3149,9 @@ class DownloadedComic extends DataClass implements Insertable<DownloadedComic> {
       lastReadAt: data.lastReadAt.present
           ? data.lastReadAt.value
           : this.lastReadAt,
+      numFavorites: data.numFavorites.present
+          ? data.numFavorites.value
+          : this.numFavorites,
       tagsJson: data.tagsJson.present ? data.tagsJson.value : this.tagsJson,
     );
   }
@@ -3129,6 +3169,7 @@ class DownloadedComic extends DataClass implements Insertable<DownloadedComic> {
           ..write('pageCount: $pageCount, ')
           ..write('downloadedAt: $downloadedAt, ')
           ..write('lastReadAt: $lastReadAt, ')
+          ..write('numFavorites: $numFavorites, ')
           ..write('tagsJson: $tagsJson')
           ..write(')'))
         .toString();
@@ -3146,6 +3187,7 @@ class DownloadedComic extends DataClass implements Insertable<DownloadedComic> {
     pageCount,
     downloadedAt,
     lastReadAt,
+    numFavorites,
     tagsJson,
   );
   @override
@@ -3162,6 +3204,7 @@ class DownloadedComic extends DataClass implements Insertable<DownloadedComic> {
           other.pageCount == this.pageCount &&
           other.downloadedAt == this.downloadedAt &&
           other.lastReadAt == this.lastReadAt &&
+          other.numFavorites == this.numFavorites &&
           other.tagsJson == this.tagsJson);
 }
 
@@ -3176,6 +3219,7 @@ class DownloadedComicsCompanion extends UpdateCompanion<DownloadedComic> {
   final Value<int> pageCount;
   final Value<String> downloadedAt;
   final Value<String?> lastReadAt;
+  final Value<int?> numFavorites;
   final Value<String> tagsJson;
   final Value<int> rowid;
   const DownloadedComicsCompanion({
@@ -3189,6 +3233,7 @@ class DownloadedComicsCompanion extends UpdateCompanion<DownloadedComic> {
     this.pageCount = const Value.absent(),
     this.downloadedAt = const Value.absent(),
     this.lastReadAt = const Value.absent(),
+    this.numFavorites = const Value.absent(),
     this.tagsJson = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -3203,6 +3248,7 @@ class DownloadedComicsCompanion extends UpdateCompanion<DownloadedComic> {
     required int pageCount,
     required String downloadedAt,
     this.lastReadAt = const Value.absent(),
+    this.numFavorites = const Value.absent(),
     required String tagsJson,
     this.rowid = const Value.absent(),
   }) : comicId = Value(comicId),
@@ -3222,6 +3268,7 @@ class DownloadedComicsCompanion extends UpdateCompanion<DownloadedComic> {
     Expression<int>? pageCount,
     Expression<String>? downloadedAt,
     Expression<String>? lastReadAt,
+    Expression<int>? numFavorites,
     Expression<String>? tagsJson,
     Expression<int>? rowid,
   }) {
@@ -3236,6 +3283,7 @@ class DownloadedComicsCompanion extends UpdateCompanion<DownloadedComic> {
       if (pageCount != null) 'page_count': pageCount,
       if (downloadedAt != null) 'downloaded_at': downloadedAt,
       if (lastReadAt != null) 'last_read_at': lastReadAt,
+      if (numFavorites != null) 'num_favorites': numFavorites,
       if (tagsJson != null) 'tags_json': tagsJson,
       if (rowid != null) 'rowid': rowid,
     });
@@ -3252,6 +3300,7 @@ class DownloadedComicsCompanion extends UpdateCompanion<DownloadedComic> {
     Value<int>? pageCount,
     Value<String>? downloadedAt,
     Value<String?>? lastReadAt,
+    Value<int?>? numFavorites,
     Value<String>? tagsJson,
     Value<int>? rowid,
   }) {
@@ -3266,6 +3315,7 @@ class DownloadedComicsCompanion extends UpdateCompanion<DownloadedComic> {
       pageCount: pageCount ?? this.pageCount,
       downloadedAt: downloadedAt ?? this.downloadedAt,
       lastReadAt: lastReadAt ?? this.lastReadAt,
+      numFavorites: numFavorites ?? this.numFavorites,
       tagsJson: tagsJson ?? this.tagsJson,
       rowid: rowid ?? this.rowid,
     );
@@ -3304,6 +3354,9 @@ class DownloadedComicsCompanion extends UpdateCompanion<DownloadedComic> {
     if (lastReadAt.present) {
       map['last_read_at'] = Variable<String>(lastReadAt.value);
     }
+    if (numFavorites.present) {
+      map['num_favorites'] = Variable<int>(numFavorites.value);
+    }
     if (tagsJson.present) {
       map['tags_json'] = Variable<String>(tagsJson.value);
     }
@@ -3326,6 +3379,7 @@ class DownloadedComicsCompanion extends UpdateCompanion<DownloadedComic> {
           ..write('pageCount: $pageCount, ')
           ..write('downloadedAt: $downloadedAt, ')
           ..write('lastReadAt: $lastReadAt, ')
+          ..write('numFavorites: $numFavorites, ')
           ..write('tagsJson: $tagsJson, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -4761,6 +4815,7 @@ typedef $$DownloadedComicsTableCreateCompanionBuilder =
       required int pageCount,
       required String downloadedAt,
       Value<String?> lastReadAt,
+      Value<int?> numFavorites,
       required String tagsJson,
       Value<int> rowid,
     });
@@ -4776,6 +4831,7 @@ typedef $$DownloadedComicsTableUpdateCompanionBuilder =
       Value<int> pageCount,
       Value<String> downloadedAt,
       Value<String?> lastReadAt,
+      Value<int?> numFavorites,
       Value<String> tagsJson,
       Value<int> rowid,
     });
@@ -4836,6 +4892,11 @@ class $$DownloadedComicsTableFilterComposer
 
   ColumnFilters<String> get lastReadAt => $composableBuilder(
     column: $table.lastReadAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get numFavorites => $composableBuilder(
+    column: $table.numFavorites,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4904,6 +4965,11 @@ class $$DownloadedComicsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get numFavorites => $composableBuilder(
+    column: $table.numFavorites,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get tagsJson => $composableBuilder(
     column: $table.tagsJson,
     builder: (column) => ColumnOrderings(column),
@@ -4963,6 +5029,11 @@ class $$DownloadedComicsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get numFavorites => $composableBuilder(
+    column: $table.numFavorites,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get tagsJson =>
       $composableBuilder(column: $table.tagsJson, builder: (column) => column);
 }
@@ -5014,6 +5085,7 @@ class $$DownloadedComicsTableTableManager
                 Value<int> pageCount = const Value.absent(),
                 Value<String> downloadedAt = const Value.absent(),
                 Value<String?> lastReadAt = const Value.absent(),
+                Value<int?> numFavorites = const Value.absent(),
                 Value<String> tagsJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DownloadedComicsCompanion(
@@ -5027,6 +5099,7 @@ class $$DownloadedComicsTableTableManager
                 pageCount: pageCount,
                 downloadedAt: downloadedAt,
                 lastReadAt: lastReadAt,
+                numFavorites: numFavorites,
                 tagsJson: tagsJson,
                 rowid: rowid,
               ),
@@ -5042,6 +5115,7 @@ class $$DownloadedComicsTableTableManager
                 required int pageCount,
                 required String downloadedAt,
                 Value<String?> lastReadAt = const Value.absent(),
+                Value<int?> numFavorites = const Value.absent(),
                 required String tagsJson,
                 Value<int> rowid = const Value.absent(),
               }) => DownloadedComicsCompanion.insert(
@@ -5055,6 +5129,7 @@ class $$DownloadedComicsTableTableManager
                 pageCount: pageCount,
                 downloadedAt: downloadedAt,
                 lastReadAt: lastReadAt,
+                numFavorites: numFavorites,
                 tagsJson: tagsJson,
                 rowid: rowid,
               ),

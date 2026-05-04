@@ -7,6 +7,9 @@ import 'package:concept_nhv/screens/home_shell.dart';
 import 'package:concept_nhv/screens/settings_screen.dart';
 import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/home_ui_model.dart';
+import 'package:concept_nhv/state/download_manager_model.dart';
+import 'package:concept_nhv/models/downloads_sort_mode.dart';
+import 'package:concept_nhv/widgets/downloads_sort_bottom_sheet.dart';
 import 'package:concept_nhv/widgets/sort_filter_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -66,11 +69,16 @@ class _AppShellScaffold extends StatelessWidget {
       body: child,
       floatingActionButton: Consumer<HomeUiModel>(
         builder: (context, homeUiModel, child) {
+          if (homeUiModel.navigationIndex == 0) {
+            return _SortFilterFab();
+          }
+          if (homeUiModel.navigationIndex == 1) {
+            return _DownloadsSortFab();
+          }
           if (homeUiModel.navigationIndex != 0) {
             return const SizedBox.shrink();
           }
-
-          return _SortFilterFab();
+          return const SizedBox.shrink();
         },
       ),
       bottomNavigationBar: Consumer<HomeUiModel>(
@@ -122,6 +130,31 @@ class _AppShellScaffold extends StatelessWidget {
       context.goNamed('index');
       HapticFeedback.lightImpact();
     }
+  }
+}
+
+class _DownloadsSortFab extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<DownloadManagerModel>(
+      builder: (context, model, _) {
+        final hasNonDefaultSort =
+            model.downloadsSortMode != DownloadsSortMode.latestDownloaded ||
+            model.downloadsSortDirection != DownloadsSortDirection.descending;
+        return Badge(
+          isLabelVisible: hasNonDefaultSort,
+          child: FloatingActionButton(
+            tooltip: 'Sort Downloads',
+            onPressed: () => _openDownloadsSort(context),
+            child: const Icon(Icons.tune),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openDownloadsSort(BuildContext context) async {
+    await DownloadsSortBottomSheet.show(context);
   }
 }
 

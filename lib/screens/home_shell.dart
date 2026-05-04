@@ -61,7 +61,7 @@ class _HomeShellState extends State<HomeShell> {
                 });
               },
               decoration: const InputDecoration(
-                hintText: 'Search downloads',
+                hintText: 'Search downloaded titles',
                 border: InputBorder.none,
               ),
             ),
@@ -176,6 +176,7 @@ class _HomeShellState extends State<HomeShell> {
   Future<void> _handleSearchSubmit(BuildContext context, String value) async {
     final controller = context.read<HomeShellController>();
     final readerModel = context.read<ComicReaderModel>();
+    final downloadManagerModel = context.read<DownloadManagerModel>();
     final navigator = GoRouter.of(context);
     final result = await controller.submitSearch(value);
     if (!mounted || !result.openComicReader || result.comicId == null) {
@@ -192,6 +193,7 @@ class _HomeShellState extends State<HomeShell> {
       return;
     }
     readerModel.clearComic();
+    await downloadManagerModel.refresh();
   }
 
   Future<void> _handleTagSelected(

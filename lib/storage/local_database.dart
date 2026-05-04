@@ -121,6 +121,7 @@ class DownloadedComics extends Table {
   IntColumn get pageCount => integer().named('page_count')();
   TextColumn get downloadedAt => text().named('downloaded_at')();
   TextColumn get lastReadAt => text().named('last_read_at').nullable()();
+  IntColumn get numFavorites => integer().named('num_favorites').nullable()();
   TextColumn get tagsJson => text().named('tags_json')();
 
   @override
@@ -151,7 +152,7 @@ class LocalDatabase extends _$LocalDatabase {
   final DatabasePathResolver _databasePathResolver;
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -220,6 +221,7 @@ class LocalDatabase extends _$LocalDatabase {
           'page_count INTEGER NOT NULL, '
           'downloaded_at TEXT NOT NULL, '
           'last_read_at TEXT, '
+          'num_favorites INTEGER, '
           'tags_json TEXT NOT NULL'
           ')',
         );
@@ -240,6 +242,11 @@ class LocalDatabase extends _$LocalDatabase {
       if (from < 7) {
         await customStatement(
           'ALTER TABLE DownloadJob ADD COLUMN thumbnail_path TEXT',
+        );
+      }
+      if (from < 8) {
+        await customStatement(
+          'ALTER TABLE DownloadedComic ADD COLUMN num_favorites INTEGER',
         );
       }
     },

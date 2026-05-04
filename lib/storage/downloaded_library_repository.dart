@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:concept_nhv/models/comic.dart' as model;
+import 'package:concept_nhv/models/comic_tag.dart';
+import 'package:concept_nhv/models/downloaded_comic_snapshot.dart';
 import 'package:concept_nhv/storage/local_database.dart';
 import 'package:drift/drift.dart' as drift;
 
@@ -28,6 +30,7 @@ class DownloadedLibraryRepository {
         pageCount: comic.numPages,
         downloadedAt: timestamp.toIso8601String(),
         lastReadAt: const drift.Value.absent(),
+        numFavorites: drift.Value(comic.numFavorites),
         tagsJson: jsonEncode(
           comic.tags
               .map(
@@ -68,5 +71,42 @@ class DownloadedLibraryRepository {
       ..limit(1);
     final row = await query.getSingleOrNull();
     return row?.coverLocalPath;
+  }
+
+  Future<List<DownloadedComicSnapshot>> loadDownloadedComics() async {
+    final query = localDatabase.select(localDatabase.downloadedComics)
+      ..orderBy([(table) => drift.OrderingTerm.desc(table.downloadedAt)]);
+    final rows = await query.get();
+    return rows.map(_mapDownloadedComic).toList(growable: false);
+  }
+
+  DownloadedComicSnapshot _mapDownloadedComic(DownloadedComic row) {
+    return DownloadedComicSnapshot(
+      comicId: row.comicId,
+      mediaId: row.mediaId,
+      title: row.titlePretty ?? row.titleEnglish ?? row.titleJapanese ?? row.comicId,
+      coverLocalPath: row.coverLocalPath,
+      rootDirectoryPath: row.rootDirectoryPath,
+      pageCount: row.pageCount,
+      downloadedAt: DateTime.parse(row.downloadedAt),
+      lastReadAt: row.lastReadAt == null ? null : DateTime.parse(row.lastReadAt!),
+      numFavorites: row.numFavorites,
+      tags: _parseTags(row.tagsJson),
+    );
+  }
+
+  List<ComicTag> _parseTags(String serializedTags) {
+    try {
+      final decoded = jsonDecode(serializedTags);
+      if (decoded is! List<Object?>) {
+        return const <ComicTag>[];
+      }
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map(ComicTag.fromJson)
+          .toList(growable: false);
+    } on FormatException {
+      return const <ComicTag>[];
+    }
   }
 }

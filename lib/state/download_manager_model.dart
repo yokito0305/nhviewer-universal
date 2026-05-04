@@ -3,11 +3,14 @@ import 'dart:typed_data';
 
 import 'package:concept_nhv/application/downloads/download_settings_repository.dart';
 import 'package:concept_nhv/models/comic.dart';
+import 'package:concept_nhv/models/download_list_item_snapshot.dart';
 import 'package:concept_nhv/models/download_job_snapshot.dart';
 import 'package:concept_nhv/models/download_job_status.dart';
 import 'package:concept_nhv/models/download_page_snapshot.dart';
 import 'package:concept_nhv/models/download_page_status.dart';
 import 'package:concept_nhv/models/download_request.dart';
+import 'package:concept_nhv/models/downloaded_comic_snapshot.dart';
+import 'package:concept_nhv/models/downloads_sort_mode.dart';
 import 'package:concept_nhv/services/download_asset_store.dart';
 import 'package:concept_nhv/services/image_compression_service.dart';
 import 'package:concept_nhv/services/nhentai_api_client.dart';
@@ -40,6 +43,11 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
   final RemoteAssetFetcher remoteAssetFetcher;
 
   List<DownloadJobSnapshot> _jobs = const <DownloadJobSnapshot>[];
+  List<DownloadListItemSnapshot> _downloadItems =
+      const <DownloadListItemSnapshot>[];
+  DownloadsSortMode _downloadsSortMode = DownloadsSortMode.latestDownloaded;
+  DownloadsSortDirection _downloadsSortDirection =
+      DownloadsSortDirection.descending;
   bool _isInitialized = false;
   bool _isProcessing = false;
   bool _isRefreshing = false;
@@ -47,8 +55,29 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
   final Set<String> _mutatingComicIds = <String>{};
 
   List<DownloadJobSnapshot> get jobs => _jobs;
+  List<DownloadListItemSnapshot> get downloadItems => _downloadItems;
+  DownloadsSortMode get downloadsSortMode => _downloadsSortMode;
+  DownloadsSortDirection get downloadsSortDirection =>
+      _downloadsSortDirection;
   bool get isRefreshing => _isRefreshing;
   bool isMutating(String comicId) => _mutatingComicIds.contains(comicId);
+
+  List<DownloadListItemSnapshot> get sortedDownloadItems {
+    final activeItems = _downloadItems
+        .where((item) => item.status != DownloadJobStatus.completed)
+        .toList(growable: false)
+      ..sort(_compareActiveItems);
+    final completedItems = _downloadItems
+        .where((item) => item.status == DownloadJobStatus.completed)
+        .toList(growable: false)
+      ..sort(_compareCompletedItems);
+    return List<DownloadListItemSnapshot>.unmodifiable(
+      <DownloadListItemSnapshot>[
+        ...activeItems,
+        ...completedItems,
+      ],
+    );
+  }
 
   Future<void> initialize() async {
     if (_isInitialized) {
@@ -73,7 +102,11 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
     }
     _isRefreshing = true;
     notifyListeners();
-    _jobs = await downloadQueueRepository.loadJobs();
+    final jobs = await downloadQueueRepository.loadJobs();
+    final downloadedComics =
+        await downloadedLibraryRepository.loadDownloadedComics();
+    _jobs = jobs;
+    _downloadItems = _buildDownloadItems(jobs, downloadedComics);
     if (_isDisposed) {
       return;
     }
@@ -88,6 +121,121 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
     return null;
+  }
+
+  void setDownloadsSortMode(DownloadsSortMode mode) {
+    if (_downloadsSortMode == mode) {
+      return;
+    }
+    _downloadsSortMode = mode;
+    notifyListeners();
+  }
+
+  void setDownloadsSortDirection(DownloadsSortDirection direction) {
+    if (_downloadsSortDirection == direction) {
+      return;
+    }
+    _downloadsSortDirection = direction;
+    notifyListeners();
+  }
+
+  List<DownloadListItemSnapshot> _buildDownloadItems(
+    List<DownloadJobSnapshot> jobs,
+    List<DownloadedComicSnapshot> downloadedComics,
+  ) {
+    final downloadedByComicId = <String, DownloadedComicSnapshot>{
+      for (final downloadedComic in downloadedComics)
+        downloadedComic.comicId: downloadedComic,
+    };
+    final items = <DownloadListItemSnapshot>[];
+    for (final job in jobs) {
+      final downloadedComic = downloadedByComicId.remove(job.comicId);
+      items.add(
+        DownloadListItemSnapshot.fromJob(
+          job,
+          downloadedComic: downloadedComic,
+        ),
+      );
+    }
+    for (final downloadedComic in downloadedByComicId.values) {
+      items.add(
+        DownloadListItemSnapshot.fromDownloadedComic(downloadedComic),
+      );
+    }
+    return List<DownloadListItemSnapshot>.unmodifiable(items);
+  }
+
+  int _compareActiveItems(
+    DownloadListItemSnapshot a,
+    DownloadListItemSnapshot b,
+  ) {
+    final statusComparison = _downloadJobStatusPriority(a.status).compareTo(
+      _downloadJobStatusPriority(b.status),
+    );
+    if (statusComparison != 0) {
+      return statusComparison;
+    }
+    return b.requestedAt.compareTo(a.requestedAt);
+  }
+
+  int _compareCompletedItems(
+    DownloadListItemSnapshot a,
+    DownloadListItemSnapshot b,
+  ) {
+    return switch (_downloadsSortMode) {
+      DownloadsSortMode.latestDownloaded => _compareByDirection(
+        a.downloadedAt ?? a.updatedAt,
+        b.downloadedAt ?? b.updatedAt,
+      ),
+      DownloadsSortMode.lastRead => _compareLastReadItems(a, b),
+      DownloadsSortMode.mostFavorited => _compareMostFavoritedItems(a, b),
+    };
+  }
+
+  int _compareLastReadItems(
+    DownloadListItemSnapshot a,
+    DownloadListItemSnapshot b,
+  ) {
+    final aTimestamp = a.lastReadAt ?? a.downloadedAt ?? a.updatedAt;
+    final bTimestamp = b.lastReadAt ?? b.downloadedAt ?? b.updatedAt;
+    return _compareByDirection(aTimestamp, bTimestamp);
+  }
+
+  int _compareMostFavoritedItems(
+    DownloadListItemSnapshot a,
+    DownloadListItemSnapshot b,
+  ) {
+    final aFavorites = a.numFavorites;
+    final bFavorites = b.numFavorites;
+    if (aFavorites == null && bFavorites == null) {
+      return (b.downloadedAt ?? b.updatedAt).compareTo(
+        a.downloadedAt ?? a.updatedAt,
+      );
+    }
+    if (aFavorites == null) {
+      return 1;
+    }
+    if (bFavorites == null) {
+      return -1;
+    }
+    return _compareByDirection(aFavorites, bFavorites);
+  }
+
+  int _compareByDirection<T extends Comparable<T>>(T a, T b) {
+    return switch (_downloadsSortDirection) {
+      DownloadsSortDirection.descending => b.compareTo(a),
+      DownloadsSortDirection.ascending => a.compareTo(b),
+    };
+  }
+
+  int _downloadJobStatusPriority(DownloadJobStatus status) {
+    return switch (status) {
+      DownloadJobStatus.downloading => 0,
+      DownloadJobStatus.queued => 1,
+      DownloadJobStatus.failed => 2,
+      DownloadJobStatus.paused => 3,
+      DownloadJobStatus.completed => 4,
+    };
   }
 
   Future<void> enqueue(DownloadRequest request) async {

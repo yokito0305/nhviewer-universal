@@ -6,6 +6,7 @@ import 'package:concept_nhv/models/comic.dart';
 import 'package:concept_nhv/models/comic_images.dart';
 import 'package:concept_nhv/models/comic_page_image.dart';
 import 'package:concept_nhv/models/download_job_status.dart';
+import 'package:concept_nhv/models/downloads_sort_mode.dart';
 import 'package:concept_nhv/models/download_page_status.dart';
 import 'package:concept_nhv/models/download_request.dart';
 import 'package:concept_nhv/services/download_asset_store.dart';
@@ -417,6 +418,290 @@ void main() {
       final job = await harness.downloadQueueRepository.loadJob('906');
       expect(job, isNotNull);
       expect(job!.status, DownloadJobStatus.completed);
+
+      manager.dispose();
+    });
+
+    test('refresh builds a unified list without duplicating completed downloads', () async {
+      final comic = sampleComic(id: '907', mediaId: '782');
+      final manager = DownloadManagerModel(
+        nhentaiGateway: FakeNhentaiGateway(detailComic: comic),
+        cdnConfigService: _FakeCdnConfigService(),
+        downloadQueueRepository: harness.downloadQueueRepository,
+        downloadedLibraryRepository: harness.downloadedLibraryRepository,
+        downloadSettingsRepository: DownloadSettingsStore(
+          optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+        ),
+        downloadAssetStore: DownloadAssetStore(
+          directoryResolver: () async => tempDirectory,
+        ),
+        imageCompressionService: FakeImageCompressionService(),
+        remoteAssetFetcher: FakeRemoteAssetFetcher(),
+      );
+
+      await harness.downloadQueueRepository.upsertJobManifest(
+        comic: comic,
+        title: 'Completed Comic',
+      );
+      await harness.downloadQueueRepository.markJobCompleted('907');
+      await harness.downloadedLibraryRepository.saveDownloadedComic(
+        comic: comic,
+        rootDirectoryPath: '/downloads/907',
+        coverLocalPath: '/downloads/907/cover.webp',
+      );
+
+      await manager.refresh();
+
+      final items = manager.downloadItems
+          .where((item) => item.comicId == '907')
+          .toList(growable: false);
+
+      expect(items, hasLength(1));
+      expect(items.single.status, DownloadJobStatus.completed);
+      expect(items.single.tags.single.name, 'sample');
+      expect(items.single.coverLocalPath, '/downloads/907/cover.webp');
+      expect(items.single.pageCount, comic.numPages);
+
+      manager.dispose();
+    });
+
+    test('sorts completed download items by last read while keeping active jobs first', () async {
+      final firstComic = sampleComic(id: '908', mediaId: '783');
+      final secondComic = sampleComic(id: '909', mediaId: '784');
+      final activeComic = sampleComic(id: '910', mediaId: '785');
+      final manager = DownloadManagerModel(
+        nhentaiGateway: FakeNhentaiGateway(detailComic: activeComic),
+        cdnConfigService: _FakeCdnConfigService(),
+        downloadQueueRepository: harness.downloadQueueRepository,
+        downloadedLibraryRepository: harness.downloadedLibraryRepository,
+        downloadSettingsRepository: DownloadSettingsStore(
+          optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+        ),
+        downloadAssetStore: DownloadAssetStore(
+          directoryResolver: () async => tempDirectory,
+        ),
+        imageCompressionService: FakeImageCompressionService(),
+        remoteAssetFetcher: FakeRemoteAssetFetcher(),
+      );
+
+      await harness.downloadQueueRepository.upsertJobManifest(
+        comic: activeComic,
+        title: 'Active Comic',
+        requestedAt: DateTime(2026, 5, 1, 10),
+      );
+      await harness.downloadQueueRepository.markJobPaused('910');
+
+      await harness.downloadQueueRepository.upsertJobManifest(
+        comic: firstComic,
+        title: 'First Completed',
+        requestedAt: DateTime(2026, 5, 1, 9),
+      );
+      await harness.downloadQueueRepository.markJobCompleted(
+        '908',
+        completedAt: DateTime(2026, 5, 1, 12),
+      );
+      await harness.downloadedLibraryRepository.saveDownloadedComic(
+        comic: firstComic,
+        rootDirectoryPath: '/downloads/908',
+        coverLocalPath: null,
+        downloadedAt: DateTime(2026, 5, 1, 12),
+      );
+
+      await harness.downloadQueueRepository.upsertJobManifest(
+        comic: secondComic,
+        title: 'Second Completed',
+        requestedAt: DateTime(2026, 5, 1, 11),
+      );
+      await harness.downloadQueueRepository.markJobCompleted(
+        '909',
+        completedAt: DateTime(2026, 5, 1, 13),
+      );
+      await harness.downloadedLibraryRepository.saveDownloadedComic(
+        comic: secondComic,
+        rootDirectoryPath: '/downloads/909',
+        coverLocalPath: null,
+        downloadedAt: DateTime(2026, 5, 1, 13),
+      );
+      await harness.downloadedLibraryRepository.saveLastReadAt(
+        '908',
+        DateTime(2026, 5, 2, 8),
+      );
+      await harness.downloadedLibraryRepository.saveLastReadAt(
+        '909',
+        DateTime(2026, 5, 1, 18),
+      );
+
+      await manager.refresh();
+      manager.setDownloadsSortMode(DownloadsSortMode.lastRead);
+
+      final sortedComicIds = manager.sortedDownloadItems
+          .map((item) => item.comicId)
+          .toList(growable: false);
+
+      expect(
+        sortedComicIds,
+        <String>[
+          '910',
+          '908',
+          '909',
+        ],
+      );
+      expect(manager.sortedDownloadItems.first.status, DownloadJobStatus.paused);
+      expect(manager.sortedDownloadItems[1].comicId, '908');
+      expect(manager.sortedDownloadItems[2].comicId, '909');
+
+      manager.dispose();
+    });
+
+    test('sorts completed items by direction and favorites while keeping active jobs first', () async {
+      final lowFavoriteComic = sampleComic(
+        id: '913',
+        mediaId: '788',
+      ).copyWith(numFavorites: 4);
+      final highFavoriteComic = sampleComic(
+        id: '914',
+        mediaId: '789',
+      ).copyWith(numFavorites: 80);
+      final unknownFavoriteComic = sampleComic(
+        id: '915',
+        mediaId: '790',
+      ).copyWith(numFavorites: null);
+      final activeComic = sampleComic(id: '916', mediaId: '791');
+      final manager = DownloadManagerModel(
+        nhentaiGateway: FakeNhentaiGateway(detailComic: activeComic),
+        cdnConfigService: _FakeCdnConfigService(),
+        downloadQueueRepository: harness.downloadQueueRepository,
+        downloadedLibraryRepository: harness.downloadedLibraryRepository,
+        downloadSettingsRepository: DownloadSettingsStore(
+          optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+        ),
+        downloadAssetStore: DownloadAssetStore(
+          directoryResolver: () async => tempDirectory,
+        ),
+        imageCompressionService: FakeImageCompressionService(),
+        remoteAssetFetcher: FakeRemoteAssetFetcher(),
+      );
+
+      await harness.downloadQueueRepository.upsertJobManifest(
+        comic: activeComic,
+        title: 'Active Comic',
+        requestedAt: DateTime(2026, 5, 1, 8),
+      );
+      await harness.downloadQueueRepository.markJobPaused('916');
+
+      for (final entry in <({Comic comic, DateTime downloadedAt})>[
+        (comic: lowFavoriteComic, downloadedAt: DateTime(2026, 5, 1, 12)),
+        (comic: highFavoriteComic, downloadedAt: DateTime(2026, 5, 1, 13)),
+        (comic: unknownFavoriteComic, downloadedAt: DateTime(2026, 5, 1, 14)),
+      ]) {
+        await harness.downloadQueueRepository.upsertJobManifest(
+          comic: entry.comic,
+          title: entry.comic.title.pretty ?? entry.comic.id,
+          requestedAt: entry.downloadedAt,
+        );
+        await harness.downloadQueueRepository.markJobCompleted(
+          entry.comic.id,
+          completedAt: entry.downloadedAt,
+        );
+        await harness.downloadedLibraryRepository.saveDownloadedComic(
+          comic: entry.comic,
+          rootDirectoryPath: '/downloads/${entry.comic.id}',
+          coverLocalPath: null,
+          downloadedAt: entry.downloadedAt,
+        );
+      }
+
+      await manager.refresh();
+      manager.setDownloadsSortMode(DownloadsSortMode.latestDownloaded);
+      manager.setDownloadsSortDirection(DownloadsSortDirection.ascending);
+
+      expect(
+        manager.sortedDownloadItems.map((item) => item.comicId),
+        <String>['916', '913', '914', '915'],
+      );
+
+      manager.setDownloadsSortMode(DownloadsSortMode.mostFavorited);
+      manager.setDownloadsSortDirection(DownloadsSortDirection.descending);
+
+      expect(
+        manager.sortedDownloadItems.map((item) => item.comicId),
+        <String>['916', '914', '913', '915'],
+      );
+
+      manager.setDownloadsSortDirection(DownloadsSortDirection.ascending);
+
+      expect(
+        manager.sortedDownloadItems.map((item) => item.comicId),
+        <String>['916', '913', '914', '915'],
+      );
+
+      manager.dispose();
+    });
+
+    test('refresh picks up online reader last read updates for completed sorting', () async {
+      final olderDownload = sampleComic(id: '911', mediaId: '786');
+      final latestRead = sampleComic(id: '912', mediaId: '787');
+      final manager = DownloadManagerModel(
+        nhentaiGateway: FakeNhentaiGateway(detailComic: latestRead),
+        cdnConfigService: _FakeCdnConfigService(),
+        downloadQueueRepository: harness.downloadQueueRepository,
+        downloadedLibraryRepository: harness.downloadedLibraryRepository,
+        downloadSettingsRepository: DownloadSettingsStore(
+          optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+        ),
+        downloadAssetStore: DownloadAssetStore(
+          directoryResolver: () async => tempDirectory,
+        ),
+        imageCompressionService: FakeImageCompressionService(),
+        remoteAssetFetcher: FakeRemoteAssetFetcher(),
+      );
+
+      await harness.downloadQueueRepository.upsertJobManifest(
+        comic: olderDownload,
+        title: 'Older Download',
+        requestedAt: DateTime(2026, 5, 1, 9),
+      );
+      await harness.downloadQueueRepository.markJobCompleted(
+        '911',
+        completedAt: DateTime(2026, 5, 1, 12),
+      );
+      await harness.downloadedLibraryRepository.saveDownloadedComic(
+        comic: olderDownload,
+        rootDirectoryPath: '/downloads/911',
+        coverLocalPath: null,
+        downloadedAt: DateTime(2026, 5, 1, 12),
+      );
+
+      await harness.downloadQueueRepository.upsertJobManifest(
+        comic: latestRead,
+        title: 'Latest Read',
+        requestedAt: DateTime(2026, 5, 1, 10),
+      );
+      await harness.downloadQueueRepository.markJobCompleted(
+        '912',
+        completedAt: DateTime(2026, 5, 1, 13),
+      );
+      await harness.downloadedLibraryRepository.saveDownloadedComic(
+        comic: latestRead,
+        rootDirectoryPath: '/downloads/912',
+        coverLocalPath: null,
+        downloadedAt: DateTime(2026, 5, 1, 13),
+      );
+
+      await manager.refresh();
+      manager.setDownloadsSortMode(DownloadsSortMode.lastRead);
+
+      await harness.downloadedLibraryRepository.saveLastReadAt(
+        '911',
+        DateTime(2026, 5, 2, 8),
+      );
+      await manager.refresh();
+
+      final sortedComicIds = manager.sortedDownloadItems
+          .map((item) => item.comicId)
+          .toList(growable: false);
+
+      expect(sortedComicIds, <String>['911', '912']);
 
       manager.dispose();
     });
