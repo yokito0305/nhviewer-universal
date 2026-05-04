@@ -9,6 +9,7 @@ import 'package:concept_nhv/application/library/comic_card_action_coordinator.da
 import 'package:concept_nhv/application/library/remove_comic_from_collection_use_case.dart';
 import 'package:concept_nhv/application/library/save_comic_to_collection_use_case.dart';
 import 'package:concept_nhv/application/reader/load_comic_detail_use_case.dart';
+import 'package:concept_nhv/application/reader/load_offline_comic_use_case.dart';
 import 'package:concept_nhv/application/reader/open_comic_use_case.dart';
 import 'package:concept_nhv/application/tags/load_comic_meta_use_case.dart';
 import 'package:concept_nhv/models/collection_type.dart';
@@ -94,6 +95,10 @@ void main() {
       readerModel = ComicReaderModel(
         loadComicDetailUseCase: LoadComicDetailUseCase(
           nhentaiGateway: FakeNhentaiGateway(detailComic: sampleComic(id: '77')),
+        ),
+        loadOfflineComicUseCase: LoadOfflineComicUseCase(
+          downloadQueueRepository: harness.downloadQueueRepository,
+          downloadedLibraryRepository: harness.downloadedLibraryRepository,
         ),
         openComicUseCase: OpenComicUseCase(
           comicRepository: harness.comicRepository,

@@ -2,6 +2,7 @@ import 'package:concept_nhv/application/feed/load_collection_summaries_use_case.
 import 'package:concept_nhv/application/feed/search_comics_use_case.dart';
 import 'package:concept_nhv/application/home/home_shell_controller.dart';
 import 'package:concept_nhv/application/reader/load_comic_detail_use_case.dart';
+import 'package:concept_nhv/application/reader/load_offline_comic_use_case.dart';
 import 'package:concept_nhv/application/reader/open_comic_use_case.dart';
 import 'package:concept_nhv/services/search_query_builder.dart';
 import 'package:concept_nhv/services/tag_search_query_builder.dart';
@@ -43,6 +44,10 @@ void main() {
       readerModel = ComicReaderModel(
         loadComicDetailUseCase: LoadComicDetailUseCase(
           nhentaiGateway: FakeNhentaiGateway(detailComic: sampleComic(id: '77')),
+        ),
+        loadOfflineComicUseCase: LoadOfflineComicUseCase(
+          downloadQueueRepository: harness.downloadQueueRepository,
+          downloadedLibraryRepository: harness.downloadedLibraryRepository,
         ),
         openComicUseCase: OpenComicUseCase(
           comicRepository: harness.comicRepository,
