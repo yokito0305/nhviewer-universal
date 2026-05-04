@@ -145,7 +145,8 @@ void main() {
       expect(find.text('Downloaded Comic'), findsOneWidget);
       expect(find.text('2 pages'), findsOneWidget);
 
-      await tester.tap(find.text('Downloaded Comic'));
+      // Completed cards: tap opens the offline reader; long-press expands details.
+      await tester.longPress(find.text('Downloaded Comic'));
       await tester.pumpAndSettle();
 
       expect(find.text('sample'), findsOneWidget);
