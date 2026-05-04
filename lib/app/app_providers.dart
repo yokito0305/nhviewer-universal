@@ -14,6 +14,7 @@ import 'package:concept_nhv/application/library/load_collection_comics_use_case.
 import 'package:concept_nhv/application/library/remove_comic_from_collection_use_case.dart';
 import 'package:concept_nhv/application/library/save_comic_to_collection_use_case.dart';
 import 'package:concept_nhv/application/reader/load_comic_detail_use_case.dart';
+import 'package:concept_nhv/application/reader/load_offline_comic_use_case.dart';
 import 'package:concept_nhv/application/reader/open_comic_use_case.dart';
 import 'package:concept_nhv/application/reader/reader_progress_repository.dart';
 import 'package:concept_nhv/application/reader/reader_settings_repository.dart';
@@ -144,6 +145,12 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
       ),
     ),
     Provider(
+      create: (context) => LoadOfflineComicUseCase(
+        downloadQueueRepository: context.read(),
+        downloadedLibraryRepository: context.read(),
+      ),
+    ),
+    Provider(
       create: (context) => OpenComicUseCase(
         comicRepository: context.read(),
         collectionRepository: context.read(),
@@ -244,6 +251,7 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
       create: (context) {
         final model = ComicReaderModel(
           loadComicDetailUseCase: context.read(),
+          loadOfflineComicUseCase: context.read(),
           openComicUseCase: context.read(),
           readerProgressRepository: context.read(),
           readerSettingsRepository: context.read(),

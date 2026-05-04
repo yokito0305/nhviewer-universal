@@ -256,12 +256,11 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
             tags: grouped[type]!,
             selectedQueries: _selectedQueries,
             onToggleTag: (tag) {
-              final query = _buildTagQuery(tag);
               setState(() {
-                if (_selectedQueries.contains(query)) {
-                  _selectedQueries.remove(query);
+                if (_selectedQueries.contains(tag.query)) {
+                  _selectedQueries.remove(tag.query);
                 } else {
-                  _selectedQueries.add(query);
+                  _selectedQueries.add(tag.query);
                 }
               });
             },
@@ -403,12 +402,6 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
     return <String>[...prioritized, ...rest];
   }
 
-  String _buildTagQuery(ComicTag tag) {
-    final type = tag.type ?? 'tag';
-    final name = (tag.name ?? '').toLowerCase().replaceAll(' ', '-');
-    return '$type:$name';
-  }
-
   IconData _downloadStatusIcon(DownloadJobStatus status) {
     return switch (status) {
       DownloadJobStatus.queued => Icons.schedule,
@@ -460,11 +453,9 @@ class _TagTypeSection extends StatelessWidget {
           spacing: 6,
           runSpacing: 4,
           children: tags.map((tag) {
-            final query =
-                '${tag.type ?? 'tag'}:${(tag.name ?? '').toLowerCase().replaceAll(' ', '-')}';
             return FilterChip(
               label: Text(tag.name ?? ''),
-              selected: selectedQueries.contains(query),
+              selected: selectedQueries.contains(tag.query),
               onSelected: (_) => onToggleTag(tag),
             );
           }).toList(),

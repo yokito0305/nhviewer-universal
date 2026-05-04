@@ -125,7 +125,11 @@ class _HomeShellState extends State<HomeShell> {
     final navigationIndex = context.watch<HomeUiModel>().navigationIndex;
     switch (navigationIndex) {
       case 1:
-        return DownloadJobListSliver(searchQuery: _downloadsSearchQuery);
+        return DownloadJobListSliver(
+          searchQuery: _downloadsSearchQuery,
+          onOpenOfflineReader: (comicId) =>
+              _handleOpenOfflineReader(context, comicId),
+        );
       case 2:
         return const CollectionOverviewScreen();
       case 0:
@@ -205,6 +209,31 @@ class _HomeShellState extends State<HomeShell> {
 
   Future<void> _retryHomeFeed(BuildContext context) async {
     await context.read<HomeShellController>().retryHomeFeed();
+  }
+
+  Future<void> _handleOpenOfflineReader(
+    BuildContext context,
+    String comicId,
+  ) async {
+    final readerModel = context.read<ComicReaderModel>();
+    final downloadManagerModel = context.read<DownloadManagerModel>();
+    final navigator = GoRouter.of(context);
+
+    final opened = await readerModel.loadOfflineComic(comicId);
+    if (!mounted || !opened) return;
+
+    await navigator.push(
+      Uri(
+        path: '/third',
+        queryParameters: <String, String>{
+          'id': comicId,
+          'offline': 'true',
+        },
+      ).toString(),
+    );
+    if (!mounted) return;
+    readerModel.clearComic();
+    await downloadManagerModel.refresh();
   }
 }
 

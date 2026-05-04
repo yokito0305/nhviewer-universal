@@ -7,15 +7,20 @@ import 'package:concept_nhv/models/download_list_item_snapshot.dart';
 import 'package:concept_nhv/state/download_manager_model.dart';
 import 'package:concept_nhv/widgets/fallback_cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 class DownloadJobListSliver extends StatefulWidget {
   const DownloadJobListSliver({
     super.key,
     required this.searchQuery,
+    required this.onOpenOfflineReader,
   });
 
   final String searchQuery;
+
+  /// Called when the user taps a completed download card to open the reader.
+  final ValueChanged<String> onOpenOfflineReader;
 
   @override
   State<DownloadJobListSliver> createState() => _DownloadJobListSliverState();
@@ -88,6 +93,7 @@ class _DownloadJobListSliverState extends State<DownloadJobListSliver> {
               : item.comicId;
         });
       },
+      onOpenOfflineReader: () => widget.onOpenOfflineReader(item.comicId),
     );
   }
 }
@@ -119,6 +125,7 @@ class _DownloadItemCard extends StatelessWidget {
     required this.isExpanded,
     required this.isMutating,
     required this.onToggleExpanded,
+    required this.onOpenOfflineReader,
   });
 
   final DownloadListItemSnapshot item;
@@ -126,12 +133,26 @@ class _DownloadItemCard extends StatelessWidget {
   final bool isMutating;
   final VoidCallback onToggleExpanded;
 
+  /// Only invoked for completed cards; opens the offline reader.
+  final VoidCallback onOpenOfflineReader;
+
   @override
   Widget build(BuildContext context) {
+    // Completed cards: tap → open reader, long-press → expand/collapse.
+    // Active cards: tap → expand/collapse (unchanged).
+    final onTap = item.isCompletedCard ? onOpenOfflineReader : onToggleExpanded;
+    final onLongPress = item.isCompletedCard
+        ? () {
+            HapticFeedback.selectionClick();
+            onToggleExpanded();
+          }
+        : null;
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: InkWell(
-        onTap: onToggleExpanded,
+        onTap: onTap,
+        onLongPress: onLongPress,
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -405,9 +426,8 @@ class _CompletedCardDetails extends StatelessWidget {
               return ActionChip(
                 label: Text(tag.name ?? ''),
                 onPressed: () async {
-                  final query = _buildTagQuery(tag);
                   await context.read<HomeShellController>().submitTagSearch(
-                    <String>[query],
+                    <String>[tag.query],
                   );
                 },
               );
@@ -470,11 +490,6 @@ class _CompletedCardDetails extends StatelessWidget {
     }
   }
 
-  String _buildTagQuery(ComicTag tag) {
-    final type = tag.type ?? 'tag';
-    final name = (tag.name ?? '').toLowerCase().replaceAll(' ', '-');
-    return '$type:$name';
-  }
 }
 
 class _DownloadItemCover extends StatelessWidget {

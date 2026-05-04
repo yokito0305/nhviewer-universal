@@ -1,4 +1,5 @@
 import 'package:concept_nhv/application/reader/load_comic_detail_use_case.dart';
+import 'package:concept_nhv/application/reader/load_offline_comic_use_case.dart';
 import 'package:concept_nhv/application/reader/open_comic_use_case.dart';
 import 'package:concept_nhv/application/reader/reader_progress_repository.dart';
 import 'package:concept_nhv/application/reader/reader_settings_repository.dart';
@@ -13,6 +14,7 @@ import 'package:flutter/material.dart';
 class ComicReaderModel extends ChangeNotifier {
   ComicReaderModel({
     required this.loadComicDetailUseCase,
+    required this.loadOfflineComicUseCase,
     required this.openComicUseCase,
     required this.readerProgressRepository,
     required this.readerSettingsRepository,
@@ -20,6 +22,7 @@ class ComicReaderModel extends ChangeNotifier {
   });
 
   final LoadComicDetailUseCase loadComicDetailUseCase;
+  final LoadOfflineComicUseCase loadOfflineComicUseCase;
   final OpenComicUseCase openComicUseCase;
   final ReaderProgressRepository readerProgressRepository;
   final ReaderSettingsRepository readerSettingsRepository;
@@ -79,6 +82,17 @@ class ComicReaderModel extends ChangeNotifier {
     final result = await loadComicDetailUseCase.execute(comicId);
     _currentHeaders = result.headers;
     await openComic(result.comic);
+  }
+
+  /// Opens a completed download in the reader using locally stored page files.
+  ///
+  /// Reconstructs a [Comic] from the local DB without making any network
+  /// requests. Returns false if no completed download record is found.
+  Future<bool> loadOfflineComic(String comicId) async {
+    final comic = await loadOfflineComicUseCase.execute(comicId);
+    if (comic == null) return false;
+    await openComic(comic);
+    return true;
   }
 
   Future<void> openComic(Comic comic) async {
