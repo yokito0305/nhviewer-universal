@@ -36,7 +36,9 @@
 - Home feed with search and language-aware fallback queries
 - Collections flow for `Favorite / Next / History`
 - Downloads tab for queued, paused, failed, and completed download jobs
-- Resumable page-by-page download foundation with offline asset persistence
+- Resumable page-by-page downloads with offline asset persistence
+- Offline reader entry for completed downloads using local page files
+- Download sorting by latest downloaded, last read, and favorites snapshot
 - Vertical reader experience
 - Basic list sorting by popularity / uploaded recently
 - Android build pipeline and GitHub-hosted unsigned iOS build verification
@@ -179,8 +181,8 @@ The generated IPA is unsigned. It is useful for remote build verification, but i
 
 - Local persistence is now Drift-based rather than sqflite-managed application code
 - Downloaded files are stored separately from image cache so cache clearing does not remove downloads
-- The current downloads implementation focuses on job management UI and offline asset persistence
-- Offline reader switching and richer downloaded-library browsing are still later-phase work
+- Downloads support queue management, completed-library browsing, sorting, and offline reader entry
+- Downloaded library sorting uses local snapshots such as downloaded time, last read time, and favorites count at download time
 
 <p align="right"><a href="#readme-top">‣ back to top</a></p>
 
