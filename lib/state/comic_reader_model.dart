@@ -1,8 +1,10 @@
 import 'package:concept_nhv/application/reader/load_comic_detail_use_case.dart';
+import 'package:concept_nhv/application/reader/load_offline_comic_use_case.dart';
 import 'package:concept_nhv/application/reader/open_comic_use_case.dart';
 import 'package:concept_nhv/application/reader/reader_progress_repository.dart';
 import 'package:concept_nhv/application/reader/reader_settings_repository.dart';
 import 'package:concept_nhv/models/comic.dart';
+import 'package:concept_nhv/storage/downloaded_library_repository.dart';
 import 'package:flutter/material.dart';
 
 /// State model for the comic reader.
@@ -12,15 +14,19 @@ import 'package:flutter/material.dart';
 class ComicReaderModel extends ChangeNotifier {
   ComicReaderModel({
     required this.loadComicDetailUseCase,
+    required this.loadOfflineComicUseCase,
     required this.openComicUseCase,
     required this.readerProgressRepository,
     required this.readerSettingsRepository,
+    required this.downloadedLibraryRepository,
   });
 
   final LoadComicDetailUseCase loadComicDetailUseCase;
+  final LoadOfflineComicUseCase loadOfflineComicUseCase;
   final OpenComicUseCase openComicUseCase;
   final ReaderProgressRepository readerProgressRepository;
   final ReaderSettingsRepository readerSettingsRepository;
+  final DownloadedLibraryRepository downloadedLibraryRepository;
 
   final PageController pageController = PageController();
 
@@ -78,11 +84,23 @@ class ComicReaderModel extends ChangeNotifier {
     await openComic(result.comic);
   }
 
+  /// Opens a completed download in the reader using locally stored page files.
+  ///
+  /// Reconstructs a [Comic] from the local DB without making any network
+  /// requests. Returns false if no completed download record is found.
+  Future<bool> loadOfflineComic(String comicId) async {
+    final comic = await loadOfflineComicUseCase.execute(comicId);
+    if (comic == null) return false;
+    await openComic(comic);
+    return true;
+  }
+
   Future<void> openComic(Comic comic) async {
     _currentComic = comic;
     _currentPage = 1;
     _showControls = false;
     await openComicUseCase.execute(comic);
+    await downloadedLibraryRepository.saveLastReadAt(comic.id, DateTime.now());
     notifyListeners();
   }
 
@@ -96,6 +114,7 @@ class ComicReaderModel extends ChangeNotifier {
     _currentPage = pageIndex + 1;
     notifyListeners();
     readerSettingsRepository.saveLastSeenPage(comicId, _currentPage);
+    downloadedLibraryRepository.saveLastReadAt(comicId, DateTime.now());
   }
 
   /// Animates [pageController] to the given 1-indexed [page].

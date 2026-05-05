@@ -26,6 +26,7 @@ class FakeNhentaiGateway implements NhentaiGateway {
   final List<ComicTag>? comicTags;
   final TagCatalogPage? tagCatalogPage;
   final List<Uri> searchedUris = <Uri>[];
+  final List<String> loadedComicDetailIds = <String>[];
   final List<String> loadedComicMetaIds = <String>[];
 
   @override
@@ -53,6 +54,7 @@ class FakeNhentaiGateway implements NhentaiGateway {
   Future<({Comic comic, Map<String, String>? headers})> loadComicDetail(
     String comicId,
   ) async {
+    loadedComicDetailIds.add(comicId);
     return (
       comic: detailComic ?? sampleComic(id: comicId),
       headers: detailHeaders,

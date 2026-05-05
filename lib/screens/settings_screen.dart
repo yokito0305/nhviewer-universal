@@ -1,3 +1,4 @@
+import 'package:concept_nhv/application/downloads/download_settings_repository.dart';
 import 'package:concept_nhv/application/reader/reader_settings_repository.dart';
 import 'package:concept_nhv/models/comic_language.dart';
 import 'package:concept_nhv/services/library_import_service.dart';
@@ -9,8 +10,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:provider/provider.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  late Future<_DownloadSettingsSnapshot> _downloadSettingsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _downloadSettingsFuture = _loadDownloadSettings();
+  }
+
+  Future<_DownloadSettingsSnapshot> _loadDownloadSettings() async {
+    final repository = context.read<DownloadSettingsRepository>();
+    final autoResumeEnabled = await repository.loadAutoResumeEnabled();
+    final pageIntervalMs = await repository.loadPageIntervalMs();
+    return _DownloadSettingsSnapshot(
+      autoResumeEnabled: autoResumeEnabled,
+      pageIntervalMs: pageIntervalMs,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,6 +58,12 @@ class SettingsScreen extends StatelessWidget {
               _buildClearCacheTile(context),
               const Divider(),
 
+              // ── Downloads ────────────────────────────────────────────────
+              const ListTile(title: Text('Downloads')),
+              _buildAutoResumeDownloadsTile(context),
+              _buildPageDownloadIntervalTile(context),
+              const Divider(),
+
               // ── General ──────────────────────────────────────────────────
               _buildLanguageTile(context),
               _buildDiagnoseTile(),
@@ -48,6 +78,88 @@ class SettingsScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAutoResumeDownloadsTile(BuildContext context) {
+    return FutureBuilder<_DownloadSettingsSnapshot>(
+      future: _downloadSettingsFuture,
+      builder: (context, snapshot) {
+        final enabled =
+            snapshot.data?.autoResumeEnabled ??
+            DownloadSettingsRepository.defaultAutoResumeEnabled;
+        return SwitchListTile(
+          title: const Text('Auto Resume Downloads'),
+          subtitle: const Text(
+            'Resume interrupted downloads when the app returns to foreground or restarts',
+          ),
+          value: enabled,
+          onChanged: (value) async {
+            await context.read<DownloadSettingsRepository>().saveAutoResumeEnabled(
+              value,
+            );
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _downloadSettingsFuture = Future<_DownloadSettingsSnapshot>.value(
+                _DownloadSettingsSnapshot(
+                  autoResumeEnabled: value,
+                  pageIntervalMs:
+                      snapshot.data?.pageIntervalMs ??
+                      DownloadSettingsRepository.defaultPageIntervalMs,
+                ),
+              );
+            });
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildPageDownloadIntervalTile(BuildContext context) {
+    return FutureBuilder<_DownloadSettingsSnapshot>(
+      future: _downloadSettingsFuture,
+      builder: (context, snapshot) {
+        final pageIntervalMs =
+            snapshot.data?.pageIntervalMs ??
+            DownloadSettingsRepository.defaultPageIntervalMs;
+        return ListTile(
+          title: const Text('Page Download Interval'),
+          subtitle: Text(
+            '${_formatIntervalSeconds(pageIntervalMs)}\nApplies to new downloads or after resume',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () async {
+            final updatedMilliseconds = await showDialog<int>(
+              context: context,
+              builder: (dialogContext) {
+                return _PageDownloadIntervalDialog(
+                  initialMilliseconds: pageIntervalMs,
+                );
+              },
+            );
+
+            if (updatedMilliseconds == null || !context.mounted) {
+              return;
+            }
+
+            await context.read<DownloadSettingsRepository>().savePageIntervalMs(
+              updatedMilliseconds,
+            );
+            setState(() {
+              _downloadSettingsFuture = Future<_DownloadSettingsSnapshot>.value(
+                _DownloadSettingsSnapshot(
+                  autoResumeEnabled:
+                      snapshot.data?.autoResumeEnabled ??
+                      DownloadSettingsRepository.defaultAutoResumeEnabled,
+                  pageIntervalMs: updatedMilliseconds,
+                ),
+              );
+            });
+          },
+        );
+      },
     );
   }
 
@@ -381,4 +493,157 @@ class _PrefetchCountDialogState extends State<_PrefetchCountDialog> {
       ],
     );
   }
+}
+
+class _PageDownloadIntervalDialog extends StatefulWidget {
+  const _PageDownloadIntervalDialog({required this.initialMilliseconds});
+
+  final int initialMilliseconds;
+
+  @override
+  State<_PageDownloadIntervalDialog> createState() =>
+      _PageDownloadIntervalDialogState();
+}
+
+class _PageDownloadIntervalDialogState
+    extends State<_PageDownloadIntervalDialog> {
+  static const List<double> _presetSeconds = <double>[0, 0.5, 1.0];
+
+  late final TextEditingController _controller;
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: _formatSecondsInput(widget.initialMilliseconds),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Page Download Interval'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: 'Seconds',
+              hintText: '0.5',
+              suffixText: 's',
+              errorText: _errorText,
+            ),
+            onSubmitted: (_) => _submit(),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _presetSeconds.map((seconds) {
+              return ActionChip(
+                label: Text('${_formatPresetSeconds(seconds)} s'),
+                onPressed: () => _savePreset(seconds),
+              );
+            }).toList(growable: false),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Applies to new downloads or after resume',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Apply'),
+        ),
+      ],
+    );
+  }
+
+  void _savePreset(double seconds) {
+    final milliseconds = _secondsToMilliseconds(seconds);
+    Navigator.of(context).pop(milliseconds);
+  }
+
+  void _submit() {
+    final raw = _controller.text.trim();
+    if (raw.isEmpty) {
+      setState(() {
+        _errorText = 'Enter a number in seconds';
+      });
+      return;
+    }
+
+    final seconds = double.tryParse(raw);
+    if (seconds == null) {
+      setState(() {
+        _errorText = 'Only plain numeric seconds are supported';
+      });
+      return;
+    }
+    if (seconds < 0) {
+      setState(() {
+        _errorText = 'Value must be 0 seconds or more';
+      });
+      return;
+    }
+
+    final milliseconds = _secondsToMilliseconds(seconds);
+    final clampedMilliseconds = milliseconds.clamp(
+      DownloadSettingsRepository.minPageIntervalMs,
+      DownloadSettingsRepository.maxPageIntervalMs,
+    );
+
+    if (clampedMilliseconds != milliseconds) {
+      _controller.text = _formatSecondsInput(clampedMilliseconds);
+      setState(() {
+        _errorText = null;
+      });
+    }
+
+    Navigator.of(context).pop(clampedMilliseconds);
+  }
+}
+
+class _DownloadSettingsSnapshot {
+  const _DownloadSettingsSnapshot({
+    required this.autoResumeEnabled,
+    required this.pageIntervalMs,
+  });
+
+  final bool autoResumeEnabled;
+  final int pageIntervalMs;
+}
+
+String _formatIntervalSeconds(int milliseconds) {
+  return '${(milliseconds / 1000).toStringAsFixed(1)} s';
+}
+
+String _formatSecondsInput(int milliseconds) {
+  return (milliseconds / 1000).toStringAsFixed(1);
+}
+
+String _formatPresetSeconds(double seconds) {
+  return seconds.toStringAsFixed(seconds.truncateToDouble() == seconds ? 0 : 1);
+}
+
+int _secondsToMilliseconds(double seconds) {
+  return (seconds * 1000).round();
 }

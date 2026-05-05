@@ -1,4 +1,5 @@
 import 'package:concept_nhv/application/reader/load_comic_detail_use_case.dart';
+import 'package:concept_nhv/application/reader/load_offline_comic_use_case.dart';
 import 'package:concept_nhv/application/reader/open_comic_use_case.dart';
 import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/state/comic_reader_model.dart';
@@ -23,6 +24,10 @@ void main() {
       loadComicDetailUseCase: LoadComicDetailUseCase(
         nhentaiGateway: FakeNhentaiGateway(detailComic: sampleComic(id: '77')),
       ),
+      loadOfflineComicUseCase: LoadOfflineComicUseCase(
+        downloadQueueRepository: harness.downloadQueueRepository,
+        downloadedLibraryRepository: harness.downloadedLibraryRepository,
+      ),
       openComicUseCase: OpenComicUseCase(
         comicRepository: harness.comicRepository,
         collectionRepository: harness.collectionRepository,
@@ -31,6 +36,7 @@ void main() {
         optionsStore: OptionsStore(localDatabase: harness.localDatabase),
       ),
       readerSettingsRepository: FakeReaderSettingsRepository(),
+      downloadedLibraryRepository: harness.downloadedLibraryRepository,
     );
   });
 

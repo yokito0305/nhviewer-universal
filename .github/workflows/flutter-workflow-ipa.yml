@@ -11,7 +11,7 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -40,7 +40,7 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent Payload nhviewer-ios-unsigned.ipa
 
       - name: Upload unsigned IPA
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: nhviewer-ios-unsigned
           path: nhviewer-ios-unsigned.ipa

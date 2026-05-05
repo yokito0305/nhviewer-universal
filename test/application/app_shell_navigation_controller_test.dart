@@ -60,6 +60,14 @@ void main() {
       expect(result.statusMessage, isNull);
     });
 
+    test('switches to downloads without refreshing collection summaries', () async {
+      final result = await controller.handleDestinationSelected(1);
+
+      expect(homeUiModel.navigationIndex, 1);
+      expect(feedModel.collectionSummariesFuture, isNull);
+      expect(result.statusMessage, isNull);
+    });
+
     test('returns a sort snackbar message when the sort state changes', () async {
       final result = await controller.toggleSortAndRefresh(
         PopularSortType.month,

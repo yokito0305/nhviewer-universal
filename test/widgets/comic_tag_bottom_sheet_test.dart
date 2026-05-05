@@ -1,4 +1,5 @@
 import 'package:concept_nhv/models/comic_tag.dart';
+import 'package:concept_nhv/models/download_job_status.dart';
 import 'package:concept_nhv/widgets/comic_tag_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,5 +46,55 @@ void main() {
       selectedQueries,
       <String>['language:chinese', 'tag:full-color'],
     );
+  });
+
+  testWidgets('shows a download action when no job exists', (tester) async {
+    var downloadTapped = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ComicTagBottomSheet(
+            title: 'Sample Comic',
+            initialTags: const <ComicTag>[],
+            onSearchSelected: (_) {},
+            onDownload: () async {
+              downloadTapped = true;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Download'), findsOneWidget);
+    expect(find.text('Manage in Downloads tab'), findsNothing);
+
+    await tester.tap(find.text('Download'));
+    await tester.pumpAndSettle();
+
+    expect(downloadTapped, isTrue);
+  });
+
+  testWidgets('shows read-only download status when a job already exists', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ComicTagBottomSheet(
+            title: 'Sample Comic',
+            initialTags: const <ComicTag>[],
+            onSearchSelected: (_) {},
+            downloadStatus: DownloadJobStatus.failed,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Download'), findsNothing);
+    expect(find.text('Failed'), findsOneWidget);
+    expect(find.text('Manage in Downloads tab'), findsOneWidget);
   });
 }

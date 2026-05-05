@@ -15,11 +15,31 @@ Comic sampleComic({String id = '1001', String mediaId = '9'}) {
     ),
     images: ComicImages(
       pages: <ComicPageImage>[
-        ComicPageImage(t: 'j', w: 1200, h: 1800),
-        ComicPageImage(t: 'j', w: 1200, h: 1800),
+        ComicPageImage(
+          t: 'j',
+          w: 1200,
+          h: 1800,
+          path: 'galleries/$mediaId/1.jpg',
+        ),
+        ComicPageImage(
+          t: 'j',
+          w: 1200,
+          h: 1800,
+          path: 'galleries/$mediaId/2.jpg',
+        ),
       ],
-      cover: ComicPageImage(t: 'j', w: 350, h: 500),
-      thumbnail: ComicPageImage(t: 'w', w: 350, h: 500),
+      cover: ComicPageImage(
+        t: 'j',
+        w: 350,
+        h: 500,
+        path: 'galleries/$mediaId/cover.jpg',
+      ),
+      thumbnail: ComicPageImage(
+        t: 'w',
+        w: 350,
+        h: 500,
+        path: 'galleries/$mediaId/thumb.webp',
+      ),
     ),
     scanlator: null,
     uploadDate: 0,

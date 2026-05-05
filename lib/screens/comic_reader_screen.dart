@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:concept_nhv/application/reader/reader_settings_repository.dart';
 import 'package:concept_nhv/services/comic_page_source_resolver.dart';
@@ -162,6 +164,7 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
     for (int page = first; page <= last; page++) {
       if (page == currentPage) continue;
       final url = resolver.resolvePageUrl(comic: comic, pageNumber: page);
+      if (ComicPageSourceResolver.isLocalPath(url)) continue;
       precacheImage(
         CachedNetworkImageProvider(url, headers: headers),
         context,
@@ -279,11 +282,17 @@ class _PageWidgetState extends State<_PageWidget> {
         minScale: 1.0,
         maxScale: 4.0,
         child: Center(
-          child: FallbackCachedNetworkImage(
-            url: widget.url,
-            width: widget.width,
-            height: widget.height,
-          ),
+          child: ComicPageSourceResolver.isLocalPath(widget.url)
+              ? Image.file(
+                  File(widget.url),
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) => const Icon(Icons.broken_image),
+                )
+              : FallbackCachedNetworkImage(
+                  url: widget.url,
+                  width: widget.width,
+                  height: widget.height,
+                ),
         ),
       ),
     );

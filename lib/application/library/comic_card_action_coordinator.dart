@@ -1,9 +1,12 @@
 import 'package:concept_nhv/application/tags/load_comic_meta_use_case.dart';
 import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/models/comic_card_data.dart';
+import 'package:concept_nhv/models/download_job_status.dart';
+import 'package:concept_nhv/models/download_request.dart';
 import 'package:concept_nhv/models/comic_tag.dart';
 import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/comic_reader_model.dart';
+import 'package:concept_nhv/state/download_manager_model.dart';
 import 'package:concept_nhv/state/favorite_sync_model.dart';
 
 import 'comic_card_action_result.dart';
@@ -17,6 +20,7 @@ class ComicCardActionCoordinator {
     required this.favoriteSyncModel,
     required this.feedModel,
     required this.readerModel,
+    required this.downloadManagerModel,
     required this.loadComicMetaUseCase,
   });
 
@@ -25,6 +29,7 @@ class ComicCardActionCoordinator {
   final FavoriteSyncModel favoriteSyncModel;
   final ComicFeedModel feedModel;
   final ComicReaderModel readerModel;
+  final DownloadManagerModel downloadManagerModel;
   final LoadComicMetaUseCase loadComicMetaUseCase;
 
   Future<void> openComic(ComicCardData comic) {
@@ -52,6 +57,37 @@ class ComicCardActionCoordinator {
     return ComicCardActionResult(
       success: true,
       message: 'Added comic to ${targetCollection.displayName}',
+      triggerHaptic: true,
+    );
+  }
+
+  Future<ComicCardActionResult> enqueueDownload(ComicCardData comic) async {
+    final existingJob = downloadManagerModel.jobForComic(comic.id);
+    if (existingJob != null) {
+      return ComicCardActionResult(
+        success: false,
+        message: switch (existingJob.status) {
+          DownloadJobStatus.completed =>
+            'Already downloaded. Manage it in Downloads.',
+          _ => 'Already in Downloads. Manage it from the Downloads tab.',
+        },
+      );
+    }
+
+    if (downloadManagerModel.isMutating(comic.id)) {
+      return const ComicCardActionResult(
+        success: false,
+        message: 'Download is already starting.',
+      );
+    }
+
+    await downloadManagerModel.enqueue(
+      DownloadRequest(comicId: comic.id, title: comic.title),
+    );
+
+    return const ComicCardActionResult(
+      success: true,
+      message: 'Added to Downloads',
       triggerHaptic: true,
     );
   }
