@@ -23,6 +23,7 @@ import 'package:concept_nhv/storage/reader_progress_store.dart';
 import 'package:concept_nhv/widgets/download_job_list_sliver.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 
@@ -119,44 +120,44 @@ void main() {
       expect(find.text('No downloads yet'), findsOneWidget);
     });
 
-    testWidgets('completed cards show tags and route tag chips through global tag search', (
-      tester,
-    ) async {
-      final model = _FakeDownloadManagerModel(
-        harness: harness,
-        itemsOverride: <DownloadListItemSnapshot>[
-          _itemFromDownloadedComic(
-            comicId: 'completed',
-            title: 'Downloaded Comic',
-            requestedAt: DateTime(2026, 4, 10),
-          ),
-        ],
-      );
-      final controller = _FakeHomeShellController(harness: harness);
+    testWidgets(
+      'completed cards show tags and route tag chips through global tag search',
+      (tester) async {
+        final model = _FakeDownloadManagerModel(
+          harness: harness,
+          itemsOverride: <DownloadListItemSnapshot>[
+            _itemFromDownloadedComic(
+              comicId: 'completed',
+              title: 'Downloaded Comic',
+              requestedAt: DateTime(2026, 4, 10),
+            ),
+          ],
+        );
+        final controller = _FakeHomeShellController(harness: harness);
 
-      await tester.pumpWidget(
-        _buildTestWidget(
-          model: model,
-          controller: controller,
-        ),
-      );
-      await tester.pump();
+        await tester.pumpWidget(
+          _buildTestWidget(model: model, controller: controller),
+        );
+        await tester.pump();
 
-      expect(find.text('Downloaded Comic'), findsOneWidget);
-      expect(find.text('2 pages'), findsOneWidget);
+        expect(find.text('Downloaded Comic'), findsOneWidget);
+        expect(find.text('2 pages'), findsOneWidget);
 
-      // Completed cards: tap opens the offline reader; long-press expands details.
-      await tester.longPress(find.text('Downloaded Comic'));
-      await tester.pumpAndSettle();
+        // Completed cards: tap opens the offline reader; long-press expands details.
+        await tester.longPress(find.text('Downloaded Comic'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('sample'), findsOneWidget);
-      expect(find.text('Delete Download'), findsOneWidget);
+        expect(find.text('sample'), findsOneWidget);
+        expect(find.text('Delete Download'), findsOneWidget);
 
-      await tester.tap(find.text('sample'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('sample'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Search 1 tags'));
+        await tester.pumpAndSettle();
 
-      expect(controller.submittedTagQueries, <String>['tag:sample']);
-    });
+        expect(controller.submittedTagQueries, <String>['tag:sample']);
+      },
+    );
   });
 }
 
@@ -171,21 +172,32 @@ Widget _buildTestWidget({
       Provider<HomeShellController>.value(value: controller),
   ];
 
-  return MaterialApp(
-    home: MultiProvider(
-      providers: providers,
-      child: Scaffold(
-        body: CustomScrollView(
-          slivers: <Widget>[
-            DownloadJobListSliver(
-              searchQuery: searchQuery,
-              onOpenOfflineReader: (_) {},
+  final router = GoRouter(
+    initialLocation: '/index',
+    routes: <RouteBase>[
+      GoRoute(
+        name: 'index',
+        path: '/index',
+        builder: (context, state) {
+          return MultiProvider(
+            providers: providers,
+            child: Scaffold(
+              body: CustomScrollView(
+                slivers: <Widget>[
+                  DownloadJobListSliver(
+                    searchQuery: searchQuery,
+                    onOpenOfflineReader: (_) {},
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
+          );
+        },
       ),
-    ),
+    ],
   );
+
+  return MaterialApp.router(routerConfig: router);
 }
 
 DownloadJobSnapshot _job({
@@ -261,17 +273,17 @@ class _FakeDownloadManagerModel extends DownloadManagerModel {
     required this.harness,
     required this.itemsOverride,
   }) : super(
-          nhentaiGateway: FakeNhentaiGateway(),
-          cdnConfigService: NhentaiCdnConfigService(),
-          downloadQueueRepository: harness.downloadQueueRepository,
-          downloadedLibraryRepository: harness.downloadedLibraryRepository,
-          downloadSettingsRepository: _FakeDownloadSettingsRepository(),
-          downloadAssetStore: DownloadAssetStore(
-            directoryResolver: () async => throw UnimplementedError(),
-          ),
-          imageCompressionService: FakeImageCompressionService(),
-          remoteAssetFetcher: FakeRemoteAssetFetcher(),
-        );
+         nhentaiGateway: FakeNhentaiGateway(),
+         cdnConfigService: NhentaiCdnConfigService(),
+         downloadQueueRepository: harness.downloadQueueRepository,
+         downloadedLibraryRepository: harness.downloadedLibraryRepository,
+         downloadSettingsRepository: _FakeDownloadSettingsRepository(),
+         downloadAssetStore: DownloadAssetStore(
+           directoryResolver: () async => throw UnimplementedError(),
+         ),
+         imageCompressionService: FakeImageCompressionService(),
+         remoteAssetFetcher: FakeRemoteAssetFetcher(),
+       );
 
   final SqliteTestHarness harness;
   final List<DownloadListItemSnapshot> itemsOverride;
@@ -296,20 +308,21 @@ class _FakeDownloadManagerModel extends DownloadManagerModel {
 
   @override
   List<DownloadListItemSnapshot> get sortedDownloadItems {
-    final activeItems = itemsOverride
-        .where((item) => !item.isCompletedCard)
-        .toList(growable: false)
-      ..sort((a, b) => b.requestedAt.compareTo(a.requestedAt));
-    final completedItems = itemsOverride
-        .where((item) => item.isCompletedCard)
-        .toList(growable: false)
-      ..sort((a, b) => (b.downloadedAt ?? b.updatedAt).compareTo(
-            a.downloadedAt ?? a.updatedAt,
-          ));
-    return <DownloadListItemSnapshot>[
-      ...activeItems,
-      ...completedItems,
-    ];
+    final activeItems =
+        itemsOverride
+            .where((item) => !item.isCompletedCard)
+            .toList(growable: false)
+          ..sort((a, b) => b.requestedAt.compareTo(a.requestedAt));
+    final completedItems =
+        itemsOverride
+            .where((item) => item.isCompletedCard)
+            .toList(growable: false)
+          ..sort(
+            (a, b) => (b.downloadedAt ?? b.updatedAt).compareTo(
+              a.downloadedAt ?? a.updatedAt,
+            ),
+          );
+    return <DownloadListItemSnapshot>[...activeItems, ...completedItems];
   }
 
   @override
@@ -324,40 +337,38 @@ class _FakeDownloadManagerModel extends DownloadManagerModel {
 
 class _FakeHomeShellController extends HomeShellController {
   _FakeHomeShellController({required SqliteTestHarness harness})
-      : super(
-          searchHistoryRepository: harness.searchHistoryRepository,
-          homeUiModel: HomeUiModel(),
-          feedModel: ComicFeedModel(
-            searchComicsUseCase: SearchComicsUseCase(
-              nhentaiGateway: FakeNhentaiGateway(),
-              searchQueryBuilder: const SearchQueryBuilder(),
-            ),
-            loadCollectionSummariesUseCase: LoadCollectionSummariesUseCase(
-              collectionRepository: harness.collectionRepository,
-            ),
+    : super(
+        searchHistoryRepository: harness.searchHistoryRepository,
+        homeUiModel: HomeUiModel(),
+        feedModel: ComicFeedModel(
+          searchComicsUseCase: SearchComicsUseCase(
+            nhentaiGateway: FakeNhentaiGateway(),
+            searchQueryBuilder: const SearchQueryBuilder(),
           ),
-          readerModel: ComicReaderModel(
-            loadComicDetailUseCase: LoadComicDetailUseCase(
-              nhentaiGateway: FakeNhentaiGateway(detailComic: sampleComic()),
-            ),
-            loadOfflineComicUseCase: LoadOfflineComicUseCase(
-              downloadQueueRepository: harness.downloadQueueRepository,
-              downloadedLibraryRepository: harness.downloadedLibraryRepository,
-            ),
-            openComicUseCase: OpenComicUseCase(
-              comicRepository: harness.comicRepository,
-              collectionRepository: harness.collectionRepository,
-            ),
-            readerProgressRepository: ReaderProgressStore(
-              optionsStore: OptionsStore(
-                localDatabase: harness.localDatabase,
-              ),
-            ),
-            readerSettingsRepository: FakeReaderSettingsRepository(),
+          loadCollectionSummariesUseCase: LoadCollectionSummariesUseCase(
+            collectionRepository: harness.collectionRepository,
+          ),
+        ),
+        readerModel: ComicReaderModel(
+          loadComicDetailUseCase: LoadComicDetailUseCase(
+            nhentaiGateway: FakeNhentaiGateway(detailComic: sampleComic()),
+          ),
+          loadOfflineComicUseCase: LoadOfflineComicUseCase(
+            downloadQueueRepository: harness.downloadQueueRepository,
             downloadedLibraryRepository: harness.downloadedLibraryRepository,
           ),
-          tagSearchQueryBuilder: const TagSearchQueryBuilder(),
-        );
+          openComicUseCase: OpenComicUseCase(
+            comicRepository: harness.comicRepository,
+            collectionRepository: harness.collectionRepository,
+          ),
+          readerProgressRepository: ReaderProgressStore(
+            optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+          ),
+          readerSettingsRepository: FakeReaderSettingsRepository(),
+          downloadedLibraryRepository: harness.downloadedLibraryRepository,
+        ),
+        tagSearchQueryBuilder: const TagSearchQueryBuilder(),
+      );
 
   final List<String> submittedTagQueries = <String>[];
 
@@ -367,8 +378,7 @@ class _FakeHomeShellController extends HomeShellController {
   }
 }
 
-class _FakeDownloadSettingsRepository
-    implements DownloadSettingsRepository {
+class _FakeDownloadSettingsRepository implements DownloadSettingsRepository {
   @override
   Future<bool> loadAutoResumeEnabled() async => false;
 
