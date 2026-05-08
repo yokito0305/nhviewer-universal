@@ -145,8 +145,14 @@ class _CollectionComicSliverState extends State<CollectionComicSliver> {
           comics: comics,
           collectionType: widget.collectionType,
           onCollectionChanged: _refresh,
-          onTagSelected: (tagQueries) =>
-              context.read<HomeShellController>().submitTagSearch(tagQueries),
+          onTagSelected: (tagQueries) async {
+            await context
+                .read<HomeShellController>()
+                .submitTagSearch(tagQueries);
+            if (context.mounted) {
+              context.goNamed('index');
+            }
+          },
         );
       },
     );

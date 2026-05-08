@@ -40,21 +40,15 @@ class ComicCard extends StatelessWidget {
             child: InkWell(
               splashColor: Colors.blue.withAlpha(30),
               onTap: () async {
-                await context.read<ComicCardActionCoordinator>().openComic(
-                  comic,
-                );
-                if (!context.mounted) {
-                  return;
-                }
+                await context.read<ComicCardActionCoordinator>().openComic(comic);
+                if (!context.mounted) return;
                 await context.push(
                   Uri(
                     path: '/third',
                     queryParameters: <String, String>{'id': comic.id},
                   ).toString(),
                 );
-                if (!context.mounted) {
-                  return;
-                }
+                if (!context.mounted) return;
                 context.read<ComicReaderModel>().clearComic();
                 await context.read<DownloadManagerModel>().refresh();
               },
@@ -122,19 +116,71 @@ class ComicCard extends StatelessWidget {
     HapticFeedback.selectionClick();
     final downloadManagerModel = context.read<DownloadManagerModel>();
     final downloadJob = downloadManagerModel.jobForComic(comic.id);
+
     await ComicTagBottomSheet.show(
       context: context,
       title: comic.title,
       tags: comic.tags,
       loadMeta: () => context.read<ComicCardActionCoordinator>().loadComicMeta(comic),
       onSearchSelected: (queries) => onTagSelected?.call(queries),
-      downloadStatus: downloadJob?.status,
-      isDownloadActionInProgress: downloadManagerModel.isMutating(comic.id),
-      onDownload: () => _enqueueDownload(context),
-      collectionType: collectionType,
-      onRemoveFromCollection: collectionType != null
-          ? () => _removeFromCollection(context)
+      downloadSlot: _buildDownloadSlot(
+        context,
+        status: downloadJob?.status,
+        isMutating: downloadManagerModel.isMutating(comic.id),
+      ),
+      actionSlot: collectionType != null
+          ? _buildRemoveFromCollectionButton(context)
           : null,
+    );
+  }
+
+  /// Builds the download status tile or "Download" button for the sheet.
+  Widget _buildDownloadSlot(
+    BuildContext context, {
+    required DownloadJobStatus? status,
+    required bool isMutating,
+  }) {
+    if (status == null) {
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: isMutating ? null : () => _enqueueDownload(context),
+          icon: isMutating
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.download_outlined),
+          label: Text(isMutating ? 'Starting download...' : 'Download'),
+        ),
+      );
+    }
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(_downloadStatusIcon(status)),
+      title: Text(_downloadStatusLabel(status)),
+      subtitle: const Text('Manage in Downloads tab'),
+    );
+  }
+
+  /// Builds the "Remove from <collection>" button for the sheet.
+  Widget _buildRemoveFromCollectionButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Theme.of(context).colorScheme.error,
+          side: BorderSide(color: Theme.of(context).colorScheme.error),
+        ),
+        icon: const Icon(Icons.remove_circle_outline),
+        label: Text('Remove from ${collectionType!.displayName}'),
+        onPressed: () {
+          Navigator.of(context).pop();
+          _removeFromCollection(context);
+        },
+      ),
     );
   }
 
@@ -161,28 +207,18 @@ class ComicCard extends StatelessWidget {
       },
     );
 
-    if (shouldRemove != true || !context.mounted) {
-      return;
-    }
+    if (shouldRemove != true || !context.mounted) return;
 
     final result = await context.read<ComicCardActionCoordinator>().removeFromCollection(
       comic: comic,
       collectionType: collectionType!,
     );
-    if (!context.mounted) {
-      return;
-    }
-    if (result.triggerHaptic) {
-      HapticFeedback.lightImpact();
-    }
+    if (!context.mounted) return;
+    if (result.triggerHaptic) HapticFeedback.lightImpact();
     if (result.message != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(result.message!)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message!)));
     }
-    if (result.shouldRefreshCollection) {
-      onCollectionChanged?.call();
-    }
+    if (result.shouldRefreshCollection) onCollectionChanged?.call();
   }
 
   Future<void> _saveToCollection(
@@ -193,18 +229,10 @@ class ComicCard extends StatelessWidget {
       comic: comic,
       targetCollection: targetCollection,
     );
-
-    if (!context.mounted) {
-      return;
-    }
-
-    if (result.triggerHaptic) {
-      HapticFeedback.lightImpact();
-    }
+    if (!context.mounted) return;
+    if (result.triggerHaptic) HapticFeedback.lightImpact();
     if (result.message != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(result.message!)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message!)));
     }
   }
 
@@ -213,42 +241,21 @@ class ComicCard extends StatelessWidget {
       comic: comic,
       collectionType: collectionType,
     );
-    if (!context.mounted) {
-      return;
-    }
-
-    if (result.triggerHaptic) {
-      HapticFeedback.lightImpact();
-    }
+    if (!context.mounted) return;
+    if (result.triggerHaptic) HapticFeedback.lightImpact();
     if (result.message != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(result.message!)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message!)));
     }
-    if (result.shouldRefreshCollection) {
-      onCollectionChanged?.call();
-    }
+    if (result.shouldRefreshCollection) onCollectionChanged?.call();
   }
 
   Future<void> _enqueueDownload(BuildContext context) async {
-    final result = await context.read<ComicCardActionCoordinator>().enqueueDownload(
-      comic,
-    );
-    if (!context.mounted) {
-      return;
-    }
-
-    if (result.success) {
-      Navigator.of(context).pop();
-    }
-
-    if (result.triggerHaptic) {
-      HapticFeedback.lightImpact();
-    }
+    final result = await context.read<ComicCardActionCoordinator>().enqueueDownload(comic);
+    if (!context.mounted) return;
+    if (result.success) Navigator.of(context).pop();
+    if (result.triggerHaptic) HapticFeedback.lightImpact();
     if (result.message != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(result.message!)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message!)));
     }
   }
 
@@ -257,6 +264,26 @@ class ComicCard extends StatelessWidget {
       DownloadJobStatus.downloading => Icons.downloading,
       DownloadJobStatus.completed => Icons.download_done,
       _ => null,
+    };
+  }
+
+  IconData _downloadStatusIcon(DownloadJobStatus status) {
+    return switch (status) {
+      DownloadJobStatus.queued => Icons.schedule,
+      DownloadJobStatus.downloading => Icons.downloading,
+      DownloadJobStatus.paused => Icons.pause_circle_outline,
+      DownloadJobStatus.failed => Icons.error_outline,
+      DownloadJobStatus.completed => Icons.download_done,
+    };
+  }
+
+  String _downloadStatusLabel(DownloadJobStatus status) {
+    return switch (status) {
+      DownloadJobStatus.queued => 'Queued',
+      DownloadJobStatus.downloading => 'Downloading',
+      DownloadJobStatus.paused => 'Paused',
+      DownloadJobStatus.failed => 'Failed',
+      DownloadJobStatus.completed => 'Downloaded',
     };
   }
 }

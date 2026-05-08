@@ -1,5 +1,4 @@
 import 'package:concept_nhv/models/comic_tag.dart';
-import 'package:concept_nhv/models/download_job_status.dart';
 import 'package:concept_nhv/widgets/comic_tag_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -48,7 +47,7 @@ void main() {
     );
   });
 
-  testWidgets('shows a download action when no job exists', (tester) async {
+  testWidgets('shows downloadSlot widget when provided', (tester) async {
     var downloadTapped = false;
 
     await tester.pumpWidget(
@@ -58,9 +57,14 @@ void main() {
             title: 'Sample Comic',
             initialTags: const <ComicTag>[],
             onSearchSelected: (_) {},
-            onDownload: () async {
-              downloadTapped = true;
-            },
+            downloadSlot: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => downloadTapped = true,
+                icon: const Icon(Icons.download_outlined),
+                label: const Text('Download'),
+              ),
+            ),
           ),
         ),
       ),
@@ -68,7 +72,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Download'), findsOneWidget);
-    expect(find.text('Manage in Downloads tab'), findsNothing);
 
     await tester.tap(find.text('Download'));
     await tester.pumpAndSettle();
@@ -76,9 +79,7 @@ void main() {
     expect(downloadTapped, isTrue);
   });
 
-  testWidgets('shows read-only download status when a job already exists', (
-    tester,
-  ) async {
+  testWidgets('shows download status tile via downloadSlot', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -86,7 +87,62 @@ void main() {
             title: 'Sample Comic',
             initialTags: const <ComicTag>[],
             onSearchSelected: (_) {},
-            downloadStatus: DownloadJobStatus.failed,
+            downloadSlot: const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.error_outline),
+              title: Text('Failed'),
+              subtitle: Text('Manage in Downloads tab'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Failed'), findsOneWidget);
+    expect(find.text('Manage in Downloads tab'), findsOneWidget);
+  });
+
+  testWidgets('shows actionSlot widget when provided', (tester) async {
+    var actionTapped = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ComicTagBottomSheet(
+            title: 'Sample Comic',
+            initialTags: const <ComicTag>[],
+            onSearchSelected: (_) {},
+            actionSlot: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => actionTapped = true,
+                child: const Text('Delete Download'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete Download'), findsOneWidget);
+
+    await tester.tap(find.text('Delete Download'));
+    await tester.pumpAndSettle();
+
+    expect(actionTapped, isTrue);
+  });
+
+  testWidgets('shows no extra slots when neither downloadSlot nor actionSlot is provided',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ComicTagBottomSheet(
+            title: 'Sample Comic',
+            initialTags: const <ComicTag>[],
+            onSearchSelected: (_) {},
           ),
         ),
       ),
@@ -94,7 +150,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Download'), findsNothing);
-    expect(find.text('Failed'), findsOneWidget);
-    expect(find.text('Manage in Downloads tab'), findsOneWidget);
+    expect(find.text('Manage in Downloads tab'), findsNothing);
+    expect(find.text('Delete Download'), findsNothing);
   });
 }

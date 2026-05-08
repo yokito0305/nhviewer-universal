@@ -1,13 +1,14 @@
 import 'dart:io';
 
 import 'package:concept_nhv/application/home/home_shell_controller.dart';
-import 'package:concept_nhv/models/comic_tag.dart';
 import 'package:concept_nhv/models/download_job_status.dart';
 import 'package:concept_nhv/models/download_list_item_snapshot.dart';
 import 'package:concept_nhv/state/download_manager_model.dart';
+import 'package:concept_nhv/widgets/comic_tag_bottom_sheet.dart';
 import 'package:concept_nhv/widgets/fallback_cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 class DownloadJobListSliver extends StatefulWidget {
@@ -138,13 +139,13 @@ class _DownloadItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Completed cards: tap → open reader, long-press → expand/collapse.
+    // Completed cards: tap → open reader, long-press → open tag/action sheet.
     // Active cards: tap → expand/collapse (unchanged).
     final onTap = item.isCompletedCard ? onOpenOfflineReader : onToggleExpanded;
     final onLongPress = item.isCompletedCard
         ? () {
             HapticFeedback.selectionClick();
-            onToggleExpanded();
+            _showCompletedSheet(context);
           }
         : null;
 
@@ -174,32 +175,30 @@ class _DownloadItemCard extends StatelessWidget {
                         ? _CompletedCardSummary(item: item)
                         : _ActiveCardSummary(item: item),
                   ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    isExpanded ? Icons.expand_less : Icons.expand_more,
-                  ),
+                  if (!item.isCompletedCard) ...<Widget>[
+                    const SizedBox(width: 8),
+                    Icon(
+                      isExpanded ? Icons.expand_less : Icons.expand_more,
+                    ),
+                  ],
                 ],
               ),
-              AnimatedCrossFade(
-                duration: const Duration(milliseconds: 180),
-                crossFadeState: isExpanded
-                    ? CrossFadeState.showSecond
-                    : CrossFadeState.showFirst,
-                firstChild: const SizedBox.shrink(),
-                secondChild: Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: item.isCompletedCard
-                      ? _CompletedCardDetails(
-                          item: item,
-                          isMutating: isMutating,
-                        )
-                      : Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _buildActionButtons(context),
-                        ),
+              if (!item.isCompletedCard)
+                AnimatedCrossFade(
+                  duration: const Duration(milliseconds: 180),
+                  crossFadeState: isExpanded
+                      ? CrossFadeState.showSecond
+                      : CrossFadeState.showFirst,
+                  firstChild: const SizedBox.shrink(),
+                  secondChild: Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _buildActionButtons(context),
+                    ),
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -323,6 +322,89 @@ class _DownloadItemCard extends StatelessWidget {
     );
   }
 
+  Future<void> _showCompletedSheet(BuildContext context) async {
+    final homeShellController = context.read<HomeShellController>();
+
+    await ComicTagBottomSheet.show(
+      context: context,
+      title: item.title,
+      tags: item.tags,
+      onSearchSelected: (queries) async {
+        await homeShellController.submitTagSearch(queries);
+        if (context.mounted) {
+          context.goNamed('index');
+        }
+      },
+      actionSlot: _buildDeleteButton(context),
+    );
+  }
+
+  /// Builds the "Delete Download" button passed as [actionSlot] to the sheet.
+  Widget _buildDeleteButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Theme.of(context).colorScheme.error,
+          side: BorderSide(color: Theme.of(context).colorScheme.error),
+        ),
+        icon: const Icon(Icons.delete_outline),
+        label: const Text('Delete Download'),
+        onPressed: isMutating
+            ? null
+            : () {
+                Navigator.of(context).pop();
+                _confirmAndDeleteFromSheet(context);
+              },
+      ),
+    );
+  }
+
+  Future<void> _confirmAndDeleteFromSheet(BuildContext context) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete downloaded comic?'),
+          content: const Text(
+            'This deletes the saved download, cover, offline snapshot, and the completed job record.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete != true || !context.mounted) {
+      return;
+    }
+
+    try {
+      await context.read<DownloadManagerModel>().deleteJob(item.comicId);
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Downloaded comic deleted')),
+      );
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$error')),
+      );
+    }
+  }
+
   Future<void> _runAction(
     BuildContext context, {
     required String successMessage,
@@ -402,94 +484,6 @@ class _CompletedCardSummary extends StatelessWidget {
       ],
     );
   }
-}
-
-class _CompletedCardDetails extends StatelessWidget {
-  const _CompletedCardDetails({
-    required this.item,
-    required this.isMutating,
-  });
-
-  final DownloadListItemSnapshot item;
-  final bool isMutating;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        if (item.tags.isNotEmpty) ...<Widget>[
-          Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            children: item.tags.map((tag) {
-              return ActionChip(
-                label: Text(tag.name ?? ''),
-                onPressed: () async {
-                  await context.read<HomeShellController>().submitTagSearch(
-                    <String>[tag.query],
-                  );
-                },
-              );
-            }).toList(growable: false),
-          ),
-          const SizedBox(height: 12),
-        ],
-        OutlinedButton(
-          onPressed: isMutating
-              ? null
-              : () => _confirmAndDeleteCompleted(context),
-          child: const Text('Delete Download'),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _confirmAndDeleteCompleted(BuildContext context) async {
-    final shouldDelete = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Delete downloaded comic?'),
-          content: const Text(
-            'This deletes the saved download, cover, offline snapshot, and the completed job record.',
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Confirm'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (shouldDelete != true || !context.mounted) {
-      return;
-    }
-
-    try {
-      await context.read<DownloadManagerModel>().deleteJob(item.comicId);
-      if (!context.mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Downloaded comic deleted')));
-    } catch (error) {
-      if (!context.mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('$error')));
-    }
-  }
-
 }
 
 class _DownloadItemCover extends StatelessWidget {

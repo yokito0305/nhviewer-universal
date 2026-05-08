@@ -1,44 +1,51 @@
 import 'package:concept_nhv/models/comic_tag.dart';
-import 'package:concept_nhv/models/collection_type.dart';
-import 'package:concept_nhv/models/download_job_status.dart';
 import 'package:concept_nhv/models/tag_type_l10n.dart';
 import 'package:flutter/material.dart';
 
+/// A draggable bottom sheet that displays grouped, selectable tags and
+/// triggers a multi-tag search when the user confirms their selection.
+///
+/// Callers may pass optional [downloadSlot] and [actionSlot] widgets to
+/// compose context-specific UI (e.g. download status, delete button) into
+/// the bottom action area without coupling this widget to any domain model.
 class ComicTagBottomSheet extends StatefulWidget {
   const ComicTagBottomSheet({
     super.key,
     required this.title,
     required this.initialTags,
     required this.onSearchSelected,
-    this.downloadStatus,
-    this.isDownloadActionInProgress = false,
-    this.onDownload,
     this.loadMeta,
-    this.collectionType,
-    this.onRemoveFromCollection,
+    this.downloadSlot,
+    this.actionSlot,
   });
 
   final String title;
   final List<ComicTag> initialTags;
+
+  /// Optional async loader that fetches the full tag list and favorite count.
+  /// When null, [initialTags] is used directly.
   final Future<({List<ComicTag> tags, int? numFavorites})> Function()? loadMeta;
+
+  /// Called with the sorted list of selected tag query strings when the user
+  /// confirms the search. The sheet is dismissed before this is invoked.
   final ValueChanged<List<String>> onSearchSelected;
-  final DownloadJobStatus? downloadStatus;
-  final bool isDownloadActionInProgress;
-  final Future<void> Function()? onDownload;
-  final CollectionType? collectionType;
-  final VoidCallback? onRemoveFromCollection;
+
+  /// Optional widget rendered below the search button.
+  /// Intended for download-status information (e.g. a progress tile).
+  final Widget? downloadSlot;
+
+  /// Optional widget rendered at the bottom of the action area.
+  /// Intended for destructive actions (e.g. Remove from collection, Delete).
+  final Widget? actionSlot;
 
   static Future<void> show({
     required BuildContext context,
     required String title,
     required List<ComicTag> tags,
     required ValueChanged<List<String>> onSearchSelected,
-    DownloadJobStatus? downloadStatus,
-    bool isDownloadActionInProgress = false,
-    Future<void> Function()? onDownload,
     Future<({List<ComicTag> tags, int? numFavorites})> Function()? loadMeta,
-    CollectionType? collectionType,
-    VoidCallback? onRemoveFromCollection,
+    Widget? downloadSlot,
+    Widget? actionSlot,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -52,11 +59,8 @@ class ComicTagBottomSheet extends StatefulWidget {
         initialTags: tags,
         loadMeta: loadMeta,
         onSearchSelected: onSearchSelected,
-        downloadStatus: downloadStatus,
-        isDownloadActionInProgress: isDownloadActionInProgress,
-        onDownload: onDownload,
-        collectionType: collectionType,
-        onRemoveFromCollection: onRemoveFromCollection,
+        downloadSlot: downloadSlot,
+        actionSlot: actionSlot,
       ),
     );
   }
@@ -70,7 +74,6 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
   int? _numFavorites;
   String? _errorMessage;
   bool _isLoading = false;
-  bool _isRunningDownloadAction = false;
   final Set<String> _selectedQueries = <String>{};
 
   @override
@@ -98,44 +101,9 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
       builder: (context, scrollController) {
         return Column(
           children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.only(top: 8, bottom: 4),
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant.withAlpha(80),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-              child: Text(
-                widget.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-            ),
-            if (_numFavorites != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Row(
-                  children: <Widget>[
-                    Icon(
-                      Icons.favorite,
-                      size: 13,
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      _formatFavorites(_numFavorites),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
+            _buildHandle(context),
+            _buildTitle(context),
+            if (_numFavorites != null) _buildFavoritesRow(context),
             const Divider(height: 1),
             Expanded(
               child: _buildBody(
@@ -147,75 +115,58 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
               ),
             ),
             const Divider(height: 1),
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    if (_selectedQueries.isNotEmpty)
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Wrap(
-                          spacing: 6,
-                          runSpacing: 4,
-                          children: (_selectedQueries.toList()..sort()).map((query) {
-                            return Chip(
-                              label: Text(query),
-                              onDeleted: () => setState(() {
-                                _selectedQueries.remove(query);
-                              }),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    if (_selectedQueries.isNotEmpty) const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: _selectedQueries.isEmpty ? null : _handleSearch,
-                        icon: const Icon(Icons.search),
-                        label: Text(
-                          _selectedQueries.isEmpty
-                              ? 'Select tags to search'
-                              : 'Search ${_selectedQueries.length} tags',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildDownloadSection(context),
-                    if (widget.collectionType != null &&
-                        widget.onRemoveFromCollection != null) ...<Widget>[
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Theme.of(context).colorScheme.error,
-                            side: BorderSide(
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                          ),
-                          icon: const Icon(Icons.remove_circle_outline),
-                          label: Text(
-                            'Remove from ${widget.collectionType!.displayName}',
-                          ),
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                            widget.onRemoveFromCollection!();
-                          },
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
+            _buildActionArea(context),
           ],
         );
       },
     );
   }
+
+  // ── Chrome ────────────────────────────────────────────────────────────────
+
+  Widget _buildHandle(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: Container(
+        width: 36,
+        height: 4,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.onSurfaceVariant.withAlpha(80),
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTitle(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Text(
+        widget.title,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.titleSmall,
+      ),
+    );
+  }
+
+  Widget _buildFavoritesRow(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(
+        children: <Widget>[
+          Icon(Icons.favorite, size: 13, color: Theme.of(context).colorScheme.error),
+          const SizedBox(width: 4),
+          Text(
+            _formatFavorites(_numFavorites),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Tag body ──────────────────────────────────────────────────────────────
 
   Widget _buildBody({
     required BuildContext context,
@@ -234,10 +185,7 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
           children: <Widget>[
             Text(_errorMessage!),
             const SizedBox(height: 8),
-            FilledButton(
-              onPressed: _loadMeta,
-              child: const Text('Retry'),
-            ),
+            FilledButton(onPressed: _loadMeta, child: const Text('Retry')),
           ],
         ),
       );
@@ -271,12 +219,64 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
     );
   }
 
+  // ── Bottom action area ────────────────────────────────────────────────────
+
+  Widget _buildActionArea(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            if (_selectedQueries.isNotEmpty) ...<Widget>[
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: (_selectedQueries.toList()..sort()).map((query) {
+                    return Chip(
+                      label: Text(query),
+                      onDeleted: () => setState(() => _selectedQueries.remove(query)),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _selectedQueries.isEmpty ? null : _handleSearch,
+                icon: const Icon(Icons.search),
+                label: Text(
+                  _selectedQueries.isEmpty
+                      ? 'Select tags to search'
+                      : 'Search ${_selectedQueries.length} tags',
+                ),
+              ),
+            ),
+            if (widget.downloadSlot != null) ...<Widget>[
+              const SizedBox(height: 8),
+              widget.downloadSlot!,
+            ],
+            if (widget.actionSlot != null) ...<Widget>[
+              const SizedBox(height: 8),
+              widget.actionSlot!,
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
   Future<void> _loadMeta() async {
     final loadMeta = widget.loadMeta;
     if (loadMeta == null) {
-      setState(() {
-        _tags = widget.initialTags;
-      });
+      setState(() => _tags = widget.initialTags);
       return;
     }
 
@@ -287,23 +287,25 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
 
     try {
       final meta = await loadMeta();
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _tags = meta.tags;
         _numFavorites = meta.numFavorites;
         _isLoading = false;
       });
     } catch (_) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _errorMessage = 'Failed to load tags.';
         _isLoading = false;
       });
     }
+  }
+
+  void _handleSearch() {
+    final selected = _selectedQueries.toList()..sort();
+    Navigator.of(context).pop();
+    widget.onSearchSelected(selected);
   }
 
   String _formatFavorites(int? count) {
@@ -313,115 +315,26 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
     return '$count';
   }
 
-  void _handleSearch() {
-    final selected = _selectedQueries.toList()..sort();
-    Navigator.of(context).pop();
-    widget.onSearchSelected(selected);
-  }
-
-  Widget _buildDownloadSection(BuildContext context) {
-    final status = widget.downloadStatus;
-    final isDownloadActionInProgress =
-        widget.isDownloadActionInProgress || _isRunningDownloadAction;
-    if (status == null) {
-      return SizedBox(
-        width: double.infinity,
-        child: FilledButton.icon(
-          onPressed: isDownloadActionInProgress ? null : _handleDownload,
-          icon: isDownloadActionInProgress
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.download_outlined),
-          label: Text(
-            isDownloadActionInProgress ? 'Starting download...' : 'Download',
-          ),
-        ),
-      );
-    }
-
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(_downloadStatusIcon(status)),
-      title: Text(_downloadStatusLabel(status)),
-      subtitle: const Text('Manage in Downloads tab'),
-    );
-  }
-
-  Future<void> _handleDownload() async {
-    final onDownload = widget.onDownload;
-    if (onDownload == null || _isRunningDownloadAction) {
-      return;
-    }
-    setState(() {
-      _isRunningDownloadAction = true;
-    });
-    try {
-      await onDownload();
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isRunningDownloadAction = false;
-        });
-      }
-    }
-  }
-
   Map<String, List<ComicTag>> _groupTagsByType(List<ComicTag> tags) {
     final result = <String, List<ComicTag>>{};
     for (final tag in tags) {
-      final type = tag.type ?? 'tag';
-      result.putIfAbsent(type, () => <ComicTag>[]).add(tag);
+      result.putIfAbsent(tag.type ?? 'tag', () => <ComicTag>[]).add(tag);
     }
     return result;
   }
 
   List<String> _sortedTypeKeys(List<String> keys) {
     const priority = <String>[
-      'parody',
-      'character',
-      'tag',
-      'artist',
-      'group',
-      'language',
-      'category',
+      'parody', 'character', 'tag', 'artist', 'group', 'language', 'category',
     ];
-    final prioritized = <String>[];
-    final rest = <String>[];
-    for (final key in keys) {
-      if (priority.contains(key)) {
-        prioritized.add(key);
-      } else {
-        rest.add(key);
-      }
-    }
-    prioritized.sort((a, b) => priority.indexOf(a) - priority.indexOf(b));
-    rest.sort();
+    final prioritized = keys.where(priority.contains).toList()
+      ..sort((a, b) => priority.indexOf(a) - priority.indexOf(b));
+    final rest = keys.where((k) => !priority.contains(k)).toList()..sort();
     return <String>[...prioritized, ...rest];
   }
-
-  IconData _downloadStatusIcon(DownloadJobStatus status) {
-    return switch (status) {
-      DownloadJobStatus.queued => Icons.schedule,
-      DownloadJobStatus.downloading => Icons.downloading,
-      DownloadJobStatus.paused => Icons.pause_circle_outline,
-      DownloadJobStatus.failed => Icons.error_outline,
-      DownloadJobStatus.completed => Icons.download_done,
-    };
-  }
-
-  String _downloadStatusLabel(DownloadJobStatus status) {
-    return switch (status) {
-      DownloadJobStatus.queued => 'Queued',
-      DownloadJobStatus.downloading => 'Downloading',
-      DownloadJobStatus.paused => 'Paused',
-      DownloadJobStatus.failed => 'Failed',
-      DownloadJobStatus.completed => 'Downloaded',
-    };
-  }
 }
+
+// ── Tag type section ──────────────────────────────────────────────────────────
 
 class _TagTypeSection extends StatelessWidget {
   const _TagTypeSection({
