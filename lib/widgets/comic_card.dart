@@ -165,7 +165,7 @@ class ComicCard extends StatelessWidget {
     );
   }
 
-  /// Builds the "Remove from <collection>" button for the sheet.
+  /// Builds the remove-from-collection button for the sheet.
   Widget _buildRemoveFromCollectionButton(BuildContext context) {
     return SizedBox(
       width: double.infinity,
