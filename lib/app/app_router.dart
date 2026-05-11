@@ -69,16 +69,11 @@ class _AppShellScaffold extends StatelessWidget {
       body: child,
       floatingActionButton: Consumer<HomeUiModel>(
         builder: (context, homeUiModel, child) {
-          if (homeUiModel.navigationIndex == 0) {
-            return _SortFilterFab();
-          }
-          if (homeUiModel.navigationIndex == 1) {
-            return _DownloadsSortFab();
-          }
-          if (homeUiModel.navigationIndex != 0) {
-            return const SizedBox.shrink();
-          }
-          return const SizedBox.shrink();
+          return switch (homeUiModel.navigationIndex) {
+            0 => _SortFilterFab(),
+            1 => _DownloadsSortFab(),
+            _ => const SizedBox.shrink(),
+          };
         },
       ),
       bottomNavigationBar: Consumer<HomeUiModel>(

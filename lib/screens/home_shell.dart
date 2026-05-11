@@ -23,62 +23,71 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   final FocusScopeNode _focusNode = FocusScopeNode();
-  final TextEditingController _downloadsSearchController =
-      TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _downloadsSearchController = TextEditingController();
   String _downloadsSearchQuery = '';
 
   @override
   void dispose() {
     _focusNode.dispose();
+    _scrollController.dispose();
     _downloadsSearchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Read navigationIndex once at build root; both top bar and body use it.
+    final navigationIndex = context.watch<HomeUiModel>().navigationIndex;
+
     return CustomScrollView(
+      controller: _scrollController,
       physics: const BouncingScrollPhysics(),
       slivers: <Widget>[
-        _buildTopBar(context),
-        _buildBodyByNavigationIndex(context),
+        _buildTopBar(context, navigationIndex),
+        _buildBody(context, navigationIndex),
       ],
     );
   }
 
-  Widget _buildTopBar(BuildContext context) {
-    final navigationIndex = context.watch<HomeUiModel>().navigationIndex;
-    if (navigationIndex == 1) {
-      return Consumer<DownloadManagerModel>(
-        builder: (context, model, _) {
-          return SliverAppBar(
-            floating: true,
-            snap: true,
-            title: TextField(
-              controller: _downloadsSearchController,
-              onChanged: (value) {
-                setState(() {
-                  _downloadsSearchQuery = value;
-                });
-              },
-              decoration: const InputDecoration(
-                hintText: 'Search downloaded titles',
-                border: InputBorder.none,
-              ),
-            ),
-            actions: <Widget>[
-              IconButton(
-                onPressed: () => context.push('/settings'),
-                icon: const Icon(Icons.settings),
-              ),
-            ],
-            bottom: LoadingIndicatorBar(isLoading: model.isRefreshing),
-          );
-        },
-      );
-    }
+  // ── Top bar ───────────────────────────────────────────────────────────────
 
+  Widget _buildTopBar(BuildContext context, int navigationIndex) {
+    if (navigationIndex == 1) {
+      return _buildDownloadsAppBar(context);
+    }
+    return _buildHomeAppBar(context);
+  }
+
+  Widget _buildDownloadsAppBar(BuildContext context) {
+    return Consumer<DownloadManagerModel>(
+      builder: (context, model, _) {
+        return SliverAppBar(
+          floating: true,
+          snap: true,
+          title: TextField(
+            controller: _downloadsSearchController,
+            onChanged: (value) => setState(() => _downloadsSearchQuery = value),
+            decoration: const InputDecoration(
+              hintText: 'Search downloaded titles',
+              border: InputBorder.none,
+            ),
+          ),
+          actions: <Widget>[
+            IconButton(
+              onPressed: () => context.push('/settings'),
+              icon: const Icon(Icons.settings),
+            ),
+          ],
+          bottom: LoadingIndicatorBar(isLoading: model.isRefreshing),
+        );
+      },
+    );
+  }
+
+  Widget _buildHomeAppBar(BuildContext context) {
     return Consumer<HomeUiModel>(
-      builder: (context, homeUiModel, child) {
+      builder: (context, homeUiModel, _) {
         return SliverAppBar(
           clipBehavior: Clip.none,
           backgroundColor: Colors.transparent,
@@ -88,9 +97,7 @@ class _HomeShellState extends State<HomeShell> {
           title: FocusScope(
             node: _focusNode,
             onFocusChange: (isFocused) {
-              if (isFocused) {
-                _focusNode.unfocus();
-              }
+              if (isFocused) _focusNode.unfocus();
             },
             child: SearchAnchor.bar(
               searchController: homeUiModel.searchController,
@@ -121,8 +128,9 @@ class _HomeShellState extends State<HomeShell> {
     );
   }
 
-  Widget _buildBodyByNavigationIndex(BuildContext context) {
-    final navigationIndex = context.watch<HomeUiModel>().navigationIndex;
+  // ── Body ──────────────────────────────────────────────────────────────────
+
+  Widget _buildBody(BuildContext context, int navigationIndex) {
     switch (navigationIndex) {
       case 1:
         return DownloadJobListSliver(
@@ -134,58 +142,65 @@ class _HomeShellState extends State<HomeShell> {
         return const CollectionOverviewScreen();
       case 0:
       default:
-        return Consumer<ComicFeedModel>(
-          builder: (context, feedModel, child) {
-            final comics = feedModel.comics;
-            if (comics == null) {
-              final errorMessage = feedModel.feedErrorMessage;
-              if (errorMessage != null) {
-                return SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Text(errorMessage, textAlign: TextAlign.center),
-                          const SizedBox(height: 12),
-                          FilledButton(
-                            onPressed: () => _retryHomeFeed(context),
-                            child: const Text('Retry'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }
-
-              return SliverList(
-                delegate: SliverChildListDelegate(const <Widget>[]),
-              );
-            }
-
-            return ComicGridSliver(
-              comics: comics.map(ComicCardData.fromComic).toList(),
-              pageLoaded: feedModel.pageLoaded,
-              onTagSelected: (tagQueries) =>
-                  _handleTagSelected(context, tagQueries),
-            );
-          },
-        );
+        return _buildHomeFeedSliver(context);
     }
   }
+
+  Widget _buildHomeFeedSliver(BuildContext context) {
+    return Consumer<ComicFeedModel>(
+      builder: (context, feedModel, _) {
+        final comics = feedModel.comics;
+
+        // No data yet — show error or empty placeholder.
+        if (comics == null) {
+          final errorMessage = feedModel.feedErrorMessage;
+          if (errorMessage != null) {
+            return _buildFeedError(context, errorMessage);
+          }
+          return SliverList(delegate: SliverChildListDelegate(const <Widget>[]));
+        }
+
+        return ComicGridSliver(
+          comics: comics.map(ComicCardData.fromComic).toList(),
+          pageLoaded: feedModel.pageLoaded,
+          onTagSelected: (tagQueries) => _handleTagSelected(context, tagQueries),
+        );
+      },
+    );
+  }
+
+  Widget _buildFeedError(BuildContext context, String errorMessage) {
+    return SliverFillRemaining(
+      hasScrollBody: false,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(errorMessage, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: () => _retryHomeFeed(context),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
 
   Future<void> _handleSearchSubmit(BuildContext context, String value) async {
     final controller = context.read<HomeShellController>();
     final readerModel = context.read<ComicReaderModel>();
     final downloadManagerModel = context.read<DownloadManagerModel>();
     final navigator = GoRouter.of(context);
+
     final result = await controller.submitSearch(value);
-    if (!mounted || !result.openComicReader || result.comicId == null) {
-      return;
-    }
+    if (!mounted || !result.openComicReader || result.comicId == null) return;
 
     await navigator.push(
       Uri(
@@ -193,9 +208,7 @@ class _HomeShellState extends State<HomeShell> {
         queryParameters: <String, String>{'id': result.comicId!},
       ).toString(),
     );
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
     readerModel.clearComic();
     await downloadManagerModel.refresh();
   }
@@ -225,10 +238,7 @@ class _HomeShellState extends State<HomeShell> {
     await navigator.push(
       Uri(
         path: '/third',
-        queryParameters: <String, String>{
-          'id': comicId,
-          'offline': 'true',
-        },
+        queryParameters: <String, String>{'id': comicId, 'offline': 'true'},
       ).toString(),
     );
     if (!mounted) return;
@@ -236,6 +246,8 @@ class _HomeShellState extends State<HomeShell> {
     await downloadManagerModel.refresh();
   }
 }
+
+// ── Collection overview ───────────────────────────────────────────────────────
 
 class CollectionOverviewScreen extends StatefulWidget {
   const CollectionOverviewScreen({super.key});
@@ -270,7 +282,6 @@ class _CollectionOverviewScreenState extends State<CollectionOverviewScreen> {
         if (!snapshot.hasData) {
           return const SliverFillRemaining(hasScrollBody: false);
         }
-
         return CollectionGridSliver(collections: snapshot.requireData);
       },
     );
