@@ -335,28 +335,53 @@ class _DownloadItemCard extends StatelessWidget {
           context.goNamed('index');
         }
       },
-      actionSlot: _buildDeleteButton(context),
+      actionSlot: _buildCompletedActionSlot(context),
     );
   }
 
-  /// Builds the "Delete Download" button passed as [actionSlot] to the sheet.
-  Widget _buildDeleteButton(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Theme.of(context).colorScheme.error,
-          side: BorderSide(color: Theme.of(context).colorScheme.error),
+  /// Builds the three-button action area (Delete / Reload / Repair) for
+  /// completed download cards shown in the bottom sheet [actionSlot].
+  Widget _buildCompletedActionSlot(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+            side: BorderSide(color: Theme.of(context).colorScheme.error),
+          ),
+          icon: const Icon(Icons.delete_outline),
+          label: const Text('Delete Download'),
+          onPressed: isMutating
+              ? null
+              : () {
+                  Navigator.of(context).pop();
+                  _confirmAndDeleteFromSheet(context);
+                },
         ),
-        icon: const Icon(Icons.delete_outline),
-        label: const Text('Delete Download'),
-        onPressed: isMutating
-            ? null
-            : () {
-                Navigator.of(context).pop();
-                _confirmAndDeleteFromSheet(context);
-              },
-      ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.refresh),
+          label: const Text('Reload'),
+          onPressed: isMutating
+              ? null
+              : () {
+                  Navigator.of(context).pop();
+                  _confirmAndReload(context);
+                },
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.build_outlined),
+          label: const Text('Repair'),
+          onPressed: isMutating
+              ? null
+              : () {
+                  Navigator.of(context).pop();
+                  _runRepair(context);
+                },
+        ),
+      ],
     );
   }
 
@@ -387,36 +412,74 @@ class _DownloadItemCard extends StatelessWidget {
       return;
     }
 
-    try {
-      await context.read<DownloadManagerModel>().deleteJob(item.comicId);
-      if (!context.mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Downloaded comic deleted')),
-      );
-    } catch (error) {
-      if (!context.mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$error')),
-      );
+    await _runAction(
+      context,
+      successMessage: 'Downloaded comic deleted',
+      action: () => context.read<DownloadManagerModel>().deleteJob(item.comicId),
+    );
+  }
+
+  Future<void> _confirmAndReload(BuildContext context) async {
+    final shouldReload = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Reload download?'),
+          content: const Text(
+            'This deletes the saved pages and re-downloads the comic from scratch. '
+            'Reading history and metadata are preserved.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Reload'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldReload != true || !context.mounted) {
+      return;
     }
+
+    await _runAction(
+      context,
+      successMessage: 'Reload queued',
+      action: () => context.read<DownloadManagerModel>().reloadCompleted(item.comicId),
+    );
+  }
+
+  Future<void> _runRepair(BuildContext context) async {
+    await _runAction(
+      context,
+      successMessage: 'Repair queued',
+      noOpMessage: 'All pages are intact — nothing to repair',
+      action: () => context.read<DownloadManagerModel>().repairCompleted(item.comicId),
+    );
   }
 
   Future<void> _runAction(
     BuildContext context, {
     required String successMessage,
+    String? noOpMessage,
     required Future<void> Function() action,
   }) async {
+    final beforeItems = context.read<DownloadManagerModel>().downloadItems;
     try {
       await action();
       if (!context.mounted) {
         return;
       }
+      final afterItems = context.read<DownloadManagerModel>().downloadItems;
+      final changed = afterItems != beforeItems;
+      final message = (!changed && noOpMessage != null) ? noOpMessage : successMessage;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(successMessage)),
+        SnackBar(content: Text(message)),
       );
     } catch (error) {
       if (!context.mounted) {

@@ -289,6 +289,69 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
     });
   }
 
+  /// Re-downloads a completed comic from scratch while preserving its library
+  /// metadata (lastReadAt, tags, numFavorites).
+  ///
+  /// Steps:
+  /// 1. Delete existing queue records and assets (library row is kept).
+  /// 2. Call the API to obtain the fresh page manifest.
+  /// 3. Enqueue the new job and kick the download engine.
+  Future<void> reloadCompleted(String comicId) async {
+    await _runMutatingJobAction(comicId, () async {
+      await downloadQueueRepository.deleteQueueOnly(comicId);
+      await downloadAssetStore.deleteComicAssets(comicId);
+
+      final detail = await nhentaiGateway.loadComicDetail(comicId);
+      final comic = detail.comic;
+      final title = _libraryTitle(comicId) ??
+          comic.title.pretty ??
+          comic.title.english ??
+          comic.title.japanese ??
+          comicId;
+      await downloadQueueRepository.upsertJobManifest(
+        comic: comic,
+        title: title,
+      );
+      await refresh();
+      unawaited(_processQueue());
+    });
+  }
+
+  /// Re-downloads only the pages that are missing or have zero byte size on disk.
+  ///
+  /// Steps:
+  /// 1. Load pages from DB and verify each file.
+  /// 2. Reset missing page records to pending.
+  /// 3. Requeue the job and kick the download engine.
+  ///
+  /// If all pages are intact, this is a no-op (returns without re-queuing).
+  Future<void> repairCompleted(String comicId) async {
+    await _runMutatingJobAction(comicId, () async {
+      final pages = await downloadQueueRepository.loadPages(comicId);
+      final pageLocalPaths = <int, String?>{
+        for (final page in pages) page.pageNumber: page.localPath,
+      };
+      final missingPageNumbers = await downloadAssetStore.verifyPages(pageLocalPaths);
+      if (missingPageNumbers.isEmpty) {
+        return;
+      }
+      await downloadQueueRepository.resetMissingPages(comicId, missingPageNumbers);
+      await downloadQueueRepository.requeueJob(comicId);
+      await refresh();
+      unawaited(_processQueue());
+    });
+  }
+
+  /// Returns the title stored in the downloaded library for [comicId], if any.
+  String? _libraryTitle(String comicId) {
+    for (final item in _downloadItems) {
+      if (item.comicId == comicId) {
+        return item.title;
+      }
+    }
+    return null;
+  }
+
   Future<String?> loadCoverLocalPath(String comicId) {
     return downloadedLibraryRepository.loadCoverLocalPath(comicId);
   }

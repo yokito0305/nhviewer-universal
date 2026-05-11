@@ -44,6 +44,27 @@ class DownloadAssetStore {
     return file.path;
   }
 
+  /// Returns the page numbers (1-based) that are missing or empty on disk.
+  ///
+  /// A page is considered missing if its file does not exist or its size is 0.
+  /// [pageLocalPaths] maps page number → absolute local path recorded in the DB.
+  Future<List<int>> verifyPages(Map<int, String?> pageLocalPaths) async {
+    final missing = <int>[];
+    for (final entry in pageLocalPaths.entries) {
+      final localPath = entry.value;
+      if (localPath == null || localPath.isEmpty) {
+        missing.add(entry.key);
+        continue;
+      }
+      final file = File(localPath);
+      if (!await file.exists() || await file.length() == 0) {
+        missing.add(entry.key);
+      }
+    }
+    missing.sort();
+    return missing;
+  }
+
   Future<void> deleteComicAssets(String comicId) async {
     final rootDirectory = Directory(
       p.join((await _directoryResolver()).path, comicId),

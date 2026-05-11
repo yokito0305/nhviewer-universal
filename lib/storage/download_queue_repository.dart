@@ -339,6 +339,51 @@ class DownloadQueueRepository {
     });
   }
 
+  /// Deletes the queue job and its page records without touching assets or
+  /// the downloaded-library entry.  Used by Reload so library metadata
+  /// (lastReadAt, tags, numFavorites) is preserved across re-downloads.
+  Future<void> deleteQueueOnly(String comicId) async {
+    await localDatabase.transaction(() async {
+      final pageDelete = localDatabase.delete(localDatabase.downloadJobPages)
+        ..where((table) => table.comicId.equals(comicId));
+      await pageDelete.go();
+      final jobDelete = localDatabase.delete(localDatabase.downloadJobs)
+        ..where((table) => table.comicId.equals(comicId));
+      await jobDelete.go();
+    });
+  }
+
+  /// Resets [missingPageNumbers] back to pending so the engine will re-download
+  /// only those pages.  All other pages keep their completed status.
+  Future<void> resetMissingPages(
+    String comicId,
+    List<int> missingPageNumbers,
+  ) async {
+    if (missingPageNumbers.isEmpty) {
+      return;
+    }
+    final pageNumbers = missingPageNumbers.toSet();
+    await localDatabase.batch((batch) {
+      for (final pageNumber in pageNumbers) {
+        batch.update(
+          localDatabase.downloadJobPages,
+          DownloadJobPagesCompanion(
+            status: drift.Value(DownloadPageStatus.pending.storageValue),
+            sourceServer: const drift.Value(null),
+            localPath: const drift.Value(null),
+            storedFormat: const drift.Value(null),
+            byteSize: const drift.Value(null),
+            downloadedAt: const drift.Value(null),
+            lastError: const drift.Value(null),
+          ),
+          where: (table) =>
+              table.comicId.equals(comicId) &
+              table.pageNumber.equals(pageNumber),
+        );
+      }
+    });
+  }
+
   Future<void> _writeJobStatus({
     required String comicId,
     required DownloadJobStatus status,
