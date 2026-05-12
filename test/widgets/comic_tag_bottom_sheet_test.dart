@@ -1,35 +1,48 @@
 import 'package:concept_nhv/models/comic_tag.dart';
+import 'package:concept_nhv/state/blocked_tags_model.dart';
 import 'package:concept_nhv/widgets/comic_tag_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+
+import '../test_support/fakes/fake_blocked_tags_repository.dart';
+
+/// Wraps [child] in a [MaterialApp] with a [BlockedTagsModel] provider,
+/// matching the provider tree expected by [ComicTagBottomSheet].
+Widget _wrap(Widget child) {
+  return ChangeNotifierProvider<BlockedTagsModel>(
+    create: (_) => BlockedTagsModel(
+      blockedTagsRepository: FakeBlockedTagsRepository(),
+    ),
+    child: MaterialApp(home: Scaffold(body: child)),
+  );
+}
 
 void main() {
   testWidgets('supports multi-select tag search from the bottom sheet', (tester) async {
     List<String>? selectedQueries;
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ComicTagBottomSheet(
-            title: 'Sample Comic',
-            initialTags: <ComicTag>[
-              ComicTag(
-                id: 1,
-                type: 'tag',
-                name: 'full color',
-                url: '/tag/full-color/',
-                count: 1,
-              ),
-              ComicTag(
-                id: 2,
-                type: 'language',
-                name: 'chinese',
-                url: '/language/chinese/',
-                count: 1,
-              ),
-            ],
-            onSearchSelected: (queries) => selectedQueries = queries,
-          ),
+      _wrap(
+        ComicTagBottomSheet(
+          title: 'Sample Comic',
+          initialTags: <ComicTag>[
+            ComicTag(
+              id: 1,
+              type: 'tag',
+              name: 'full color',
+              url: '/tag/full-color/',
+              count: 1,
+            ),
+            ComicTag(
+              id: 2,
+              type: 'language',
+              name: 'chinese',
+              url: '/language/chinese/',
+              count: 1,
+            ),
+          ],
+          onSearchSelected: (queries) => selectedQueries = queries,
         ),
       ),
     );
@@ -51,19 +64,17 @@ void main() {
     var downloadTapped = false;
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ComicTagBottomSheet(
-            title: 'Sample Comic',
-            initialTags: const <ComicTag>[],
-            onSearchSelected: (_) {},
-            downloadSlot: SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () => downloadTapped = true,
-                icon: const Icon(Icons.download_outlined),
-                label: const Text('Download'),
-              ),
+      _wrap(
+        ComicTagBottomSheet(
+          title: 'Sample Comic',
+          initialTags: const <ComicTag>[],
+          onSearchSelected: (_) {},
+          downloadSlot: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => downloadTapped = true,
+              icon: const Icon(Icons.download_outlined),
+              label: const Text('Download'),
             ),
           ),
         ),
@@ -81,18 +92,16 @@ void main() {
 
   testWidgets('shows download status tile via downloadSlot', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ComicTagBottomSheet(
-            title: 'Sample Comic',
-            initialTags: const <ComicTag>[],
-            onSearchSelected: (_) {},
-            downloadSlot: const ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.error_outline),
-              title: Text('Failed'),
-              subtitle: Text('Manage in Downloads tab'),
-            ),
+      _wrap(
+        ComicTagBottomSheet(
+          title: 'Sample Comic',
+          initialTags: const <ComicTag>[],
+          onSearchSelected: (_) {},
+          downloadSlot: const ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.error_outline),
+            title: Text('Failed'),
+            subtitle: Text('Manage in Downloads tab'),
           ),
         ),
       ),
@@ -107,18 +116,16 @@ void main() {
     var actionTapped = false;
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ComicTagBottomSheet(
-            title: 'Sample Comic',
-            initialTags: const <ComicTag>[],
-            onSearchSelected: (_) {},
-            actionSlot: SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => actionTapped = true,
-                child: const Text('Delete Download'),
-              ),
+      _wrap(
+        ComicTagBottomSheet(
+          title: 'Sample Comic',
+          initialTags: const <ComicTag>[],
+          onSearchSelected: (_) {},
+          actionSlot: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () => actionTapped = true,
+              child: const Text('Delete Download'),
             ),
           ),
         ),
@@ -137,13 +144,11 @@ void main() {
   testWidgets('shows no extra slots when neither downloadSlot nor actionSlot is provided',
       (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ComicTagBottomSheet(
-            title: 'Sample Comic',
-            initialTags: const <ComicTag>[],
-            onSearchSelected: (_) {},
-          ),
+      _wrap(
+        ComicTagBottomSheet(
+          title: 'Sample Comic',
+          initialTags: const <ComicTag>[],
+          onSearchSelected: (_) {},
         ),
       ),
     );

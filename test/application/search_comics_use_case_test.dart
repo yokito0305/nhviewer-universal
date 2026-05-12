@@ -12,6 +12,7 @@ import 'package:concept_nhv/services/search_query_builder.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../test_support/fakes/fake_blocked_tags_repository.dart';
 import '../test_support/fixtures/sample_comic.dart';
 import '../test_support/network/sample_dio_exception.dart';
 
@@ -28,6 +29,7 @@ void main() {
     final useCase = SearchComicsUseCase(
       nhentaiGateway: gateway,
       searchQueryBuilder: const SearchQueryBuilder(),
+      blockedTagsRepository: FakeBlockedTagsRepository(),
     );
 
     final result = await useCase.execute(
@@ -60,6 +62,7 @@ void main() {
     final useCase = SearchComicsUseCase(
       nhentaiGateway: gateway,
       searchQueryBuilder: const SearchQueryBuilder(),
+      blockedTagsRepository: FakeBlockedTagsRepository(),
     );
 
     final result = await useCase.execute(

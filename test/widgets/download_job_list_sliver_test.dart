@@ -14,6 +14,7 @@ import 'package:concept_nhv/services/search_query_builder.dart';
 import 'package:concept_nhv/services/tag_search_query_builder.dart';
 import 'package:concept_nhv/services/download_asset_store.dart';
 import 'package:concept_nhv/services/nhentai_cdn_config_service.dart';
+import 'package:concept_nhv/state/blocked_tags_model.dart';
 import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/comic_reader_model.dart';
 import 'package:concept_nhv/state/download_manager_model.dart';
@@ -27,6 +28,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 
+import '../test_support/fakes/fake_blocked_tags_repository.dart';
 import '../test_support/fakes/fake_image_compression_service.dart';
 import '../test_support/fakes/fake_nhentai_gateway.dart';
 import '../test_support/fakes/fake_reader_settings_repository.dart';
@@ -168,6 +170,11 @@ Widget _buildTestWidget({
 }) {
   final providers = <SingleChildWidget>[
     ChangeNotifierProvider<DownloadManagerModel>.value(value: model),
+    ChangeNotifierProvider<BlockedTagsModel>(
+      create: (_) => BlockedTagsModel(
+        blockedTagsRepository: FakeBlockedTagsRepository(),
+      ),
+    ),
     if (controller != null)
       Provider<HomeShellController>.value(value: controller),
   ];
@@ -179,17 +186,14 @@ Widget _buildTestWidget({
         name: 'index',
         path: '/index',
         builder: (context, state) {
-          return MultiProvider(
-            providers: providers,
-            child: Scaffold(
-              body: CustomScrollView(
-                slivers: <Widget>[
-                  DownloadJobListSliver(
-                    searchQuery: searchQuery,
-                    onOpenOfflineReader: (_) {},
-                  ),
-                ],
-              ),
+          return Scaffold(
+            body: CustomScrollView(
+              slivers: <Widget>[
+                DownloadJobListSliver(
+                  searchQuery: searchQuery,
+                  onOpenOfflineReader: (_) {},
+                ),
+              ],
             ),
           );
         },
@@ -197,7 +201,10 @@ Widget _buildTestWidget({
     ],
   );
 
-  return MaterialApp.router(routerConfig: router);
+  return MultiProvider(
+    providers: providers,
+    child: MaterialApp.router(routerConfig: router),
+  );
 }
 
 DownloadJobSnapshot _job({
@@ -344,6 +351,7 @@ class _FakeHomeShellController extends HomeShellController {
           searchComicsUseCase: SearchComicsUseCase(
             nhentaiGateway: FakeNhentaiGateway(),
             searchQueryBuilder: const SearchQueryBuilder(),
+            blockedTagsRepository: FakeBlockedTagsRepository(),
           ),
           loadCollectionSummariesUseCase: LoadCollectionSummariesUseCase(
             collectionRepository: harness.collectionRepository,

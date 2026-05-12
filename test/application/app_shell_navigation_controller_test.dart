@@ -7,6 +7,7 @@ import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/home_ui_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../test_support/fakes/fake_blocked_tags_repository.dart';
 import '../test_support/fakes/fake_nhentai_gateway.dart';
 import '../test_support/storage/sqlite_test_harness.dart';
 
@@ -25,6 +26,7 @@ void main() {
         searchComicsUseCase: SearchComicsUseCase(
           nhentaiGateway: FakeNhentaiGateway(),
           searchQueryBuilder: const SearchQueryBuilder(),
+          blockedTagsRepository: FakeBlockedTagsRepository(),
         ),
         loadCollectionSummariesUseCase: LoadCollectionSummariesUseCase(
           collectionRepository: harness.collectionRepository,

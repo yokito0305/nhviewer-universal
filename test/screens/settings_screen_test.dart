@@ -12,6 +12,7 @@ import 'package:concept_nhv/application/reader/open_comic_use_case.dart';
 import 'package:concept_nhv/screens/settings_screen.dart';
 import 'package:concept_nhv/services/library_import_service.dart';
 import 'package:concept_nhv/services/search_query_builder.dart';
+import 'package:concept_nhv/state/blocked_tags_model.dart';
 import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/comic_reader_model.dart';
 import 'package:concept_nhv/state/favorite_sync_model.dart';
@@ -23,6 +24,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+import '../test_support/fakes/fake_blocked_tags_repository.dart';
 import '../test_support/fakes/fake_nhentai_auth_service.dart';
 import '../test_support/fakes/fake_nhentai_gateway.dart';
 import '../test_support/fakes/fake_reader_settings_repository.dart';
@@ -82,6 +84,7 @@ void main() {
         searchComicsUseCase: SearchComicsUseCase(
           nhentaiGateway: FakeNhentaiGateway(),
           searchQueryBuilder: const SearchQueryBuilder(),
+          blockedTagsRepository: FakeBlockedTagsRepository(),
         ),
         loadCollectionSummariesUseCase: LoadCollectionSummariesUseCase(
           collectionRepository: harness.collectionRepository,
@@ -243,6 +246,11 @@ Widget _buildSettingsScreen({
       ChangeNotifierProvider<ComicFeedModel>.value(value: comicFeedModel),
       ChangeNotifierProvider<ComicReaderModel>.value(value: comicReaderModel),
       Provider<LibraryImportService>.value(value: libraryImportService),
+      ChangeNotifierProvider<BlockedTagsModel>(
+        create: (_) => BlockedTagsModel(
+          blockedTagsRepository: FakeBlockedTagsRepository(),
+        ),
+      ),
     ],
     child: const MaterialApp(home: SettingsScreen()),
   );

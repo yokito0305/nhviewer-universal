@@ -3,6 +3,7 @@ import 'package:concept_nhv/application/reader/reader_settings_repository.dart';
 import 'package:concept_nhv/models/comic_language.dart';
 import 'package:concept_nhv/services/library_import_service.dart';
 import 'package:concept_nhv/services/nhentai_auth_service.dart';
+import 'package:concept_nhv/state/blocked_tags_model.dart';
 import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/comic_reader_model.dart';
 import 'package:concept_nhv/state/favorite_sync_model.dart';
@@ -62,6 +63,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const ListTile(title: Text('Downloads')),
               _buildAutoResumeDownloadsTile(context),
               _buildPageDownloadIntervalTile(context),
+              const Divider(),
+
+              // ── Blocked Tags ─────────────────────────────────────────────
+              const ListTile(title: Text('Blocked Tags')),
+              _buildBlockedTagsSection(context),
               const Divider(),
 
               // ── General ──────────────────────────────────────────────────
@@ -335,6 +341,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SnackBar(content: Text('Image cache cleared')),
         );
       },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Blocked Tags tiles
+  // ---------------------------------------------------------------------------
+
+  Widget _buildBlockedTagsSection(BuildContext context) {
+    final blockedTagsModel = context.watch<BlockedTagsModel>();
+    final tags = blockedTagsModel.blockedTags;
+
+    if (tags.isEmpty) {
+      return const ListTile(
+        dense: true,
+        subtitle: Text('No blocked tags. Long-press a tag on a comic to block it.'),
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: tags.map((query) {
+        return ListTile(
+          dense: true,
+          title: Text(query),
+          trailing: IconButton(
+            icon: const Icon(Icons.close),
+            tooltip: 'Remove',
+            onPressed: () => blockedTagsModel.removeTag(query),
+          ),
+        );
+      }).toList(growable: false),
     );
   }
 

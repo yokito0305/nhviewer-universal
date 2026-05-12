@@ -1,4 +1,5 @@
 import 'package:concept_nhv/application/downloads/download_settings_repository.dart';
+import 'package:concept_nhv/application/search/blocked_tags_repository.dart';
 import 'package:concept_nhv/application/favorites/clear_favorite_auth_use_case.dart';
 import 'package:concept_nhv/application/favorites/initialize_favorites_use_case.dart';
 import 'package:concept_nhv/application/favorites/save_api_key_use_case.dart';
@@ -32,6 +33,7 @@ import 'package:concept_nhv/services/remote_asset_fetcher.dart';
 import 'package:concept_nhv/services/remote_favorite_gateway.dart';
 import 'package:concept_nhv/services/search_query_builder.dart';
 import 'package:concept_nhv/services/tag_search_query_builder.dart';
+import 'package:concept_nhv/state/blocked_tags_model.dart';
 import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/comic_reader_model.dart';
 import 'package:concept_nhv/state/download_manager_model.dart';
@@ -41,6 +43,7 @@ import 'package:concept_nhv/state/tag_catalog_browser_model.dart';
 import 'package:concept_nhv/storage/collection_repository.dart';
 import 'package:concept_nhv/storage/comic_repository.dart';
 import 'package:concept_nhv/storage/download_queue_repository.dart';
+import 'package:concept_nhv/storage/blocked_tags_store.dart';
 import 'package:concept_nhv/storage/download_settings_store.dart';
 import 'package:concept_nhv/storage/downloaded_library_repository.dart';
 import 'package:concept_nhv/storage/local_database.dart';
@@ -82,6 +85,9 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
     ),
     Provider<DownloadSettingsRepository>(
       create: (context) => DownloadSettingsStore(optionsStore: context.read()),
+    ),
+    Provider<BlockedTagsRepository>(
+      create: (context) => BlockedTagsStore(optionsStore: context.read()),
     ),
     Provider(
       create: (context) => DownloadQueueRepository(localDatabase: context.read()),
@@ -127,6 +133,7 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
       create: (context) => SearchComicsUseCase(
         nhentaiGateway: context.read(),
         searchQueryBuilder: context.read(),
+        blockedTagsRepository: context.read(),
       ),
     ),
     Provider(
@@ -207,6 +214,15 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
       ),
     ),
     ChangeNotifierProvider(create: (_) => HomeUiModel()),
+    ChangeNotifierProvider(
+      create: (context) {
+        final model = BlockedTagsModel(
+          blockedTagsRepository: context.read(),
+        );
+        model.load();
+        return model;
+      },
+    ),
     ChangeNotifierProvider(
       create: (context) => TagCatalogBrowserModel(
         loadTagCatalogUseCase: context.read(),

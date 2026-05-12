@@ -1,6 +1,8 @@
 import 'package:concept_nhv/models/comic_tag.dart';
 import 'package:concept_nhv/models/tag_type_l10n.dart';
+import 'package:concept_nhv/state/blocked_tags_model.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 /// A draggable bottom sheet that displays grouped, selectable tags and
 /// triggers a multi-tag search when the user confirms their selection.
@@ -195,6 +197,9 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
       return const Center(child: Text('No tags'));
     }
 
+    final blockedTagsModel = context.watch<BlockedTagsModel>();
+    final blockedQueries = blockedTagsModel.blockedTags.toSet();
+
     return ListView(
       controller: scrollController,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -204,6 +209,7 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
             typeName: TagTypeL10n.localizedName(type, locale),
             tags: grouped[type]!,
             selectedQueries: _selectedQueries,
+            blockedQueries: blockedQueries,
             onToggleTag: (tag) {
               setState(() {
                 if (_selectedQueries.contains(tag.query)) {
@@ -213,10 +219,60 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
                 }
               });
             },
+            onLongPressTag: (tag) => _showTagContextMenu(context, tag, blockedTagsModel),
           ),
           const SizedBox(height: 12),
         ],
       ],
+    );
+  }
+
+  void _showTagContextMenu(
+    BuildContext context,
+    ComicTag tag,
+    BlockedTagsModel blockedTagsModel,
+  ) {
+    final query = tag.query;
+    if (query.isEmpty) return;
+
+    final isBlocked = blockedTagsModel.isBlocked(query);
+    showModalBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListTile(
+                leading: Icon(
+                  isBlocked ? Icons.check_circle_outline : Icons.block,
+                ),
+                title: Text(
+                  isBlocked ? 'Unblock "${tag.name}"' : 'Block "${tag.name}"',
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  if (isBlocked) {
+                    blockedTagsModel.removeTag(query);
+                  } else {
+                    blockedTagsModel.addTag(query);
+                  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        isBlocked
+                            ? '"$query" removed from blocked tags'
+                            : '"$query" added to blocked tags',
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -342,13 +398,17 @@ class _TagTypeSection extends StatelessWidget {
     required this.typeName,
     required this.tags,
     required this.selectedQueries,
+    required this.blockedQueries,
     required this.onToggleTag,
+    required this.onLongPressTag,
   });
 
   final String typeName;
   final List<ComicTag> tags;
   final Set<String> selectedQueries;
+  final Set<String> blockedQueries;
   final ValueChanged<ComicTag> onToggleTag;
+  final ValueChanged<ComicTag> onLongPressTag;
 
   @override
   Widget build(BuildContext context) {
@@ -367,10 +427,17 @@ class _TagTypeSection extends StatelessWidget {
           spacing: 6,
           runSpacing: 4,
           children: tags.map((tag) {
-            return FilterChip(
-              label: Text(tag.name ?? ''),
-              selected: selectedQueries.contains(tag.query),
-              onSelected: (_) => onToggleTag(tag),
+            final isBlocked = blockedQueries.contains(tag.query);
+            return GestureDetector(
+              onLongPress: () => onLongPressTag(tag),
+              child: FilterChip(
+                label: Text(tag.name ?? ''),
+                selected: selectedQueries.contains(tag.query),
+                avatar: isBlocked
+                    ? const Icon(Icons.block, size: 14)
+                    : null,
+                onSelected: (_) => onToggleTag(tag),
+              ),
             );
           }).toList(),
         ),
