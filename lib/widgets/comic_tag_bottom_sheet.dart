@@ -49,6 +49,7 @@ class ComicTagBottomSheet extends StatefulWidget {
   }) {
     return showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       useSafeArea: true,
       shape: const RoundedRectangleBorder(

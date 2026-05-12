@@ -37,8 +37,9 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
-    // Read navigationIndex once at build root; both top bar and body use it.
-    final navigationIndex = context.watch<HomeUiModel>().navigationIndex;
+    // Select only navigationIndex — avoids scroll reset on isLoading changes.
+    final navigationIndex =
+        context.select<HomeUiModel, int>((m) => m.navigationIndex);
 
     return CustomScrollView(
       controller: _scrollController,
@@ -111,6 +112,11 @@ class _HomeShellState extends State<HomeShell> {
               barHintText: 'Search comic',
               barElevation: WidgetStateProperty.all(0),
               suggestionsBuilder: (buildContext, controller) {
+                // Dismiss the keyboard as soon as the suggestions view opens
+                // so the history/tag panel is not obscured.
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                });
                 return <Widget>[
                   SizedBox(
                     height: MediaQuery.sizeOf(buildContext).height * 0.56,
