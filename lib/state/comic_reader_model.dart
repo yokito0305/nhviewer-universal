@@ -133,6 +133,12 @@ class ComicReaderModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void showControlsOverlay() {
+    if (_showControls) return;
+    _showControls = true;
+    notifyListeners();
+  }
+
   void hideControls() {
     if (!_showControls) return;
     _showControls = false;

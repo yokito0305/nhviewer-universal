@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -22,10 +23,38 @@ class ComicReaderScreen extends StatefulWidget {
 }
 
 class _ComicReaderScreenState extends State<ComicReaderScreen> {
+  bool _showEndCard = false;
+  Timer? _endCardTimer;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _restoreLastSeenPage());
+  }
+
+  @override
+  void dispose() {
+    _endCardTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onPageChanged(int index, ComicReaderModel model) {
+    model.onPageChanged(index, widget.comicId);
+    _prefetchSurroundingPages(context, index + 1);
+
+    final isLastPage = index + 1 == model.totalPages;
+    if (isLastPage && !_showEndCard) {
+      _triggerEndCard(model);
+    }
+  }
+
+  void _triggerEndCard(ComicReaderModel model) {
+    model.showControlsOverlay();
+    setState(() => _showEndCard = true);
+    _endCardTimer?.cancel();
+    _endCardTimer = Timer(const Duration(milliseconds: 2500), () {
+      if (mounted) setState(() => _showEndCard = false);
+    });
   }
 
   Future<void> _restoreLastSeenPage() async {
@@ -69,10 +98,7 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
               PageView.builder(
                 controller: model.pageController,
                 itemCount: comic.numPages,
-                onPageChanged: (index) {
-                  model.onPageChanged(index, widget.comicId);
-                  _prefetchSurroundingPages(context, index + 1);
-                },
+                onPageChanged: (index) => _onPageChanged(index, model),
                 itemBuilder: (context, index) {
                   final page = index + 1;
                   final pageImage = comic.images.pages[index];
@@ -106,6 +132,9 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
                   ),
                 ),
               ),
+
+              // ── End-of-comic overlay card ─────────────────────────────────
+              _EndCard(visible: _showEndCard),
 
               // ── Bottom controls overlay ────────────────────────────────────
               Positioned(
@@ -449,6 +478,44 @@ class _AnimatedBottomControls extends StatelessWidget {
                     onPressed: onSettingsTap,
                   ),
                 ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// End-of-comic overlay card
+// ---------------------------------------------------------------------------
+
+class _EndCard extends StatelessWidget {
+  const _EndCard({required this.visible});
+
+  final bool visible;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: AnimatedOpacity(
+        opacity: visible ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 300),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+            decoration: BoxDecoration(
+              color: Colors.black.withAlpha(179),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Text(
+              'The End',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.2,
               ),
             ),
           ),
