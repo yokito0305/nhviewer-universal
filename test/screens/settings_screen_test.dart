@@ -84,11 +84,11 @@ void main() {
         searchComicsUseCase: SearchComicsUseCase(
           nhentaiGateway: FakeNhentaiGateway(),
           searchQueryBuilder: const SearchQueryBuilder(),
-          blockedTagsRepository: FakeBlockedTagsRepository(),
         ),
         loadCollectionSummariesUseCase: LoadCollectionSummariesUseCase(
           collectionRepository: harness.collectionRepository,
         ),
+        blockedTagsRepository: FakeBlockedTagsRepository(),
       );
 
       comicReaderModel = ComicReaderModel(

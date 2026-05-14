@@ -1,5 +1,4 @@
 import 'package:concept_nhv/application/feed/feed_load_result.dart';
-import 'package:concept_nhv/application/search/blocked_tags_repository.dart';
 import 'package:concept_nhv/models/comic.dart';
 import 'package:concept_nhv/models/comic_language.dart';
 import 'package:concept_nhv/models/popular_sort_type.dart';
@@ -11,24 +10,22 @@ class SearchComicsUseCase {
   const SearchComicsUseCase({
     required this.nhentaiGateway,
     required this.searchQueryBuilder,
-    required this.blockedTagsRepository,
   });
 
   final NhentaiGateway nhentaiGateway;
   final SearchQueryBuilder searchQueryBuilder;
-  final BlockedTagsRepository blockedTagsRepository;
 
   Future<FeedLoadResult> execute({
     required String query,
     required int page,
     required ComicLanguage language,
     PopularSortType? sortType,
+    List<String> blockedTagQueries = const <String>[],
   }) async {
     final languageQueries = <String>[
       language.apiQuery,
       ...language.fallbackQueries,
     ];
-    final blockedTagQueries = await blockedTagsRepository.loadBlockedTags();
     var lastStatusCode = 200;
     String? errorMessage;
 

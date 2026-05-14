@@ -155,7 +155,11 @@ class NhentaiApiClient implements NhentaiGateway {
         ),
       ),
       numPages: (json['num_pages'] as num?)?.toInt() ?? 0,
-      tags: const <ComicTag>[],
+      uploadDate: (json['upload_date'] as num?)?.toInt(),
+      tags: (json['tags'] as List<dynamic>? ?? const <dynamic>[])
+          .whereType<Map<String, dynamic>>()
+          .map(ComicTag.fromJson)
+          .toList(growable: false),
     );
   }
 

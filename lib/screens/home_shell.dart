@@ -22,14 +22,12 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> {
-  final FocusScopeNode _focusNode = FocusScopeNode();
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _downloadsSearchController = TextEditingController();
   String _downloadsSearchQuery = '';
 
   @override
   void dispose() {
-    _focusNode.dispose();
     _scrollController.dispose();
     _downloadsSearchController.dispose();
     super.dispose();
@@ -95,39 +93,31 @@ class _HomeShellState extends State<HomeShell> {
           floating: true,
           snap: true,
           bottom: LoadingIndicatorBar(isLoading: homeUiModel.isLoading),
-          title: FocusScope(
-            node: _focusNode,
-            onFocusChange: (isFocused) {
-              if (isFocused) _focusNode.unfocus();
-            },
-            child: SearchAnchor.bar(
-              searchController: homeUiModel.searchController,
-              onSubmitted: (value) => _handleSearchSubmit(context, value),
-              barTrailing: <Widget>[
-                IconButton.filledTonal(
-                  onPressed: () => context.push('/settings'),
-                  icon: const Icon(Icons.settings),
-                ),
-              ],
-              barHintText: 'Search comic',
-              barElevation: WidgetStateProperty.all(0),
-              suggestionsBuilder: (buildContext, controller) {
-                // Dismiss the keyboard as soon as the suggestions view opens
-                // so the history/tag panel is not obscured.
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  FocusManager.instance.primaryFocus?.unfocus();
-                });
-                return <Widget>[
-                  SizedBox(
-                    height: MediaQuery.sizeOf(buildContext).height * 0.56,
-                    child: SearchSuggestionsPanel(
-                      onHistorySelected: (query) =>
-                          _handleSearchSubmit(context, query),
-                    ),
+          title: SearchAnchor.bar(
+            searchController: homeUiModel.searchController,
+            onSubmitted: (value) => _handleSearchSubmit(context, value),
+            barTrailing: <Widget>[
+              IconButton.filledTonal(
+                onPressed: () => context.push('/settings'),
+                icon: const Icon(Icons.settings),
+              ),
+            ],
+            barHintText: 'Search comic',
+            barElevation: WidgetStateProperty.all(0),
+            suggestionsBuilder: (buildContext, controller) {
+              return <Widget>[
+                SizedBox(
+                  height: MediaQuery.sizeOf(buildContext).height * 0.56,
+                  child: SearchSuggestionsPanel(
+                    onHistorySelected: (query) {
+                      controller.closeView(query);
+                      _handleSearchSubmit(context, query);
+                    },
+                    onTagSearchSubmitted: () => controller.closeView(null),
                   ),
-                ];
-              },
-            ),
+                ),
+              ];
+            },
           ),
         );
       },

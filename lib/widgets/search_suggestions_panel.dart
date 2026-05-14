@@ -11,9 +11,11 @@ class SearchSuggestionsPanel extends StatefulWidget {
   const SearchSuggestionsPanel({
     super.key,
     required this.onHistorySelected,
+    this.onTagSearchSubmitted,
   });
 
   final ValueChanged<String> onHistorySelected;
+  final VoidCallback? onTagSearchSubmitted;
 
   @override
   State<SearchSuggestionsPanel> createState() => _SearchSuggestionsPanelState();
@@ -218,6 +220,7 @@ class _SearchSuggestionsPanelState extends State<SearchSuggestionsPanel> {
                               return;
                             }
                             model.clearSelection();
+                            widget.onTagSearchSubmitted?.call();
                           },
                     icon: const Icon(Icons.search),
                     label: const Text('Search'),

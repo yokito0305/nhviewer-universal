@@ -40,11 +40,11 @@ void main() {
         searchComicsUseCase: SearchComicsUseCase(
           nhentaiGateway: FakeNhentaiGateway(),
           searchQueryBuilder: const SearchQueryBuilder(),
-          blockedTagsRepository: FakeBlockedTagsRepository(),
         ),
         loadCollectionSummariesUseCase: LoadCollectionSummariesUseCase(
           collectionRepository: harness.collectionRepository,
         ),
+        blockedTagsRepository: FakeBlockedTagsRepository(),
       );
       final apiKeyStore = NhentaiApiKeyStore(
         secureStore: MemorySecureKeyValueStore(),

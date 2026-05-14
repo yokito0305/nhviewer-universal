@@ -12,7 +12,6 @@ import 'package:concept_nhv/services/search_query_builder.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../test_support/fakes/fake_blocked_tags_repository.dart';
 import '../test_support/fixtures/sample_comic.dart';
 import '../test_support/network/sample_dio_exception.dart';
 
@@ -29,7 +28,6 @@ void main() {
     final useCase = SearchComicsUseCase(
       nhentaiGateway: gateway,
       searchQueryBuilder: const SearchQueryBuilder(),
-      blockedTagsRepository: FakeBlockedTagsRepository(),
     );
 
     final result = await useCase.execute(
@@ -54,6 +52,33 @@ void main() {
     expect(gateway.searchedUris.last.queryParameters['sort'], 'popular-month');
   });
 
+  test('appends blocked tag exclusions to search uri', () async {
+    final gateway = _SequenceNhentaiGateway(<Object>[
+      ComicSearchResponse(
+        result: <dynamic>[sampleComic()].cast(),
+        numPages: 1,
+        perPage: 25,
+      ),
+    ]);
+    final useCase = SearchComicsUseCase(
+      nhentaiGateway: gateway,
+      searchQueryBuilder: const SearchQueryBuilder(),
+    );
+
+    await useCase.execute(
+      query: 'tag:art-jam',
+      page: 1,
+      language: ComicLanguage.chinese,
+      blockedTagQueries: <String>['tag:males-only', 'tag:full-color'],
+    );
+
+    expect(gateway.searchedUris, hasLength(1));
+    final query = gateway.searchedUris.first.queryParameters['query']!;
+    expect(query, contains('-tag:males-only'));
+    expect(query, contains('-tag:full-color'));
+    expect(query, startsWith('tag:art-jam'));
+  });
+
   test('returns mapped error when all retries fail', () async {
     final gateway = _SequenceNhentaiGateway(<Object>[
       _badResponseException(403),
@@ -62,7 +87,6 @@ void main() {
     final useCase = SearchComicsUseCase(
       nhentaiGateway: gateway,
       searchQueryBuilder: const SearchQueryBuilder(),
-      blockedTagsRepository: FakeBlockedTagsRepository(),
     );
 
     final result = await useCase.execute(

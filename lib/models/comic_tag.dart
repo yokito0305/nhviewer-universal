@@ -20,11 +20,22 @@ abstract class ComicTag with _$ComicTag {
 extension ComicTagQuery on ComicTag {
   /// Builds the search query string for this tag (e.g. `tag:full-color`).
   ///
-  /// Mirrors the slug convention used by the API: lowercase, spaces replaced
-  /// with hyphens. Used as the canonical query key across search entry points.
+  /// Prefers the slug extracted from [url] (the authoritative nhentai slug),
+  /// falling back to a name-based computation when [url] is absent. This
+  /// matches [TagCatalogItem.query], which uses the API-provided slug directly.
   String get query {
     final type = this.type ?? 'tag';
-    final slug = (name ?? '').toLowerCase().replaceAll(' ', '-');
+    final slug = _slugFromUrl(url) ?? _slugFromName(name);
     return '$type:$slug';
+  }
+
+  String? _slugFromUrl(String? tagUrl) {
+    if (tagUrl == null || tagUrl.isEmpty) return null;
+    final parts = tagUrl.split('/').where((s) => s.isNotEmpty).toList();
+    return parts.length >= 2 ? parts.last : null;
+  }
+
+  String _slugFromName(String? tagName) {
+    return (tagName ?? '').toLowerCase().replaceAll(' ', '-');
   }
 }

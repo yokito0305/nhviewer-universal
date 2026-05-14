@@ -133,7 +133,6 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
       create: (context) => SearchComicsUseCase(
         nhentaiGateway: context.read(),
         searchQueryBuilder: context.read(),
-        blockedTagsRepository: context.read(),
       ),
     ),
     Provider(
@@ -232,6 +231,7 @@ List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
       create: (context) => ComicFeedModel(
         searchComicsUseCase: context.read(),
         loadCollectionSummariesUseCase: context.read(),
+        blockedTagsRepository: context.read(),
       ),
     ),
     ChangeNotifierProvider(

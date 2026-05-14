@@ -1,5 +1,6 @@
 import 'package:concept_nhv/application/feed/load_collection_summaries_use_case.dart';
 import 'package:concept_nhv/application/feed/search_comics_use_case.dart';
+import 'package:concept_nhv/application/search/blocked_tags_repository.dart';
 import 'package:concept_nhv/models/collection_summary.dart';
 import 'package:concept_nhv/models/comic.dart';
 import 'package:concept_nhv/models/comic_language.dart';
@@ -10,14 +11,17 @@ class ComicFeedModel extends ChangeNotifier {
   ComicFeedModel({
     required this.searchComicsUseCase,
     required this.loadCollectionSummariesUseCase,
+    required this.blockedTagsRepository,
   });
 
   final SearchComicsUseCase searchComicsUseCase;
   final LoadCollectionSummariesUseCase loadCollectionSummariesUseCase;
+  final BlockedTagsRepository blockedTagsRepository;
 
   final List<Comic> _comics = <Comic>[];
   Future<List<CollectionSummary>>? collectionSummariesFuture;
   int pageLoaded = 1;
+  List<String> _sessionBlockedTags = const <String>[];
   bool _noMorePage = false;
   String _lastQuery = '';
   String? _feedErrorMessage;
@@ -84,6 +88,7 @@ class ComicFeedModel extends ChangeNotifier {
     if (clearComic) {
       _comics.clear();
       _noMorePage = false;
+      _sessionBlockedTags = await blockedTagsRepository.loadBlockedTags();
     }
 
     _lastQuery = query;
@@ -101,6 +106,7 @@ class ComicFeedModel extends ChangeNotifier {
       page: page,
       language: _languageForCurrentQuery,
       sortType: sortType ?? sortByPopularType,
+      blockedTagQueries: _sessionBlockedTags,
     );
 
     _feedErrorMessage = result.errorMessage;

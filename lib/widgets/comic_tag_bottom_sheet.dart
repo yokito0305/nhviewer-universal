@@ -16,6 +16,8 @@ class ComicTagBottomSheet extends StatefulWidget {
     required this.title,
     required this.initialTags,
     required this.onSearchSelected,
+    this.comicId,
+    this.comicUploadDate,
     this.loadMeta,
     this.downloadSlot,
     this.actionSlot,
@@ -23,6 +25,8 @@ class ComicTagBottomSheet extends StatefulWidget {
 
   final String title;
   final List<ComicTag> initialTags;
+  final String? comicId;
+  final int? comicUploadDate;
 
   /// Optional async loader that fetches the full tag list and favorite count.
   /// When null, [initialTags] is used directly.
@@ -45,6 +49,8 @@ class ComicTagBottomSheet extends StatefulWidget {
     required String title,
     required List<ComicTag> tags,
     required ValueChanged<List<String>> onSearchSelected,
+    String? comicId,
+    int? comicUploadDate,
     Future<({List<ComicTag> tags, int? numFavorites})> Function()? loadMeta,
     Widget? downloadSlot,
     Widget? actionSlot,
@@ -60,6 +66,8 @@ class ComicTagBottomSheet extends StatefulWidget {
       builder: (_) => ComicTagBottomSheet(
         title: title,
         initialTags: tags,
+        comicId: comicId,
+        comicUploadDate: comicUploadDate,
         loadMeta: loadMeta,
         onSearchSelected: onSearchSelected,
         downloadSlot: downloadSlot,
@@ -106,7 +114,8 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
           children: <Widget>[
             _buildHandle(context),
             _buildTitle(context),
-            if (_numFavorites != null) _buildFavoritesRow(context),
+            if (_numFavorites != null || widget.comicId != null)
+              _buildInfoRow(context),
             const Divider(height: 1),
             Expanded(
               child: _buildBody(
@@ -153,20 +162,32 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
     );
   }
 
-  Widget _buildFavoritesRow(BuildContext context) {
+  Widget _buildInfoRow(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodySmall;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       child: Row(
         children: <Widget>[
-          Icon(Icons.favorite, size: 13, color: Theme.of(context).colorScheme.error),
-          const SizedBox(width: 4),
-          Text(
-            _formatFavorites(_numFavorites),
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          if (_numFavorites != null) ...<Widget>[
+            Icon(Icons.favorite, size: 13, color: Theme.of(context).colorScheme.error),
+            const SizedBox(width: 4),
+            Text(_formatFavorites(_numFavorites), style: style),
+            const SizedBox(width: 12),
+          ],
+          if (widget.comicId != null) ...<Widget>[
+            Text('#${widget.comicId}', style: style),
+            const SizedBox(width: 12),
+          ],
+          if (widget.comicUploadDate != null)
+            Text(_formatDate(widget.comicUploadDate!), style: style),
         ],
       ),
     );
+  }
+
+  String _formatDate(int uploadDateSeconds) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(uploadDateSeconds * 1000);
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
   }
 
   // ── Tag body ──────────────────────────────────────────────────────────────

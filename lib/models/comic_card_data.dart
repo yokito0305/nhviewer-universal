@@ -19,6 +19,7 @@ class ComicCardData {
     required this.thumbnailWidth,
     required this.thumbnailHeight,
     this.tags = const <ComicTag>[],
+    this.uploadDate,
   });
 
   final String id;
@@ -30,6 +31,7 @@ class ComicCardData {
   final int thumbnailWidth;
   final int thumbnailHeight;
   final List<ComicTag> tags;
+  final int? uploadDate;
 
   factory ComicCardData.fromComic(Comic comic) {
     final thumbnail = comic.images.thumbnail;
@@ -43,6 +45,7 @@ class ComicCardData {
       thumbnailWidth: thumbnail?.w ?? 9,
       thumbnailHeight: thumbnail?.h ?? 16,
       tags: comic.tags,
+      uploadDate: comic.uploadDate,
     );
   }
 

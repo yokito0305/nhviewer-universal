@@ -121,6 +121,8 @@ class ComicCard extends StatelessWidget {
       context: context,
       title: comic.title,
       tags: comic.tags,
+      comicId: comic.id,
+      comicUploadDate: comic.uploadDate,
       loadMeta: () => context.read<ComicCardActionCoordinator>().loadComicMeta(comic),
       onSearchSelected: (queries) => onTagSelected?.call(queries),
       downloadSlot: _buildDownloadSlot(
@@ -177,7 +179,7 @@ class ComicCard extends StatelessWidget {
         icon: const Icon(Icons.remove_circle_outline),
         label: Text('Remove from ${collectionType!.displayName}'),
         onPressed: () {
-          Navigator.of(context).pop();
+          Navigator.of(context, rootNavigator: true).pop();
           _removeFromCollection(context);
         },
       ),
@@ -252,7 +254,7 @@ class ComicCard extends StatelessWidget {
   Future<void> _enqueueDownload(BuildContext context) async {
     final result = await context.read<ComicCardActionCoordinator>().enqueueDownload(comic);
     if (!context.mounted) return;
-    if (result.success) Navigator.of(context).pop();
+    if (result.success) Navigator.of(context, rootNavigator: true).pop();
     if (result.triggerHaptic) HapticFeedback.lightImpact();
     if (result.message != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message!)));
