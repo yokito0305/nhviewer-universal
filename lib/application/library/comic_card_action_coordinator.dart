@@ -36,11 +36,11 @@ class ComicCardActionCoordinator {
     return readerModel.loadComicDetail(comic.id);
   }
 
-  Future<({List<ComicTag> tags, int? numFavorites})> loadComicMeta(
+  Future<({List<ComicTag> tags, int? numFavorites, int? uploadDate})> loadComicMeta(
     ComicCardData comic,
   ) async {
     if (comic.tags.isNotEmpty) {
-      return (tags: comic.tags, numFavorites: null);
+      return (tags: comic.tags, numFavorites: null, uploadDate: null);
     }
     return loadComicMetaUseCase.execute(comic.id);
   }

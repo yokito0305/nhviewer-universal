@@ -61,10 +61,10 @@ class _FakeTagCatalogGateway implements NhentaiGateway {
   final List<String> requests = <String>[];
 
   @override
-  Future<({List<ComicTag> tags, int? numFavorites})> loadComicMeta(
+  Future<({List<ComicTag> tags, int? numFavorites, int? uploadDate})> loadComicMeta(
     String comicId,
   ) async =>
-      (tags: const <ComicTag>[], numFavorites: null);
+      (tags: const <ComicTag>[], numFavorites: null, uploadDate: null);
 
   @override
   Future<TagCatalogPage> loadTagCatalog({
@@ -122,10 +122,10 @@ class _SequencedTagCatalogGateway implements NhentaiGateway {
   }
 
   @override
-  Future<({List<ComicTag> tags, int? numFavorites})> loadComicMeta(
+  Future<({List<ComicTag> tags, int? numFavorites, int? uploadDate})> loadComicMeta(
     String comicId,
   ) async =>
-      (tags: const <ComicTag>[], numFavorites: null);
+      (tags: const <ComicTag>[], numFavorites: null, uploadDate: null);
 
   @override
   Future<TagCatalogPage> loadTagCatalog({

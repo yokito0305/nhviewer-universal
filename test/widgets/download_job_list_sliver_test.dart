@@ -1,6 +1,7 @@
 import 'package:concept_nhv/application/downloads/download_settings_repository.dart';
 import 'package:concept_nhv/application/feed/load_collection_summaries_use_case.dart';
 import 'package:concept_nhv/application/feed/search_comics_use_case.dart';
+import 'package:concept_nhv/application/tags/load_comic_meta_use_case.dart';
 import 'package:concept_nhv/application/home/home_shell_controller.dart';
 import 'package:concept_nhv/application/reader/load_comic_detail_use_case.dart';
 import 'package:concept_nhv/application/reader/load_offline_comic_use_case.dart';
@@ -11,6 +12,7 @@ import 'package:concept_nhv/models/download_list_item_snapshot.dart';
 import 'package:concept_nhv/models/downloaded_comic_snapshot.dart';
 import 'package:concept_nhv/models/downloads_sort_mode.dart';
 import 'package:concept_nhv/services/search_query_builder.dart';
+import 'package:concept_nhv/services/tag_display_service.dart';
 import 'package:concept_nhv/services/tag_search_query_builder.dart';
 import 'package:concept_nhv/services/download_asset_store.dart';
 import 'package:concept_nhv/services/nhentai_cdn_config_service.dart';
@@ -169,6 +171,10 @@ Widget _buildTestWidget({
   String searchQuery = '',
 }) {
   final providers = <SingleChildWidget>[
+    Provider<TagDisplayService>.value(value: TagDisplayService.fromMap({})),
+    Provider<LoadComicMetaUseCase>(
+      create: (_) => LoadComicMetaUseCase(nhentaiGateway: FakeNhentaiGateway()),
+    ),
     ChangeNotifierProvider<DownloadManagerModel>.value(value: model),
     ChangeNotifierProvider<BlockedTagsModel>(
       create: (_) => BlockedTagsModel(

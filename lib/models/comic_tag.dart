@@ -29,6 +29,8 @@ extension ComicTagQuery on ComicTag {
     return '$type:$slug';
   }
 
+  String get slug => _slugFromUrl(url) ?? _slugFromName(name);
+
   String? _slugFromUrl(String? tagUrl) {
     if (tagUrl == null || tagUrl.isEmpty) return null;
     final parts = tagUrl.split('/').where((s) => s.isNotEmpty).toList();

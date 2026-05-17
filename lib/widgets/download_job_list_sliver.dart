@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:concept_nhv/application/home/home_shell_controller.dart';
+import 'package:concept_nhv/application/tags/load_comic_meta_use_case.dart';
 import 'package:concept_nhv/models/download_job_status.dart';
 import 'package:concept_nhv/models/download_list_item_snapshot.dart';
 import 'package:concept_nhv/state/download_manager_model.dart';
@@ -324,11 +325,14 @@ class _DownloadItemCard extends StatelessWidget {
 
   Future<void> _showCompletedSheet(BuildContext context) async {
     final homeShellController = context.read<HomeShellController>();
+    final loadComicMetaUseCase = context.read<LoadComicMetaUseCase>();
 
     await ComicTagBottomSheet.show(
       context: context,
       title: item.title,
       tags: item.tags,
+      comicId: item.comicId,
+      loadMeta: () => loadComicMetaUseCase.execute(item.comicId),
       onSearchSelected: (queries) async {
         await homeShellController.submitTagSearch(queries);
         if (context.mounted) {

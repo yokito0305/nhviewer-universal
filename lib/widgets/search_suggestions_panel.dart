@@ -3,6 +3,7 @@ import 'package:concept_nhv/models/search_history_entry.dart';
 import 'package:concept_nhv/models/tag_catalog_type.dart';
 import 'package:concept_nhv/models/tag_type_l10n.dart';
 import 'package:concept_nhv/state/tag_catalog_browser_model.dart';
+import 'package:concept_nhv/services/tag_display_service.dart';
 import 'package:concept_nhv/storage/search_history_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -175,7 +176,7 @@ class _SearchSuggestionsPanelState extends State<SearchSuggestionsPanel> {
                         runSpacing: 6,
                         children: page.result.map((item) {
                           return FilterChip(
-                            label: Text('${item.name} (${item.count})'),
+                            label: Text('${context.read<TagDisplayService>().displayName(item.slug, item.name)} (${item.count})'),
                             selected: model.isSelected(item),
                             onSelected: (_) => model.toggleSelection(item),
                           );

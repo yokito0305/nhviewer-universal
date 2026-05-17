@@ -62,7 +62,7 @@ class FakeNhentaiGateway implements NhentaiGateway {
   }
 
   @override
-  Future<({List<ComicTag> tags, int? numFavorites})> loadComicMeta(
+  Future<({List<ComicTag> tags, int? numFavorites, int? uploadDate})> loadComicMeta(
     String comicId,
   ) async {
     loadedComicMetaIds.add(comicId);
@@ -70,6 +70,7 @@ class FakeNhentaiGateway implements NhentaiGateway {
     return (
       tags: comicTags ?? comic.tags,
       numFavorites: comic.numFavorites,
+      uploadDate: comic.uploadDate,
     );
   }
 

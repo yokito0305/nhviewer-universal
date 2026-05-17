@@ -1,5 +1,6 @@
 import 'package:concept_nhv/models/comic_tag.dart';
 import 'package:concept_nhv/models/tag_type_l10n.dart';
+import 'package:concept_nhv/services/tag_display_service.dart';
 import 'package:concept_nhv/state/blocked_tags_model.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -30,7 +31,7 @@ class ComicTagBottomSheet extends StatefulWidget {
 
   /// Optional async loader that fetches the full tag list and favorite count.
   /// When null, [initialTags] is used directly.
-  final Future<({List<ComicTag> tags, int? numFavorites})> Function()? loadMeta;
+  final Future<({List<ComicTag> tags, int? numFavorites, int? uploadDate})> Function()? loadMeta;
 
   /// Called with the sorted list of selected tag query strings when the user
   /// confirms the search. The sheet is dismissed before this is invoked.
@@ -51,7 +52,7 @@ class ComicTagBottomSheet extends StatefulWidget {
     required ValueChanged<List<String>> onSearchSelected,
     String? comicId,
     int? comicUploadDate,
-    Future<({List<ComicTag> tags, int? numFavorites})> Function()? loadMeta,
+    Future<({List<ComicTag> tags, int? numFavorites, int? uploadDate})> Function()? loadMeta,
     Widget? downloadSlot,
     Widget? actionSlot,
   }) {
@@ -83,6 +84,7 @@ class ComicTagBottomSheet extends StatefulWidget {
 class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
   List<ComicTag>? _tags;
   int? _numFavorites;
+  int? _loadedUploadDate;
   String? _errorMessage;
   bool _isLoading = false;
   final Set<String> _selectedQueries = <String>{};
@@ -114,7 +116,7 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
           children: <Widget>[
             _buildHandle(context),
             _buildTitle(context),
-            if (_numFavorites != null || widget.comicId != null)
+            if (_numFavorites != null || widget.comicId != null || _loadedUploadDate != null || widget.comicUploadDate != null)
               _buildInfoRow(context),
             const Divider(height: 1),
             Expanded(
@@ -178,8 +180,8 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
             Text('#${widget.comicId}', style: style),
             const SizedBox(width: 12),
           ],
-          if (widget.comicUploadDate != null)
-            Text(_formatDate(widget.comicUploadDate!), style: style),
+          if (_loadedUploadDate != null || widget.comicUploadDate != null)
+            Text(_formatDate((_loadedUploadDate ?? widget.comicUploadDate)!), style: style),
         ],
       ),
     );
@@ -369,6 +371,7 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
       setState(() {
         _tags = meta.tags;
         _numFavorites = meta.numFavorites;
+        if (meta.uploadDate != null) _loadedUploadDate = meta.uploadDate;
         _isLoading = false;
       });
     } catch (_) {
@@ -452,7 +455,9 @@ class _TagTypeSection extends StatelessWidget {
             return GestureDetector(
               onLongPress: () => onLongPressTag(tag),
               child: FilterChip(
-                label: Text(tag.name ?? ''),
+                label: Text(
+                  context.read<TagDisplayService>().displayName(tag.slug, tag.name ?? ''),
+                ),
                 selected: selectedQueries.contains(tag.query),
                 avatar: isBlocked
                     ? const Icon(Icons.block, size: 14)

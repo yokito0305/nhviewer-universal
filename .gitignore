@@ -51,3 +51,6 @@ app.*.map.json
 AGENTS.md
 .codex/
 .claude/
+
+# Script output (generated files, not for version control)
+scripts/out/

@@ -23,6 +23,7 @@ import 'package:concept_nhv/application/tags/load_comic_meta_use_case.dart';
 import 'package:concept_nhv/application/tags/load_tag_catalog_use_case.dart';
 import 'package:concept_nhv/services/image_url_resolver.dart';
 import 'package:concept_nhv/services/download_asset_store.dart';
+import 'package:concept_nhv/services/tag_display_service.dart';
 import 'package:concept_nhv/services/image_compression_service.dart';
 import 'package:concept_nhv/services/library_import_service.dart';
 import 'package:concept_nhv/services/comic_page_source_resolver.dart';
@@ -56,8 +57,12 @@ import 'package:concept_nhv/storage/secure_key_value_store.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 
-List<SingleChildWidget> buildAppProviders(LocalDatabase localDatabase) {
+List<SingleChildWidget> buildAppProviders(
+  LocalDatabase localDatabase,
+  TagDisplayService tagDisplayService,
+) {
   return <SingleChildWidget>[
+    Provider<TagDisplayService>.value(value: tagDisplayService),
     Provider<LocalDatabase>.value(value: localDatabase),
     Provider(
       create: (context) => OptionsStore(localDatabase: context.read()),

@@ -1,4 +1,5 @@
 import 'package:concept_nhv/models/comic_tag.dart';
+import 'package:concept_nhv/services/tag_display_service.dart';
 import 'package:concept_nhv/state/blocked_tags_model.dart';
 import 'package:concept_nhv/widgets/comic_tag_bottom_sheet.dart';
 import 'package:flutter/material.dart';
@@ -7,13 +8,18 @@ import 'package:provider/provider.dart';
 
 import '../test_support/fakes/fake_blocked_tags_repository.dart';
 
-/// Wraps [child] in a [MaterialApp] with a [BlockedTagsModel] provider,
+/// Wraps [child] in a [MaterialApp] with required providers,
 /// matching the provider tree expected by [ComicTagBottomSheet].
 Widget _wrap(Widget child) {
-  return ChangeNotifierProvider<BlockedTagsModel>(
-    create: (_) => BlockedTagsModel(
-      blockedTagsRepository: FakeBlockedTagsRepository(),
-    ),
+  return MultiProvider(
+    providers: [
+      Provider<TagDisplayService>.value(value: TagDisplayService.fromMap({})),
+      ChangeNotifierProvider<BlockedTagsModel>(
+        create: (_) => BlockedTagsModel(
+          blockedTagsRepository: FakeBlockedTagsRepository(),
+        ),
+      ),
+    ],
     child: MaterialApp(home: Scaffold(body: child)),
   );
 }
