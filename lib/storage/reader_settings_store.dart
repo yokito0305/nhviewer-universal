@@ -9,6 +9,8 @@ class ReaderSettingsStore implements ReaderSettingsRepository {
 
   static const String _prefetchPageCountKey = 'reader_prefetchPageCount';
   static const String _lastSeenPagePrefix = 'reader_lastSeenPage_';
+  static const String _readingDirectionKey = 'reader_readingDirection';
+  static const String _tapZoneRatioKey = 'reader_tapZoneRatio';
 
   @override
   Future<int> loadPrefetchPageCount() async {
@@ -41,5 +43,37 @@ class ReaderSettingsStore implements ReaderSettingsRepository {
   @override
   Future<void> saveLastSeenPage(String comicId, int page) {
     return optionsStore.saveOption('$_lastSeenPagePrefix$comicId', page.toString());
+  }
+
+  @override
+  Future<ReadingDirection> loadReadingDirection() async {
+    final raw = await optionsStore.loadOption(_readingDirectionKey);
+    return raw == 'rtl' ? ReadingDirection.rtl : ReadingDirection.ltr;
+  }
+
+  @override
+  Future<void> saveReadingDirection(ReadingDirection direction) {
+    return optionsStore.saveOption(_readingDirectionKey, direction.name);
+  }
+
+  @override
+  Future<double> loadTapZoneRatio() async {
+    final raw = await optionsStore.loadOption(_tapZoneRatioKey);
+    if (raw.isEmpty) return ReaderSettingsRepository.defaultTapZoneRatio;
+    final parsed = double.tryParse(raw);
+    if (parsed == null) return ReaderSettingsRepository.defaultTapZoneRatio;
+    return parsed.clamp(
+      ReaderSettingsRepository.minTapZoneRatio,
+      ReaderSettingsRepository.maxTapZoneRatio,
+    );
+  }
+
+  @override
+  Future<void> saveTapZoneRatio(double ratio) {
+    final clamped = ratio.clamp(
+      ReaderSettingsRepository.minTapZoneRatio,
+      ReaderSettingsRepository.maxTapZoneRatio,
+    );
+    return optionsStore.saveOption(_tapZoneRatioKey, clamped.toString());
   }
 }

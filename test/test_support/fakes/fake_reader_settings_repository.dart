@@ -7,6 +7,8 @@ import 'package:concept_nhv/application/reader/reader_settings_repository.dart';
 class FakeReaderSettingsRepository implements ReaderSettingsRepository {
   int _prefetchPageCount = ReaderSettingsRepository.defaultPrefetchPageCount;
   final Map<String, int> _lastSeenPages = {};
+  ReadingDirection _readingDirection = ReaderSettingsRepository.defaultReadingDirection;
+  double _tapZoneRatio = ReaderSettingsRepository.defaultTapZoneRatio;
 
   @override
   Future<int> loadPrefetchPageCount() async => _prefetchPageCount;
@@ -22,5 +24,21 @@ class FakeReaderSettingsRepository implements ReaderSettingsRepository {
   @override
   Future<void> saveLastSeenPage(String comicId, int page) async {
     _lastSeenPages[comicId] = page;
+  }
+
+  @override
+  Future<ReadingDirection> loadReadingDirection() async => _readingDirection;
+
+  @override
+  Future<void> saveReadingDirection(ReadingDirection direction) async {
+    _readingDirection = direction;
+  }
+
+  @override
+  Future<double> loadTapZoneRatio() async => _tapZoneRatio;
+
+  @override
+  Future<void> saveTapZoneRatio(double ratio) async {
+    _tapZoneRatio = ratio;
   }
 }

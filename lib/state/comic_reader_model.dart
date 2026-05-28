@@ -35,6 +35,8 @@ class ComicReaderModel extends ChangeNotifier {
   int _currentPage = 1;
   bool _showControls = false;
   int _prefetchPageCount = ReaderSettingsRepository.defaultPrefetchPageCount;
+  ReadingDirection _readingDirection = ReaderSettingsRepository.defaultReadingDirection;
+  double _tapZoneRatio = ReaderSettingsRepository.defaultTapZoneRatio;
 
   // ---------------------------------------------------------------------------
   // Getters
@@ -57,6 +59,9 @@ class ComicReaderModel extends ChangeNotifier {
   /// How many pages before and after the current page to pre-cache.
   int get prefetchPageCount => _prefetchPageCount;
 
+  ReadingDirection get readingDirection => _readingDirection;
+  double get tapZoneRatio => _tapZoneRatio;
+
   // ---------------------------------------------------------------------------
   // Settings
   // ---------------------------------------------------------------------------
@@ -64,6 +69,8 @@ class ComicReaderModel extends ChangeNotifier {
   /// Loads persisted reader preferences. Call once after construction.
   Future<void> loadSettings() async {
     _prefetchPageCount = await readerSettingsRepository.loadPrefetchPageCount();
+    _readingDirection = await readerSettingsRepository.loadReadingDirection();
+    _tapZoneRatio = await readerSettingsRepository.loadTapZoneRatio();
     notifyListeners();
   }
 
@@ -71,6 +78,18 @@ class ComicReaderModel extends ChangeNotifier {
   Future<void> savePrefetchPageCount(int count) async {
     _prefetchPageCount = count;
     await readerSettingsRepository.savePrefetchPageCount(count);
+    notifyListeners();
+  }
+
+  Future<void> saveReadingDirection(ReadingDirection direction) async {
+    _readingDirection = direction;
+    await readerSettingsRepository.saveReadingDirection(direction);
+    notifyListeners();
+  }
+
+  Future<void> saveTapZoneRatio(double ratio) async {
+    _tapZoneRatio = ratio;
+    await readerSettingsRepository.saveTapZoneRatio(ratio);
     notifyListeners();
   }
 

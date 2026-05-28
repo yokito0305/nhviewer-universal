@@ -110,6 +110,7 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
                     url: url,
                     width: pageImage.w ?? 9,
                     height: pageImage.h ?? 16,
+                    tapZoneRatio: model.tapZoneRatio,
                     onTapZone: (zone) => _handleTapZone(zone, model),
                   );
                 },
@@ -164,11 +165,12 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
   // ---------------------------------------------------------------------------
 
   void _handleTapZone(_TapZone zone, ComicReaderModel model) {
+    final isRtl = model.readingDirection == ReadingDirection.rtl;
     switch (zone) {
       case _TapZone.left:
-        model.goToPage(model.currentPage - 1);
+        model.goToPage(isRtl ? model.currentPage + 1 : model.currentPage - 1);
       case _TapZone.right:
-        model.goToPage(model.currentPage + 1);
+        model.goToPage(isRtl ? model.currentPage - 1 : model.currentPage + 1);
       case _TapZone.center:
         model.toggleControls();
     }
@@ -243,12 +245,14 @@ class _PageWidget extends StatefulWidget {
     required this.url,
     required this.width,
     required this.height,
+    required this.tapZoneRatio,
     required this.onTapZone,
   });
 
   final String url;
   final int width;
   final int height;
+  final double tapZoneRatio;
   final void Function(_TapZone zone) onTapZone;
 
   @override
@@ -291,9 +295,9 @@ class _PageWidgetState extends State<_PageWidget> {
     final width = context.size?.width ?? 1;
     final dx = details.localPosition.dx;
 
-    if (dx < width * 0.3) {
+    if (dx < width * widget.tapZoneRatio) {
       widget.onTapZone(_TapZone.left);
-    } else if (dx > width * 0.7) {
+    } else if (dx > width * (1 - widget.tapZoneRatio)) {
       widget.onTapZone(_TapZone.right);
     } else {
       widget.onTapZone(_TapZone.center);
@@ -540,11 +544,15 @@ class _ReaderSettingsSheet extends StatefulWidget {
 
 class _ReaderSettingsSheetState extends State<_ReaderSettingsSheet> {
   late int _prefetchCount;
+  late ReadingDirection _readingDirection;
+  late double _tapZoneRatio;
 
   @override
   void initState() {
     super.initState();
     _prefetchCount = widget.model.prefetchPageCount;
+    _readingDirection = widget.model.readingDirection;
+    _tapZoneRatio = widget.model.tapZoneRatio;
   }
 
   @override
@@ -558,6 +566,44 @@ class _ReaderSettingsSheetState extends State<_ReaderSettingsSheet> {
           Text(
             'Reader Settings',
             style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 16),
+          const Text('Reading Direction'),
+          const SizedBox(height: 8),
+          SegmentedButton<ReadingDirection>(
+            segments: const <ButtonSegment<ReadingDirection>>[
+              ButtonSegment(value: ReadingDirection.ltr, label: Text('LTR')),
+              ButtonSegment(value: ReadingDirection.rtl, label: Text('RTL')),
+            ],
+            selected: <ReadingDirection>{_readingDirection},
+            onSelectionChanged: (selected) {
+              final dir = selected.first;
+              setState(() => _readingDirection = dir);
+              widget.model.saveReadingDirection(dir);
+            },
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Expanded(child: Text('Tap zone width')),
+              Text('${(_tapZoneRatio * 100).round()}%'),
+            ],
+          ),
+          Slider(
+            value: _tapZoneRatio,
+            min: ReaderSettingsRepository.minTapZoneRatio,
+            max: ReaderSettingsRepository.maxTapZoneRatio,
+            divisions: ((ReaderSettingsRepository.maxTapZoneRatio -
+                        ReaderSettingsRepository.minTapZoneRatio) /
+                    0.05)
+                .round(),
+            label: '${(_tapZoneRatio * 100).round()}%',
+            onChanged: (value) {
+              setState(() => _tapZoneRatio = value);
+            },
+            onChangeEnd: (value) {
+              widget.model.saveTapZoneRatio(value);
+            },
           ),
           const SizedBox(height: 16),
           Row(
