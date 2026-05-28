@@ -1,5 +1,5 @@
 """
-將 assets/tag_zh.json 編碼為 assets/tag_zh.bin（XOR 混淆）。
+將 scripts/tag_zh.json 編碼為 assets/tag_zh.bin（XOR 混淆）。
 
 用法（從專案根目錄執行）：
     python scripts/encode_tags.py
@@ -7,7 +7,7 @@
 import pathlib
 
 KEY = 0x42
-src = pathlib.Path('assets/tag_zh.json')
+src = pathlib.Path('scripts/tag_zh.json')
 dst = pathlib.Path('assets/tag_zh.bin')
 
 if not src.exists():
