@@ -19,7 +19,7 @@ void main() {
 
     test('loads collection summaries from stored collection entries', () async {
       await harness.comicRepository.upsertComic(
-        StoredComic(
+        _storedComic(
           id: '1',
           mediaId: '9',
           title: 'Stored Comic',
@@ -33,7 +33,8 @@ void main() {
         comicId: '1',
       );
 
-      final summaries = await harness.collectionRepository.loadCollectionSummaries();
+      final summaries = await harness.collectionRepository
+          .loadCollectionSummaries();
       final favorite = summaries.firstWhere(
         (summary) => summary.collectionName == 'Favorite',
       );
@@ -46,20 +47,8 @@ void main() {
       await harness.collectionRepository.replaceCollectionCache(
         collectionType: CollectionType.favorite,
         comics: <StoredComic>[
-          StoredComic(
-            id: '1',
-            mediaId: '9',
-            title: 'Favorite A',
-            serializedImages: 'jj',
-            pages: 2,
-          ),
-          StoredComic(
-            id: '2',
-            mediaId: '10',
-            title: 'Favorite B',
-            serializedImages: 'jj',
-            pages: 2,
-          ),
+          _storedComic(id: '1', mediaId: '9', title: 'Favorite A'),
+          _storedComic(id: '2', mediaId: '10', title: 'Favorite B'),
         ],
       );
 
@@ -69,5 +58,40 @@ void main() {
 
       expect(ids, <String>{'1', '2'});
     });
+
+    test('replaceCollectionCache preserves remote favorite order', () async {
+      await harness.collectionRepository.replaceCollectionCache(
+        collectionType: CollectionType.favorite,
+        comics: <StoredComic>[
+          _storedComic(id: '2', mediaId: '10', title: 'Favorite B'),
+          _storedComic(id: '1', mediaId: '9', title: 'Favorite A'),
+        ],
+      );
+
+      final comics = await harness.collectionRepository.loadCollectionComics(
+        CollectionType.favorite,
+      );
+
+      expect(
+        comics.map((comic) => comic.comicId),
+        orderedEquals(<String>['2', '1']),
+      );
+    });
   });
+}
+
+StoredComic _storedComic({
+  required String id,
+  required String mediaId,
+  required String title,
+  String serializedImages = 'jj',
+  int pages = 2,
+}) {
+  return StoredComic(
+    id: id,
+    mediaId: mediaId,
+    title: title,
+    serializedImages: serializedImages,
+    pages: pages,
+  );
 }

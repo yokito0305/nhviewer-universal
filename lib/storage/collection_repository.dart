@@ -16,14 +16,16 @@ class CollectionRepository {
     required String comicId,
     String? dateCreated,
   }) async {
-    return localDatabase.into(localDatabase.collections).insert(
-      CollectionsCompanion.insert(
-        name: collectionType.storageName,
-        comicid: comicId,
-        dateCreated: dateCreated ?? DateTime.now().toIso8601String(),
-      ),
-      mode: drift.InsertMode.insertOrReplace,
-    );
+    return localDatabase
+        .into(localDatabase.collections)
+        .insert(
+          CollectionsCompanion.insert(
+            name: collectionType.storageName,
+            comicid: comicId,
+            dateCreated: dateCreated ?? DateTime.now().toIso8601String(),
+          ),
+          mode: drift.InsertMode.insertOrReplace,
+        );
   }
 
   Future<int> removeComicFromCollection({
@@ -41,9 +43,7 @@ class CollectionRepository {
   Future<List<CollectedComic>> loadCollectionComics(
     CollectionType collectionType,
   ) async {
-    final rows = await _loadCollectionJoinRows(
-      collectionType: collectionType,
-    );
+    final rows = await _loadCollectionJoinRows(collectionType: collectionType);
     return rows
         .where((row) => row.readTableOrNull(localDatabase.comics) != null)
         .map(_mapCollectedComic)
@@ -104,13 +104,15 @@ class CollectionRepository {
     required Iterable<StoredComic> comics,
   }) async {
     final now = DateTime.now().toIso8601String();
+    final comicsList = comics.toList();
     await localDatabase.transaction(() async {
       final deleteStatement = localDatabase.delete(localDatabase.collections)
         ..where((table) => table.name.equals(collectionType.storageName));
       await deleteStatement.go();
 
       await localDatabase.batch((batch) {
-        for (final comic in comics) {
+        for (var i = 0; i < comicsList.length; i++) {
+          final comic = comicsList[i];
           batch.insert(
             localDatabase.comics,
             ComicsCompanion.insert(
@@ -128,6 +130,7 @@ class CollectionRepository {
               name: collectionType.storageName,
               comicid: comic.id,
               dateCreated: now,
+              favoriteRank: drift.Value(i),
             ),
             mode: drift.InsertMode.insertOrReplace,
           );
@@ -146,6 +149,11 @@ class CollectionRepository {
       );
     }
     collectionQuery.orderBy([
+      // Rows with favoriteRank (favorites) sort before rows without (0 < 1).
+      (table) => drift.OrderingTerm.asc(table.favoriteRank.isNull()),
+      // Within favorites: lower rank = more recently favorited = first.
+      (table) => drift.OrderingTerm.asc(table.favoriteRank),
+      // For non-favorites (favoriteRank IS NULL): sort by dateCreated desc.
       (table) => drift.OrderingTerm.desc(table.dateCreated),
     ]);
 

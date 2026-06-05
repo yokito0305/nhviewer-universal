@@ -34,11 +34,14 @@
 ## Features
 
 - Home feed with search and language-aware fallback queries
+- Blocked tag list — exclude specific tags from all search results
 - Collections flow for `Favorite / Next / History`
 - Downloads tab for queued, paused, failed, and completed download jobs
 - Resumable page-by-page downloads with offline asset persistence
+- Repair and reload for completed downloads (re-fetch missing pages or full re-download)
 - Offline reader entry for completed downloads using local page files
 - Download sorting by latest downloaded, last read, and favorites snapshot
+- Reader end-of-comic overlay and navigation expansion on last page
 - Vertical reader experience
 - Basic list sorting by popularity / uploaded recently
 - Android build pipeline and GitHub-hosted unsigned iOS build verification
@@ -179,10 +182,12 @@ The generated IPA is unsigned. It is useful for remote build verification, but i
 
 ## Project Notes
 
-- Local persistence is now Drift-based rather than sqflite-managed application code
+- Local persistence is Drift-based (replaced sqflite in P5); schema migrations are written per-version in `local_database.dart`
 - Downloaded files are stored separately from image cache so cache clearing does not remove downloads
 - Downloads support queue management, completed-library browsing, sorting, and offline reader entry
-- Downloaded library sorting uses local snapshots such as downloaded time, last read time, and favorites count at download time
+- Downloaded library sorting uses local snapshots: downloaded time, last read time, and favorites count at download time
+- Blocked tags are persisted in `AppOptions` as a JSON list and applied as `-tag:xxx` exclusions on every search
+- All nhentai network calls use the v2 API (`/api/v2/...`); the legacy v1 endpoints are no longer used
 
 <p align="right"><a href="#readme-top">‣ back to top</a></p>
 

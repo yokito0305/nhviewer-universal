@@ -47,6 +47,10 @@ class Collections extends Table {
   TextColumn get comicid => text()();
   TextColumn get dateCreated => text().named('dateCreated')();
 
+  /// Position in the remote favorites list (0 = most recently favorited).
+  /// Only populated for the `favorite` collection; null for all others.
+  IntColumn get favoriteRank => integer().named('favorite_rank').nullable()();
+
   @override
   Set<Column<Object>> get primaryKey => <Column<Object>>{name, comicid};
 }
@@ -57,8 +61,9 @@ class SearchHistories extends Table {
 
   IntColumn get id => integer().autoIncrement()();
   TextColumn get query => text()();
-  TextColumn get createdAt =>
-      text().named('created_at').customConstraint('NOT NULL DEFAULT CURRENT_TIMESTAMP')();
+  TextColumn get createdAt => text()
+      .named('created_at')
+      .customConstraint('NOT NULL DEFAULT CURRENT_TIMESTAMP')();
 }
 
 class DownloadJobs extends Table {
@@ -116,7 +121,8 @@ class DownloadedComics extends Table {
   TextColumn get titleEnglish => text().named('title_english').nullable()();
   TextColumn get titleJapanese => text().named('title_japanese').nullable()();
   TextColumn get titlePretty => text().named('title_pretty').nullable()();
-  TextColumn get coverLocalPath => text().named('cover_local_path').nullable()();
+  TextColumn get coverLocalPath =>
+      text().named('cover_local_path').nullable()();
   TextColumn get rootDirectoryPath => text().named('root_directory_path')();
   IntColumn get pageCount => integer().named('page_count')();
   TextColumn get downloadedAt => text().named('downloaded_at')();
@@ -152,7 +158,7 @@ class LocalDatabase extends _$LocalDatabase {
   final DatabasePathResolver _databasePathResolver;
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -247,6 +253,11 @@ class LocalDatabase extends _$LocalDatabase {
       if (from < 8) {
         await customStatement(
           'ALTER TABLE DownloadedComic ADD COLUMN num_favorites INTEGER',
+        );
+      }
+      if (from < 9) {
+        await customStatement(
+          'ALTER TABLE Collection ADD COLUMN favorite_rank INTEGER',
         );
       }
     },

@@ -1,68 +1,112 @@
 # API-README
 
-Document of the site's API that nhviewer might use.
-
-## Useful URL
-
-- Comic list of search
-  - https://nhentai.net/api/galleries/search?query=chinese
-  - https://nhentai.net/api/galleries/search?query=english
-  - https://nhentai.net/api/galleries/search?query=japanese
-  - https://nhentai.net/api/galleries/search?query=-
-- Thumbnails
-  - https://t1.nhentai.net/galleries/$mid/thumb.$ext
-  - https://t2.nhentai.net/galleries/$mid/thumb.$ext
-  - https://t3.nhentai.net/galleries/$mid/thumb.$ext nhv is currently hardcoded this one as workaround
-  - https://t4.nhentai.net/galleries/$mid/thumb.$ext
-  - obsoleted? https://t.nhentai.net/galleries/$mid/thumb.$ext
-- Inner page
-  - https://i1.nhentai.net/galleries/$mid/thumb.$ext
-  - https://i2.nhentai.net/galleries/$mid/thumb.$ext
-  - https://i3.nhentai.net/galleries/$mid/thumb.$ext nhv is currently hardcoded this one as workaround. (20250328 some server is really slow these days, an idea for this issue is to pick the fastest one by requesting i[1-4] page 1 of each comic. Also, show the blurred image from t[1-4] first woulld be helpful too)
-  - https://i4.nhentai.net/galleries/$mid/thumb.$ext
-  - obsoleted? https://i.nhentai.net/galleries/$mid/$page.$ext
-- ...
-
-## API issues with language keywords
-
-In recent years, certain query string trigger an empty response randomly. This may affect searching and language filtering. As a workaround, the app now store some query alternatives. It may switch to these language keywords when needed.
-
-> Example of search api: https://nhentai.net/api/galleries/search?query=language:chinese
-
-- Alternatives
-  - -language:english -language:japanese
-  - chinese
-  - 汉化
-  - 中国
-
-> Example tag api https://nhentai.net/api/galleries/tagged?tag_id=29963&page=1
-
-Calling tag api is another solution, worth trying when search is not available. Currently the app is not using this one though.
+nhentai API notes for nhviewer-universal.
+All active endpoints use **v2** (`/api/v2/...`). The legacy v1 paths (`/api/galleries/...`) are no longer used.
 
 ---
 
-## Reference - Links for testing
+## Active Endpoints (v2)
 
-https://nhentai.net/api/galleries/search?query=-language:english%20-language:japanese
-https://nhentai.net/search/?q=-language%3Aenglish+-language%3Ajapanese
+### Gallery list / search
 
-- same with index
-https://nhentai.net/search/?q=-
+```
+GET https://nhentai.net/api/v2/galleries
+    ?page=<n>
 
-## Reference - api summary from Perplexity
+GET https://nhentai.net/api/v2/search
+    ?query=<q>
+    &page=<n>
+    [&sort=popular|popular-today|popular-week|popular-month]
+```
 
-> prompt: what api endpoint does nhentai has
+**Search query syntax**
 
-nhentai has an API endpoint for its galleries, which is located at "https://nhentai.net/api"[2]. Additionally, there are specific endpoints within the nhentai API, such as:
-- Endpoint for individual galleries: "https://nhentai.net/api/gallery"[2]
-- Endpoint for multiple galleries: "https://nhentai.net/api/galleries"[2]
-- Search API endpoint: "https://nhentai.net/api/galleries/search"[2]
-- Endpoint for tagged galleries: "https://nhentai.net/api/galleries/tagged"[2]
-- Endpoint for all galleries: "https://nhentai.net/api/galleries/all"[2]
+| Example | Meaning |
+|---------|---------|
+| `language:chinese` | Filter by tag |
+| `-language:english -language:japanese` | Exclude tags |
+| `tag:full-color artist:foo` | AND multiple tags |
 
-Citations:
-[1] https://github.com/topics/nhentai-api
-[2] https://pkg.go.dev/gitlab.com/lamados/go-nhentai
-[3] https://pypi.org/project/NHentai-API/
-[4] https://docs.rs/hentai/latest/hentai/
-[5] https://crates.io/crates/hentai/0.2.2
+The app constructs the final query by joining the user's input, the selected language filter, and any blocked tags (each prefixed with `-`).
+
+### Gallery detail
+
+```
+GET https://nhentai.net/api/v2/galleries/<id>
+```
+
+Returns full metadata including pages, tags, cover, thumbnail, upload date, and favorites count.
+
+### Tag catalog
+
+```
+GET https://nhentai.net/api/v2/tags/<type>
+    ?sort=popular
+    &page=<n>
+```
+
+`<type>` values: `tag`, `language`, `parody`, `character`, `artist`, `group`, `category`
+
+The app currently uses `tag` and `language` for the tag catalog browser.
+
+---
+
+## Image CDN
+
+### Thumbnails
+
+```
+https://t<1-4>.nhentai.net/galleries/<media_id>/thumb.<ext>
+```
+
+The app resolves the CDN host dynamically via the CDN config endpoint and falls back to alternate hosts on failure.
+
+### Full pages
+
+```
+https://i<1-4>.nhentai.net/galleries/<media_id>/<page>.<ext>
+```
+
+Extension is derived from the page type code in the API response (`j`→jpg, `p`→png, `g`→gif, `w`→webp).
+
+---
+
+## Authentication
+
+The v2 API requires an API key for authenticated requests (favorites, account-linked operations).
+
+```
+Authorization: Key <api_key>
+```
+
+The key is stored in secure storage (`flutter_secure_storage`) and injected via `NhentaiApiKeyStore`.
+
+---
+
+## Language Fallback Strategy
+
+Some language query strings return empty results intermittently. The app retries with fallback queries defined per `ComicLanguage`:
+
+| Language | Primary query | Fallback |
+|----------|--------------|---------|
+| Chinese | `language:chinese` | `-language:english -language:japanese` |
+| English | `language:english` | (no fallback) |
+| Japanese | `language:japanese` | (no fallback) |
+| All | _(empty)_ | (no fallback) |
+
+---
+
+## Blocked Tags
+
+Blocked tags are stored locally and appended to every search as `-<query>` exclusions, e.g.:
+
+```
+language:chinese -tag:full-color -artist:xxx
+```
+
+---
+
+## Notes
+
+- The CDN config endpoint (`/api/v2`) is pinged on startup via `NhentaiCdnConfigService` to resolve the current active image host.
+- Favorites sync uses a separate paginated endpoint under `/api/v2/users/...`; see `NhentaiApiRemoteFavoriteGateway` for details.

@@ -54,3 +54,4 @@ AGENTS.md
 
 # Script output (generated files, not for version control)
 scripts/out/
+temp/

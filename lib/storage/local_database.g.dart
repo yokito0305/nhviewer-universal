@@ -633,8 +633,24 @@ class $CollectionsTable extends Collections
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _favoriteRankMeta = const VerificationMeta(
+    'favoriteRank',
+  );
   @override
-  List<GeneratedColumn> get $columns => [name, comicid, dateCreated];
+  late final GeneratedColumn<int> favoriteRank = GeneratedColumn<int>(
+    'favorite_rank',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    name,
+    comicid,
+    dateCreated,
+    favoriteRank,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -674,6 +690,15 @@ class $CollectionsTable extends Collections
     } else if (isInserting) {
       context.missing(_dateCreatedMeta);
     }
+    if (data.containsKey('favorite_rank')) {
+      context.handle(
+        _favoriteRankMeta,
+        favoriteRank.isAcceptableOrUnknown(
+          data['favorite_rank']!,
+          _favoriteRankMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -695,6 +720,10 @@ class $CollectionsTable extends Collections
         DriftSqlType.string,
         data['${effectivePrefix}dateCreated'],
       )!,
+      favoriteRank: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}favorite_rank'],
+      ),
     );
   }
 
@@ -708,10 +737,15 @@ class Collection extends DataClass implements Insertable<Collection> {
   final String name;
   final String comicid;
   final String dateCreated;
+
+  /// Position in the remote favorites list (0 = most recently favorited).
+  /// Only populated for the `favorite` collection; null for all others.
+  final int? favoriteRank;
   const Collection({
     required this.name,
     required this.comicid,
     required this.dateCreated,
+    this.favoriteRank,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -719,6 +753,9 @@ class Collection extends DataClass implements Insertable<Collection> {
     map['name'] = Variable<String>(name);
     map['comicid'] = Variable<String>(comicid);
     map['dateCreated'] = Variable<String>(dateCreated);
+    if (!nullToAbsent || favoriteRank != null) {
+      map['favorite_rank'] = Variable<int>(favoriteRank);
+    }
     return map;
   }
 
@@ -727,6 +764,9 @@ class Collection extends DataClass implements Insertable<Collection> {
       name: Value(name),
       comicid: Value(comicid),
       dateCreated: Value(dateCreated),
+      favoriteRank: favoriteRank == null && nullToAbsent
+          ? const Value.absent()
+          : Value(favoriteRank),
     );
   }
 
@@ -739,6 +779,7 @@ class Collection extends DataClass implements Insertable<Collection> {
       name: serializer.fromJson<String>(json['name']),
       comicid: serializer.fromJson<String>(json['comicid']),
       dateCreated: serializer.fromJson<String>(json['dateCreated']),
+      favoriteRank: serializer.fromJson<int?>(json['favoriteRank']),
     );
   }
   @override
@@ -748,15 +789,21 @@ class Collection extends DataClass implements Insertable<Collection> {
       'name': serializer.toJson<String>(name),
       'comicid': serializer.toJson<String>(comicid),
       'dateCreated': serializer.toJson<String>(dateCreated),
+      'favoriteRank': serializer.toJson<int?>(favoriteRank),
     };
   }
 
-  Collection copyWith({String? name, String? comicid, String? dateCreated}) =>
-      Collection(
-        name: name ?? this.name,
-        comicid: comicid ?? this.comicid,
-        dateCreated: dateCreated ?? this.dateCreated,
-      );
+  Collection copyWith({
+    String? name,
+    String? comicid,
+    String? dateCreated,
+    Value<int?> favoriteRank = const Value.absent(),
+  }) => Collection(
+    name: name ?? this.name,
+    comicid: comicid ?? this.comicid,
+    dateCreated: dateCreated ?? this.dateCreated,
+    favoriteRank: favoriteRank.present ? favoriteRank.value : this.favoriteRank,
+  );
   Collection copyWithCompanion(CollectionsCompanion data) {
     return Collection(
       name: data.name.present ? data.name.value : this.name,
@@ -764,6 +811,9 @@ class Collection extends DataClass implements Insertable<Collection> {
       dateCreated: data.dateCreated.present
           ? data.dateCreated.value
           : this.dateCreated,
+      favoriteRank: data.favoriteRank.present
+          ? data.favoriteRank.value
+          : this.favoriteRank,
     );
   }
 
@@ -772,37 +822,42 @@ class Collection extends DataClass implements Insertable<Collection> {
     return (StringBuffer('Collection(')
           ..write('name: $name, ')
           ..write('comicid: $comicid, ')
-          ..write('dateCreated: $dateCreated')
+          ..write('dateCreated: $dateCreated, ')
+          ..write('favoriteRank: $favoriteRank')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(name, comicid, dateCreated);
+  int get hashCode => Object.hash(name, comicid, dateCreated, favoriteRank);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is Collection &&
           other.name == this.name &&
           other.comicid == this.comicid &&
-          other.dateCreated == this.dateCreated);
+          other.dateCreated == this.dateCreated &&
+          other.favoriteRank == this.favoriteRank);
 }
 
 class CollectionsCompanion extends UpdateCompanion<Collection> {
   final Value<String> name;
   final Value<String> comicid;
   final Value<String> dateCreated;
+  final Value<int?> favoriteRank;
   final Value<int> rowid;
   const CollectionsCompanion({
     this.name = const Value.absent(),
     this.comicid = const Value.absent(),
     this.dateCreated = const Value.absent(),
+    this.favoriteRank = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CollectionsCompanion.insert({
     required String name,
     required String comicid,
     required String dateCreated,
+    this.favoriteRank = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : name = Value(name),
        comicid = Value(comicid),
@@ -811,12 +866,14 @@ class CollectionsCompanion extends UpdateCompanion<Collection> {
     Expression<String>? name,
     Expression<String>? comicid,
     Expression<String>? dateCreated,
+    Expression<int>? favoriteRank,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (name != null) 'name': name,
       if (comicid != null) 'comicid': comicid,
       if (dateCreated != null) 'dateCreated': dateCreated,
+      if (favoriteRank != null) 'favorite_rank': favoriteRank,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -825,12 +882,14 @@ class CollectionsCompanion extends UpdateCompanion<Collection> {
     Value<String>? name,
     Value<String>? comicid,
     Value<String>? dateCreated,
+    Value<int?>? favoriteRank,
     Value<int>? rowid,
   }) {
     return CollectionsCompanion(
       name: name ?? this.name,
       comicid: comicid ?? this.comicid,
       dateCreated: dateCreated ?? this.dateCreated,
+      favoriteRank: favoriteRank ?? this.favoriteRank,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -847,6 +906,9 @@ class CollectionsCompanion extends UpdateCompanion<Collection> {
     if (dateCreated.present) {
       map['dateCreated'] = Variable<String>(dateCreated.value);
     }
+    if (favoriteRank.present) {
+      map['favorite_rank'] = Variable<int>(favoriteRank.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -859,6 +921,7 @@ class CollectionsCompanion extends UpdateCompanion<Collection> {
           ..write('name: $name, ')
           ..write('comicid: $comicid, ')
           ..write('dateCreated: $dateCreated, ')
+          ..write('favoriteRank: $favoriteRank, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3763,6 +3826,7 @@ typedef $$CollectionsTableCreateCompanionBuilder =
       required String name,
       required String comicid,
       required String dateCreated,
+      Value<int?> favoriteRank,
       Value<int> rowid,
     });
 typedef $$CollectionsTableUpdateCompanionBuilder =
@@ -3770,6 +3834,7 @@ typedef $$CollectionsTableUpdateCompanionBuilder =
       Value<String> name,
       Value<String> comicid,
       Value<String> dateCreated,
+      Value<int?> favoriteRank,
       Value<int> rowid,
     });
 
@@ -3794,6 +3859,11 @@ class $$CollectionsTableFilterComposer
 
   ColumnFilters<String> get dateCreated => $composableBuilder(
     column: $table.dateCreated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get favoriteRank => $composableBuilder(
+    column: $table.favoriteRank,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3821,6 +3891,11 @@ class $$CollectionsTableOrderingComposer
     column: $table.dateCreated,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get favoriteRank => $composableBuilder(
+    column: $table.favoriteRank,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CollectionsTableAnnotationComposer
@@ -3840,6 +3915,11 @@ class $$CollectionsTableAnnotationComposer
 
   GeneratedColumn<String> get dateCreated => $composableBuilder(
     column: $table.dateCreated,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get favoriteRank => $composableBuilder(
+    column: $table.favoriteRank,
     builder: (column) => column,
   );
 }
@@ -3878,11 +3958,13 @@ class $$CollectionsTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<String> comicid = const Value.absent(),
                 Value<String> dateCreated = const Value.absent(),
+                Value<int?> favoriteRank = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CollectionsCompanion(
                 name: name,
                 comicid: comicid,
                 dateCreated: dateCreated,
+                favoriteRank: favoriteRank,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3890,11 +3972,13 @@ class $$CollectionsTableTableManager
                 required String name,
                 required String comicid,
                 required String dateCreated,
+                Value<int?> favoriteRank = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CollectionsCompanion.insert(
                 name: name,
                 comicid: comicid,
                 dateCreated: dateCreated,
+                favoriteRank: favoriteRank,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
