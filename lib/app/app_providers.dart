@@ -57,26 +57,48 @@ import 'package:concept_nhv/storage/secure_key_value_store.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 
+/// Builds the full provider tree for the app.
+///
+/// Registration order matters: later providers may depend on earlier ones
+/// via `context.read()` inside their `create` callbacks, so the buckets
+/// below are concatenated in the same order the dependencies require
+/// (infrastructure → storage → services → use cases → state → coordinators).
 List<SingleChildWidget> buildAppProviders(
+  LocalDatabase localDatabase,
+  TagDisplayService tagDisplayService,
+) {
+  return <SingleChildWidget>[
+    ..._buildInfrastructureProviders(localDatabase, tagDisplayService),
+    ..._buildStorageProviders(),
+    ..._buildServiceProviders(),
+    ..._buildUseCaseProviders(),
+    ..._buildStateProviders(),
+    ..._buildCoordinatorProviders(),
+  ];
+}
+
+List<SingleChildWidget> _buildInfrastructureProviders(
   LocalDatabase localDatabase,
   TagDisplayService tagDisplayService,
 ) {
   return <SingleChildWidget>[
     Provider<TagDisplayService>.value(value: tagDisplayService),
     Provider<LocalDatabase>.value(value: localDatabase),
-    Provider(
-      create: (context) => OptionsStore(localDatabase: context.read()),
-    ),
+    Provider(create: (context) => OptionsStore(localDatabase: context.read())),
     Provider<SecureKeyValueStore>(create: (_) => FlutterSecureKeyValueStore()),
     Provider(
       create: (context) => NhentaiApiKeyStore(secureStore: context.read()),
     ),
+  ];
+}
+
+List<SingleChildWidget> _buildStorageProviders() {
+  return <SingleChildWidget>[
     Provider(
       create: (context) => ComicRepository(localDatabase: context.read()),
     ),
     Provider(
-      create: (context) =>
-          CollectionRepository(localDatabase: context.read()),
+      create: (context) => CollectionRepository(localDatabase: context.read()),
     ),
     Provider(
       create: (context) =>
@@ -95,12 +117,18 @@ List<SingleChildWidget> buildAppProviders(
       create: (context) => BlockedTagsStore(optionsStore: context.read()),
     ),
     Provider(
-      create: (context) => DownloadQueueRepository(localDatabase: context.read()),
+      create: (context) =>
+          DownloadQueueRepository(localDatabase: context.read()),
     ),
     Provider(
       create: (context) =>
           DownloadedLibraryRepository(localDatabase: context.read()),
     ),
+  ];
+}
+
+List<SingleChildWidget> _buildServiceProviders() {
+  return <SingleChildWidget>[
     Provider(create: (_) => const SearchQueryBuilder()),
     Provider(create: (_) => const TagSearchQueryBuilder()),
     Provider(create: (_) => const ComicPageSourceResolver()),
@@ -134,6 +162,11 @@ List<SingleChildWidget> buildAppProviders(
         authService: context.read(),
       ),
     ),
+  ];
+}
+
+List<SingleChildWidget> _buildUseCaseProviders() {
+  return <SingleChildWidget>[
     Provider(
       create: (context) => SearchComicsUseCase(
         nhentaiGateway: context.read(),
@@ -141,19 +174,16 @@ List<SingleChildWidget> buildAppProviders(
       ),
     ),
     Provider(
-      create: (context) => LoadCollectionSummariesUseCase(
-        collectionRepository: context.read(),
-      ),
+      create: (context) =>
+          LoadCollectionSummariesUseCase(collectionRepository: context.read()),
     ),
     Provider(
-      create: (context) => LoadCollectionComicsUseCase(
-        collectionRepository: context.read(),
-      ),
+      create: (context) =>
+          LoadCollectionComicsUseCase(collectionRepository: context.read()),
     ),
     Provider(
-      create: (context) => LoadComicDetailUseCase(
-        nhentaiGateway: context.read(),
-      ),
+      create: (context) =>
+          LoadComicDetailUseCase(nhentaiGateway: context.read()),
     ),
     Provider(
       create: (context) => LoadOfflineComicUseCase(
@@ -171,7 +201,8 @@ List<SingleChildWidget> buildAppProviders(
       create: (context) => LoadComicMetaUseCase(nhentaiGateway: context.read()),
     ),
     Provider(
-      create: (context) => LoadTagCatalogUseCase(nhentaiGateway: context.read()),
+      create: (context) =>
+          LoadTagCatalogUseCase(nhentaiGateway: context.read()),
     ),
     Provider(
       create: (context) => SaveComicToCollectionUseCase(
@@ -194,7 +225,8 @@ List<SingleChildWidget> buildAppProviders(
       create: (context) => SaveApiKeyUseCase(authService: context.read()),
     ),
     Provider(
-      create: (context) => ClearFavoriteAuthUseCase(authService: context.read()),
+      create: (context) =>
+          ClearFavoriteAuthUseCase(authService: context.read()),
     ),
     Provider(
       create: (context) => SyncRemoteFavoritesUseCase(
@@ -217,20 +249,22 @@ List<SingleChildWidget> buildAppProviders(
         collectionRepository: context.read(),
       ),
     ),
+  ];
+}
+
+List<SingleChildWidget> _buildStateProviders() {
+  return <SingleChildWidget>[
     ChangeNotifierProvider(create: (_) => HomeUiModel()),
     ChangeNotifierProvider(
       create: (context) {
-        final model = BlockedTagsModel(
-          blockedTagsRepository: context.read(),
-        );
+        final model = BlockedTagsModel(blockedTagsRepository: context.read());
         model.load();
         return model;
       },
     ),
     ChangeNotifierProvider(
-      create: (context) => TagCatalogBrowserModel(
-        loadTagCatalogUseCase: context.read(),
-      ),
+      create: (context) =>
+          TagCatalogBrowserModel(loadTagCatalogUseCase: context.read()),
     ),
     ChangeNotifierProvider(
       create: (context) => ComicFeedModel(
@@ -282,6 +316,11 @@ List<SingleChildWidget> buildAppProviders(
         return model;
       },
     ),
+  ];
+}
+
+List<SingleChildWidget> _buildCoordinatorProviders() {
+  return <SingleChildWidget>[
     Provider(
       create: (context) => AppShellNavigationController(
         homeUiModel: context.read(),

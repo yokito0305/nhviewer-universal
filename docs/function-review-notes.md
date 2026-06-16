@@ -1,659 +1,203 @@
-# nhviewer-universal 函式整理、命名建議與擴充建議
+# nhviewer-universal 函式整理、分類與擴充建議
 
-這份筆記的目的，是把作者目前專案中的函式依檔案逐一整理，說明：
-
-- 這個函式在做什麼
-- 現在的名稱是否貼切
-- 如果要改名，建議更合適的名字
-- 這個函式應該歸在哪一類
-- 未來要擴充時，這個函式應該怎麼拆或怎麼改
+> 本文件依現狀分層架構，逐層整理重要類別與函式：在做什麼、屬於哪一類、未來擴充時怎麼改。
+>
+> **重要更新：** 早期版本（描述 `main.dart` 單檔承載、`Store` 類別、`FirstScreen` Cloudflare cookie 流程）所列的多數重構建議，**已在後續 phase 完成**。本文件改以「現狀」為基準，並在最後列出仍值得改善的點。請搭配 [`architecture-notes.md`](./architecture-notes.md) 一起閱讀。
 
 ---
 
-## 1. 先給總結
+## 目錄
 
-這個專案目前的函式大致分成 8 類：
+1. [函式分類方式](#1-函式分類方式)
+2. [App 啟動與骨架](#2-app-啟動與骨架)
+3. [路由與導覽](#3-路由與導覽)
+4. [畫面（screens/）](#4-畫面screens)
+5. [可重用元件（widgets/）](#5-可重用元件widgets)
+6. [狀態層（state/）](#6-狀態層state)
+7. [應用層（application/）](#7-應用層application)
+8. [服務層（services/）](#8-服務層services)
+9. [儲存層（storage/）](#9-儲存層storage)
+10. [歷史重構對照（已完成）](#10-歷史重構對照已完成)
+11. [仍值得改善的點](#11-仍值得改善的點)
+12. [一句話總結](#12-一句話總結)
+
+---
+
+## 1. 函式分類方式
+
+現狀的函式可分成 9 類：
 
 1. 啟動 / bootstrap
-2. 路由 / 導頁
-3. 畫面組裝 / UI build
-4. 狀態管理 / 狀態轉換
-5. 本地資料存取 / SQLite
-6. 遠端 API / Cloudflare cookie 流程
-7. 圖片 fallback / 韌性處理
-8. 資料模型轉換 / 主題工廠
+2. 路由 / 導覽
+3. 畫面組裝（screen build）
+4. 可重用 UI 元件
+5. 狀態管理（`ChangeNotifier`）
+6. 應用層動作（Use Case / Coordinator）
+7. 遠端服務（API / CDN / 認證 / 圖片）
+8. 本地儲存（Drift Repository / secure / options）
+9. 資料模型 / 主題
 
-最值得優先改善的不是單一函式本身，而是：
-
-- `main.dart` 承擔過多責任
-- `Store` 類別放在 `main.dart` 中，且混合 DB schema、CRUD、業務語意
-- `FirstScreen` 同時負責啟動、驗證、WebView、cookie、首頁初始化
-- `App` / `_AppState` 的 `build()` 太大
-- 某些名稱過於泛用，例如 `App`、`FirstScreen`、`ThirdScreen`
-
-如果只看「可讀性 / 可擴充性」，這個專案接下來最適合做的是：
-
-1. 把 `main.dart` 拆成 `screens/`, `widgets/`, `services/`, `storage/`
-2. 把 `Store` 抽成獨立檔案
-3. 把 Cloudflare / cookie 流程抽成 service
-4. 把圖片 fallback 邏輯抽成 image resolver / image service
+與舊版最大的差異：**「本地資料存取」不再集中在單一 `Store`，而是分散到多個 Repository；「啟動 / cookie 驗證」也不再混在 `FirstScreen`。** 責任已明確分層。
 
 ---
 
-## 2. 建議的函式分類方式
+## 2. App 啟動與骨架
 
-### 2.1 啟動與應用骨架
-
-- `main()`
-- `App.build()`
-- `_AppState.initState()`
-- `_AppState.showLoadingIfNeeded()`
-
-### 2.2 畫面流程 / 路由入口
-
-- `FirstScreen.*`
-- `IndexScreen.build()`
-- `ThirdScreen.build()`
-- `SettingsScreen.build()`
-- `CollectionScreen.build()`
-
-### 2.3 清單與卡片顯示
-
-- `CollectionSliver.build()`
-- `CollectionListScreen.build()`
-- `ComicSliverGrid.build()`
-- `ComicListItem.build()`
-- `CollectionSliverGrid.build()`
-
-### 2.4 狀態管理
-
-- `AppModel`
-- `ComicListModel.*`
-- `CurrentComicModel.*`
-
-### 2.5 本地資料存取
-
-- `Store.*`
-
-### 2.6 API / Cloudflare / 原生橋接
-
-- `FirstScreen.receiveCFCookies()`
-- `FirstScreen.testLastCFCookies()`
-- `MainActivity.configureFlutterEngine()`
-- `MainActivity.receiveCFCookies()`
-
-### 2.7 圖片韌性處理
-
-- `_SimpleCachedNetworkImageState.*`
-
-### 2.8 資料模型 / 主題工廠
-
-- `NHList.fromJson()/toJson()`
-- `NHComic.fromJson()/toJson()`
-- `Title.fromJson()/toJson()`
-- `NHImages.fromJson()/toJson()`
-- `Pages.fromJson()/toJson()`
-- `Tags.fromJson()/toJson()`
-- `NHVMaterialTheme.*`
-- `MaterialSchemeUtils.toColorScheme()`
+| 函式 / 類別 | 功能 | 分類 | 擴充建議 |
+| --- | --- | --- | --- |
+| `main()`（`main.dart`） | 初始化 binding、高更新率、`LocalDatabase`、`TagDisplayService`，啟動 `BootstrapApp` | bootstrap | 已很精簡；新增啟動步驟時保持「只做初始化、不放 UI」 |
+| `BootstrapApp.build()` | 組裝 `MultiProvider + MaterialApp.router` | bootstrap | 主題 / router 已外抽，維持薄殼 |
+| `buildAppProviders()`（`app_providers.dart`） | 集中宣告所有 Provider | DI | 新依賴一律加在此處；可考慮依領域拆成多個 `build*Providers()` 以縮短檔案 |
+| `buildAppTheme()`（`theme.dart`） | 建立 `ThemeData` | 主題 | 若要支援使用者切換 light/dark，改成接收參數 |
+| `BootstrapScreen._loadHomeFeedAndNavigate()` | 載入首頁後跳 `/index` | bootstrap / 畫面流程 | 流程已簡單；若要加啟動檢查（版本 / 公告）在此擴充 |
 
 ---
 
-## 3. `lib/main.dart` 函式整理
+## 3. 路由與導覽
 
-## 3.1 App 啟動與路由
-
-| 函式 | 目前功能 | 命名評價 | 建議命名 | 分類建議 | 未來擴充建議 |
-| --- | --- | --- | --- | --- | --- |
-| `main()` | Flutter 啟動入口，初始化 binding、高更新率、SQLite、Provider、Router | 好 | 保持 | 啟動 / bootstrap | 若 bootstrap 流程再變長，建議拆成 `bootstrapApp()` |
-
-### 補充
-
-- `main()` 現在很合理，問題不在名稱，在於它把很多設定直接塞進 `runApp(...)`。
-- 若未來路由與依賴更多，建議把 `Provider` 與 `GoRouter` 配置拆到獨立檔案。
+| 函式 / 類別 | 功能 | 分類 | 擴充建議 |
+| --- | --- | --- | --- |
+| `createAppRouter()`（`app_router.dart`） | 定義 GoRouter 路由與 shell | 路由 | 新頁面在此註冊；query 參數解析集中於 builder |
+| `_AppShellScaffold` | 底部 `NavigationBar` + 依頁籤切換的 FAB | 導覽外框 | 頁籤增加時擴充 `destinations` 與 FAB 的 `switch` |
+| `_SortFilterFab` / `_DownloadsSortFab` | 各頁籤對應的排序 / 篩選 FAB（有條件顯示 badge） | 導覽 | 新增頁籤專屬動作時新增對應 FAB 類別 |
+| `AppShellNavigationController.handleDestinationSelected()` | 處理切頁副作用並回傳狀態訊息 | 應用層 / 導覽 | 切頁邏輯集中於此，UI 只負責顯示結果 |
 
 ---
 
-## 3.2 Collection 相關畫面
+## 4. 畫面（screens/）
 
-| 函式 | 目前功能 | 命名評價 | 建議命名 | 分類建議 | 未來擴充建議 |
-| --- | --- | --- | --- | --- | --- |
-| `CollectionScreen.build()` | 讀 query parameter 的 `collectionName`，組出單一收藏夾頁面 | 尚可 | `buildCollectionScreen()` 不必，保留即可 | Screen composition | 若 collection 功能變多，建議抽 `CollectionHeader`, `CollectionComicGrid` |
-| `CollectionSliver.build()` | 讀 `everyCollectionFuture`，篩出指定 collection 的漫畫，轉成 `ComicCover` 清單 | 名稱偏泛 | `CollectionComicSliver.build()` | Collection page / data-to-view transform | 建議把 `Map -> ComicCover` 轉換搬到 mapper / factory |
-| `CollectionListScreen.build()` | 整理 `History/Next/Favorite` 成 `CollectionCover` 列表 | 尚可 | `CollectionOverviewScreen.build()` | Collection overview | 建議抽成 `buildCollectionCovers()` 輔助函式 |
-
-### 命名觀察
-
-- `CollectionSliver` 與 `CollectionListScreen` 都太依賴「UI 呈現元件」命名，而不是「業務語意」。
-- 若未來有更多 collection 畫面，應優先讓名稱帶出用途，例如：
-  - `CollectionComicSliver`
-  - `CollectionOverviewScreen`
+| 類別 | 功能 | 命名 | 擴充建議 |
+| --- | --- | --- | --- |
+| `BootstrapScreen` | 啟動載入頁 | 佳（已取代舊 `FirstScreen`） | — |
+| `HomeShell` | 首頁主畫面：搜尋列、loading、依頁籤切內容 | 佳 | build 已偏大，可再抽各頁籤內容為獨立 widget |
+| `CollectionOverviewScreen`（於 `home_shell.dart`） | 收藏總覽（History / Next / Favorite 入口） | 佳（已取代舊 `CollectionListScreen`） | 若收藏類型增加，改以資料驅動產生入口 |
+| `CollectionScreen` + `CollectionComicSliver` | 單一收藏夾內容 | 佳（已取代舊 `CollectionSliver`） | Map→view 轉換可移到 mapper |
+| `ComicReaderScreen` | 閱讀頁（取代舊 `ThirdScreen`） | 佳 | 內含 `_PageWidget`、`_AnimatedTopBar`、`_AnimatedBottomControls`、`_EndCard`、`_ReaderSettingsSheet`，職責切分清楚 |
+| `SettingsScreen` | 設定頁（語言、reader、download、API key、封鎖 tag…） | 佳 | 設定項增加時，將每組設定抽成 section widget |
 
 ---
 
-## 3.3 Enum 與 query helper
+## 5. 可重用元件（widgets/）
 
-| 成員 | 目前功能 | 命名評價 | 建議命名 | 分類建議 | 未來擴充建議 |
-| --- | --- | --- | --- | --- | --- |
-| `NHLanguage.queryString` | 把語言 enum 轉成 API query | 可以 | `apiQuery` 或 `primaryQuery` | Query helper | 可把 query 封裝成 value object |
-| `NHLanguage.alternatives` | 搜尋失敗時使用的 fallback query 列表 | 一般 | `fallbackQueries` | Query fallback policy | 若未來語系更多，建議改成 `List<String> buildFallbackQueries()` |
-| `NHPopularType` 常數 | 排序 query 常數 | 偏舊式 | `PopularSortType` enum | Sort policy | 建議改成 enum，避免 magic string |
-
-### 命名建議
-
-- `NHPopularType` 比較像常數容器，不像型別。
-- 若重構，建議：
-
-```dart
-enum PopularSortType {
-  allTime('popular'),
-  day('popular-today'),
-  week('popular-week'),
-  month('popular-month');
-}
-```
-
-這樣比 `static const` 更有型別安全。
-
----
-
-## 3.4 `Store` 類別
-
-這是目前最值得拆分的地方。
-
-### 為什麼
-
-`Store` 同時負責：
-
-- 建 DB schema
-- migration
-- options CRUD
-- cookie CRUD
-- comic CRUD
-- collection CRUD
-- search history CRUD
-
-也就是說它現在同時是：
-
-- database initializer
-- local repository
-- key-value store
-- comic repository
-- collection repository
-- search history repository
-
-這在小專案很方便，但後續擴充會卡。
-
-### 函式整理
-
-| 函式 | 目前功能 | 命名評價 | 建議命名 | 分類建議 | 未來擴充建議 |
-| --- | --- | --- | --- | --- | --- |
-| `Store.init()` | 開啟 DB、建表、migration | 普通 | `initializeDatabase()` | Storage bootstrap | 應拆到 `LocalDatabase.initialize()` |
-| `setCFCookies()` | 儲存 Cloudflare userAgent 與 token | 尚可 | `saveCloudflareCookies()` | Auth / local persistence | 建議拆成 cookie repository |
-| `getCFCookies()` | 讀 Cloudflare userAgent 與 token | 尚可 | `loadCloudflareCookies()` | Auth / local persistence | 可改回傳 dedicated type 而非 tuple |
-| `deleteCFCookies()` | 刪除 cookie | 尚可 | `clearCloudflareCookies()` | Auth / local persistence | 可整合到 cookie service |
-| `setOption()` | 寫任意 option | 可 | 保持 | Generic key-value storage | 建議包 typed API，例如 `saveLastSeenOffset()` |
-| `getOption()` | 讀任意 option | 可 | 保持 | Generic key-value storage | 同上 |
-| `addComic()` | 把漫畫資訊寫入 `Comic` 表 | 還行 | `upsertComic()` | Comic repository | 因使用 replace，名字應帶 `upsert` 語意 |
-| `collectComic()` | 把漫畫加入某收藏夾 | 還行 | `addComicToCollection()` | Collection repository | 建議用 enum 取代裸字串 `collectionName` |
-| `uncollectComic()` | 從收藏夾移除漫畫 | 可以 | `removeComicFromCollection()` | Collection repository | 同上 |
-| `getComic()` | 只是 debug dump `Comic` 表 | 名稱不準 | `debugPrintComics()` 或 `dumpComics()` | Debug helper | 不應保留在正式 store API 表面 |
-| `getCollection()` | 查單一收藏夾內容 | 可以 | `loadCollectionComics()` | Collection query | 回傳型別建議不要是 `Map<String,Object?>` |
-| `getEveryCollection()` | 查所有收藏夾 join 資料 | 名稱不準 | `loadAllCollectedComics()` | Collection query | 可拆成 `loadAllCollections()` 與 `loadCollectionSummaries()` |
-| `addSearchHistory()` | 寫入搜尋歷史 | 可以 | `saveSearchHistory()` | Search history repository | 可加去重策略 |
-| `getSearchHistory()` | 讀搜尋歷史 | 可以 | `loadSearchHistory()` | Search history repository | 可做 limit / paging |
-| `deleteSearchHistory()` | 刪除搜尋歷史一筆 | 可以 | `removeSearchHistory()` | Search history repository | 可加 `clearAllSearchHistory()` |
-
-### 對 `Store` 的整體建議
-
-如果未來要擴充，建議拆成至少 4 個檔案：
-
-- `storage/local_database.dart`
-- `storage/options_store.dart`
-- `storage/comic_repository.dart`
-- `storage/search_history_repository.dart`
-
-再進一步可以加：
-
-- `storage/collection_repository.dart`
-- `storage/cloudflare_cookie_store.dart`
-
----
-
-## 3.5 `FirstScreen`
-
-這個類別目前不只是「第一個畫面」，它其實是整個啟動驗證流程控制器。
-
-| 函式 | 目前功能 | 命名評價 | 建議命名 | 分類建議 | 未來擴充建議 |
-| --- | --- | --- | --- | --- | --- |
-| `receiveCFCookies()` | 向原生端要 WebView cookie，解析 token，存 DB，還順手觸發 `fetchIndex()` | 名稱不足以表達副作用 | `captureAndPersistCloudflareCookies()` | Startup auth bootstrap | 最值得拆分，現在責任太多 |
-| `testLastCFCookies()` | 驗證目前是否能進 nhentai；先直接試，不行再帶 cookie 試 | 名稱偏測試感 | `canAccessNhentai()` 或 `validateStoredCloudflareCookies()` | Auth connectivity check | 應拆成純驗證 service |
-| `build()` | 啟動畫面，決定直接進首頁還是顯示 WebView 驗證 | `build()` 對 widget 合理，但類別名不夠清楚 | 類別應改名 `BootstrapScreen` 或 `CloudflareGateScreen` | Startup screen | 應抽 service，畫面只做展示 |
-
-### 對 `receiveCFCookies()` 的拆分建議
-
-目前這個函式至少做了 4 件事：
-
-1. 呼叫 MethodChannel
-2. 解析 cookie 字串
-3. 取得 user agent
-4. 寫入 Store 並觸發 fetchIndex
-
-更好的拆法：
-
-- `readCookieStringFromPlatform()`
-- `extractCloudflareToken(String cookieString)`
-- `persistCloudflareCookiePair(String userAgent, String token)`
-- `bootstrapIndexAfterVerification()`
-
----
-
-## 3.6 `IndexScreen`, `ThirdScreen`, `SettingsScreen`
-
-| 函式 | 目前功能 | 命名評價 | 建議命名 | 分類建議 | 未來擴充建議 |
-| --- | --- | --- | --- | --- | --- |
-| `IndexScreen.build()` | 只是回傳 `App` | 類別名稱 OK，但內容太薄 | 可保留 | Route wrapper | 若只是 wrapper，甚至可直接路由到 `App` |
-| `ThirdScreen.build()` | 漫畫閱讀頁，包含 lastSeenOffset 保存與頁面圖片渲染 | `ThirdScreen` 幾乎無語意 | `ComicReaderScreen` 或 `ComicDetailScreen` | Reader screen | 應把 offset 保存與頁面渲染拆成 helper/widget |
-| `SettingsScreen.build()` | 畫設定頁，包含語言切換、資料匯入、license | 類別名稱 OK | 保持 | Settings screen | 可把每個 `ListTile` 拆成獨立 action builder |
-
-### `SettingsScreen.build()` 子功能觀察
-
-雖然只有一個 `build()`，但內部其實包含多個不同責任：
-
-- 語言切換 dialog
-- Diagnose placeholder
-- 遠端 json 匯入
-- 授權頁
-
-如果未來功能增加，建議拆出：
-
-- `_buildLanguageTile()`
-- `_buildImportTile()`
-- `_buildLicenseTile()`
-
----
-
-## 3.7 `SimpleCachedNetworkImage`
-
-這是目前專案裡最像獨立元件的類別，整體設計是有價值的。
-
-| 函式 | 目前功能 | 命名評價 | 建議命名 | 分類建議 | 未來擴充建議 |
-| --- | --- | --- | --- | --- | --- |
-| `createState()` | 建立 state | 標準 | 保持 | Widget lifecycle | 無 |
-| `_currentUrl` getter | 讀目前 fallback 候選 URL | 好 | 保持 | Image fallback state | 無 |
-| `initState()` | 初始建立候選 URL | 好 | 保持 | Widget lifecycle | 無 |
-| `didUpdateWidget()` | URL 變動時重設候選列表 | 好 | 保持 | Widget lifecycle | 無 |
-| `_resetCandidates()` | 重建 fallback 候選與索引 | 好 | 可改 `resetFallbackCandidates()` | Image fallback | 若未來共用邏輯，抽成 service |
-| `_buildCandidateUrls()` | 根據 host 與副檔名產生 fallback 圖片 URL 列表 | 很好 | 可改 `buildFallbackImageUrls()` | Image resolver | 這是最值得抽去 `image_resolver.dart` 的函式 |
-| `_scheduleRetry()` | 在下一 frame 切到下一個 fallback URL | 尚可 | `scheduleNextFallbackAttempt()` | Retry scheduling | 可與 retry policy 一起抽出去 |
-| `build()` | 組裝 `CachedNetworkImage`、placeholder、error fallback UI | 合理 | 保持 | Reusable image widget | 可分 `buildErrorState()` / `buildLoadingState()` |
-
-### 類別命名建議
-
-- `SimpleCachedNetworkImage` 現在其實已經不 simple 了。
-- 它做了：
-  - cache
-  - retry
-  - host fallback
-  - extension fallback
-
-更準確的命名可以是：
-
-- `ResilientCachedImage`
-- `FallbackCachedNetworkImage`
-- `NhentaiImageView`
-
----
-
-## 3.8 `App` / `_AppState`
-
-這是目前最大的畫面控制器。
-
-| 函式 | 目前功能 | 命名評價 | 建議命名 | 分類建議 | 未來擴充建議 |
-| --- | --- | --- | --- | --- | --- |
-| `App.extMap` | 圖片副檔名代碼對照 | 名稱太短 | `imageTypeCodeToExtension` | Shared constants | 應抽到 `image_format.dart` |
-| `_AppState.initState()` | 掛 focus listener | 可以 | 保持 | Widget lifecycle | 若 focus 邏輯擴大，抽 controller |
-| `_AppState.build()` | 組整個首頁：SearchBar、頁面切換、列表顯示 | 類別與函式都太大 | 類別可改 `HomeScreen` / `HomeShell` | Home composition | 最優先拆分之一 |
-| `showLoadingIfNeeded()` | 需要時回傳 loading bar | 尚可 | `buildLoadingIndicatorBar()` | UI helper | 可以抽成 widget |
-
-### `App` 命名問題
-
-`App` 在 Flutter 很常用，但這裡它不是整個應用入口，而是首頁主畫面容器。
-
-更貼切的名字：
-
-- `HomeScreen`
-- `HomeShell`
-- `MainTabScreen`
-
-### `_AppState.build()` 的拆分建議
-
-應拆成：
-
-- `_buildSearchBar(AppModel appModel)`
-- `_buildBodyByNavigationIndex(AppModel appModel)`
-- `_buildSearchSuggestionTile(...)`
-- `_handleSearchSubmit(...)`
-
-這樣未來加功能會好維護很多。
-
----
-
-## 3.9 `ComicSliverGrid`, `ComicListItem`, `CollectionSliverGrid`
-
-| 函式 | 目前功能 | 命名評價 | 建議命名 | 分類建議 | 未來擴充建議 |
-| --- | --- | --- | --- | --- | --- |
-| `ComicSliverGrid.build()` | 畫漫畫 grid，並在最後一個 item 觸發 infinite scroll | 好 | 保持 | Grid renderer + paging trigger | 可把 paging trigger 移到 controller |
-| `ComicListItem.build()` | 畫單一漫畫卡片，處理點擊、長按、收藏、稍後閱讀 | 可以 | 可改 `ComicCard` 類別 | Card widget | 應把 onTap / onLongPress handler 抽函式 |
-| `CollectionSliverGrid.build()` | 畫收藏夾入口 grid | 普通 | `CollectionGrid.build()` | Grid renderer | 應支援動態 childCount，不要寫死 3 |
-| `CollectionCover.thumbnailLink` | 根據 `mid` 與副檔名算出收藏封面 URL | 好 | 保持 | Derived view data | 若 placeholder 規則更複雜，可抽 service |
-| `CollectionCover.emptyCollection()` | 建立空收藏夾 placeholder 資料 | 好 | 保持 | Factory helper | 可改 named constructor `CollectionCover.empty(...)` |
-
-### `CollectionSliverGrid.build()` 的隱患
-
-目前：
-
-- `childCount: 3`
-
-這代表收藏夾入口數量被硬寫死。
-
-若未來要新增使用者自定義收藏夾，這裡一定要改成：
-
-- `childCount: collections.length`
-
-這是典型的擴充性瓶頸。
-
----
-
-## 4. `lib/model/state_model.dart` 函式整理
-
-## 4.1 `AppModel`
-
-| 成員 / 函式 | 目前功能 | 命名評價 | 建議命名 | 分類建議 | 未來擴充建議 |
-| --- | --- | --- | --- | --- | --- |
-| `navigationIndex` setter | 切換 tab 並在特定條件清空搜尋字串 | 可以 | 保持 | Global UI state transition | 若規則更複雜，抽 `handleNavigationChange()` |
-| `isLoading` setter | 更新 loading 並通知 UI | 好 | 保持 | Global UI state | 可改細分 `isInitialLoading` / `isPaging` |
-
-### 命名建議
-
-- `AppModel` 太廣，但在小專案可接受。
-- 若未來拆層，較好的名字是：
-  - `HomeUiState`
-  - `NavigationModel`
-
----
-
-## 4.2 `ComicListModel`
-
-| 函式 | 目前功能 | 命名評價 | 建議命名 | 分類建議 | 未來擴充建議 |
-| --- | --- | --- | --- | --- | --- |
-| `fetchEveryCollectionFuture()` | 更新收藏資料 Future | 名稱怪 | `refreshCollections()` 或 `loadCollections()` | Collection state refresh | 不應把 `Future` 暴露在名稱裡 |
-| `fetchIndex()` | 抓首頁資料，本質上是空 query 搜尋 | 可以 | `fetchHomeFeed()` | Feed loading | 可與 `fetchSearch` 分離成更清楚的 API |
-| `fetchSearch()` | 搜尋、重試、排序、cookie fallback 的核心函式 | 好但過重 | `fetchComicList()` 或 `searchComics()` | Core use case | 建議拆成 API client + retry policy + state reducer |
-| `fetchPage()` | 抓下一頁或重抓第一頁 | 普通 | `fetchNextPage()` | Paging | 應把 `page == null` 的特殊語意拆乾淨 |
-
-### 特別評論：`fetchSearch()`
-
-這是目前整個專案的核心 use case，但責任非常多：
-
-- 決定 query
-- 決定語言 fallback
-- 組 URL
-- 做 HTTP request
-- 做 cookie fallback
-- 做 retry
-- 更新 state
-- 記錄 `_fetchPage`
-
-它是功能正確的，但長期來看非常值得拆。
-
-建議未來拆成：
-
-- `NhentaiApiClient.searchComics(...)`
-- `CloudflareAwareHttpClient`
-- `SearchRetryPolicy`
-- `ComicListStateReducer`
-
----
-
-## 4.3 `CurrentComicModel`
-
-| 函式 | 目前功能 | 命名評價 | 建議命名 | 分類建議 | 未來擴充建議 |
-| --- | --- | --- | --- | --- | --- |
-| `currentComic` setter | 設定漫畫並自動寫入歷史紀錄 | 名稱普通，但 setter 有隱性副作用 | 保持，但需註解 | Domain state transition + history side effect | 應把副作用抽成 `onComicOpened()` |
-| `fetchComic()` | 抓單本漫畫 API，支援 cookie fallback | 合理 | `loadComicDetail()` | Detail loading | 可抽到 `ComicDetailService` |
-| `clearComic()` | 清空當前漫畫 | 好 | 保持 | State reset | 無 |
-
-### 特別評論：`currentComic` setter
-
-這是一個「表面像欄位，實際像 command」的 setter，因為它會：
-
-- 寫 DB
-- 寫 History
-
-這不是壞事，但需要在文件或命名上讓人知道。
-
-如果要更清楚，可改成：
-
-- `openComic(NHComic comic)`
-
-因為它更符合語意。
-
----
-
-## 5. `lib/model/data_model.dart` 函式整理
-
-這個檔案的函式幾乎都是「資料轉換」，命名本身大致合理。
-
-## 5.1 `NHList`
-
-| 函式 | 功能 | 命名建議 | 分類建議 | 未來建議 |
-| --- | --- | --- | --- | --- |
-| `NHList.fromJson()` | 把列表 API 結果轉成 `NHList` | 保持 | DTO mapper | 可改 codegen |
-| `toJson()` | 把 `NHList` 轉回 Map | 保持 | DTO serializer | 同上 |
-
-## 5.2 `NHComic`
-
-| 函式 | 功能 | 命名建議 | 分類建議 | 未來建議 |
-| --- | --- | --- | --- | --- |
-| `NHComic.fromJson()` | 把單本漫畫資料轉成 `NHComic` | 保持 | DTO mapper | 可改 `json_serializable` |
-| `toJson()` | 轉回 Map | 保持 | DTO serializer | 同上 |
-
-## 5.3 `Title`, `NHImages`, `Pages`, `Tags`
-
-| 函式 | 功能 | 命名建議 | 分類建議 | 未來建議 |
-| --- | --- | --- | --- | --- |
-| `fromJson()` | 把 API 片段轉成對應資料類型 | 保持 | DTO mapper | 可用 code generation |
-| `toJson()` | 轉回 Map | 保持 | DTO serializer | 同上 |
-
-### 命名評論
-
-- `Title` 可能有點太泛，若未來專案變大可改成 `ComicTitle`
-- `Pages` 單數/複數略不直觀，可考慮：
-  - `ComicPageImage`
-  - `ImageSpec`
-- `Tags` 若改單數類別名 `Tag` 會更自然
-
-### 未來擴充建議
-
-這一層最適合的改進不是改名，而是改生成方式：
-
-- `json_serializable`
-- `freezed`
-
-好處：
-
-- 少手寫
-- 更不容易漏欄位
-- 不用手動維護 `fromJson/toJson`
-
----
-
-## 6. `lib/theme.dart` 函式整理
-
-這個檔案本質上是主題工廠，不是業務邏輯。
-
-| 函式 | 目前功能 | 命名評價 | 建議命名 | 分類建議 | 未來擴充建議 |
-| --- | --- | --- | --- | --- | --- |
-| `lightScheme()` | 回傳淺色配色資料 | 好 | 保持 | Theme factory | 無 |
-| `light()` | 回傳淺色 `ThemeData` | 好 | 保持 | Theme factory | 無 |
-| `lightMediumContrastScheme()` | 回傳淺色中對比配色 | 好 | 保持 | Theme factory | 無 |
-| `lightMediumContrast()` | 回傳淺色中對比 `ThemeData` | 好 | 保持 | Theme factory | 無 |
-| `lightHighContrastScheme()` | 回傳淺色高對比配色 | 好 | 保持 | Theme factory | 無 |
-| `lightHighContrast()` | 回傳淺色高對比 `ThemeData` | 好 | 保持 | Theme factory | 無 |
-| `darkScheme()` | 回傳深色配色資料 | 好 | 保持 | Theme factory | 無 |
-| `dark()` | 回傳深色 `ThemeData` | 好 | 保持 | Theme factory | 無 |
-| `darkMediumContrastScheme()` | 回傳深色中對比配色 | 好 | 保持 | Theme factory | 無 |
-| `darkMediumContrast()` | 回傳深色中對比 `ThemeData` | 好 | 保持 | Theme factory | 無 |
-| `darkHighContrastScheme()` | 回傳深色高對比配色 | 好 | 保持 | Theme factory | 無 |
-| `darkHighContrast()` | 回傳深色高對比 `ThemeData` | 好 | 保持 | Theme factory | 無 |
-| `theme(ColorScheme colorScheme)` | 根據 color scheme 組出 `ThemeData` | 可 | `buildThemeData()` | Theme assembly | 無 |
-| `toColorScheme()` | 把 `MaterialScheme` 轉成 Flutter `ColorScheme` | 很好 | 保持 | Theme mapper | 無 |
-
-### 命名觀察
-
-- 這個檔案命名整體是好的。
-- 若要更一致，`theme()` 可以改叫 `buildThemeData()`，語意會比單字 `theme` 更完整。
-
----
-
-## 7. Android 原生層 `MainActivity.java`
-
-| 函式 | 目前功能 | 命名評價 | 建議命名 | 分類建議 | 未來擴充建議 |
-| --- | --- | --- | --- | --- | --- |
-| `configureFlutterEngine()` | 註冊 MethodChannel，讓 Flutter 可呼叫原生取 cookie | 標準 override | 保持 | Native bridge setup | 無 |
-| `receiveCFCookies()` | 從 `CookieManager` 讀 `https://nhentai.net` 的 cookie | 名稱可以，但偏舊式縮寫 | `readCloudflareCookies()` | Native bridge helper | 可回傳結構化資料而非裸字串 |
-
-### 命名評論
-
-- `receiveCFCookies()` 在 Flutter 與 Java 兩邊都出現了。
-- 但兩邊的語意不完全一樣：
-  - Java 端：真的去讀 cookie
-  - Flutter 端：讀 cookie + 解析 + 存 DB + 觸發 fetchIndex
-
-這容易造成混淆。
-
-建議：
-
-- Android 端：`readCloudflareCookies()`
-- Flutter 端：`captureAndPersistCloudflareCookies()`
-
----
-
-## 8. 哪些名字最值得優先改
-
-如果你想做低風險、但顯著提升可讀性的命名調整，我會先改這幾個：
-
-| 現名 | 建議名 | 原因 |
+| 類別 | 功能 | 擴充建議 |
 | --- | --- | --- |
-| `FirstScreen` | `BootstrapScreen` / `CloudflareGateScreen` | 目前名稱毫無語意 |
-| `ThirdScreen` | `ComicReaderScreen` | 現在完全不知道是漫畫閱讀頁 |
-| `App` | `HomeScreen` / `HomeShell` | 不是整個 app，而是主畫面容器 |
-| `Store` | `LocalStore` / `AppDatabaseStore` | 過於寬泛 |
-| `fetchEveryCollectionFuture()` | `refreshCollections()` | 名稱不應暴露 Future 細節 |
-| `testLastCFCookies()` | `validateStoredCloudflareCookies()` | 更精確 |
-| `receiveCFCookies()` | `captureAndPersistCloudflareCookies()` | 更符合實際副作用 |
-| `getComic()` | `debugPrintComics()` | 目前只是 debug，不是 query API |
-| `NHPopularType` | `PopularSortType` | 應該是一個型別而不是常數袋 |
-| `SimpleCachedNetworkImage` | `FallbackCachedNetworkImage` | 實際功能已不 simple |
+| `ComicCard` | 單本漫畫卡片（點擊閱讀、收藏、下載、長壓選單） | 動作已委派給 `ComicCardActionCoordinator`，維持 UI 純粹 |
+| `ComicGridSliver` | 漫畫 grid + infinite scroll 觸發 | 抓下一頁邏輯透過 `ComicFeedModel`，不在 widget 內發 API |
+| `CollectionGridSliver` | 收藏入口 grid | 以資料驅動，避免硬編 childCount |
+| `FallbackCachedNetworkImage` | 圖片載入 + 子網域 / 副檔名 fallback | URL 候選產生建議補單元測試 |
+| `ComicTagBottomSheet` + `_TagTypeSection` | tag 檢視 / 多選 / 封鎖；套用中文名 | tag 類型分組 |
+| `DownloadJobListSliver`（含 `_DownloadItemCard` 等） | 下載清單（進行中 + 完成卡片） | 卡片已細分為 active / completed summary |
+| `DownloadsSortBottomSheet` / `SortFilterBottomSheet` / `_SortChip` | 排序與篩選面板 | — |
+| `SearchSuggestionsPanel` | 搜尋建議（含鍵盤 UX 處理） | — |
+| `LoadingIndicatorBar` | 全域 loading 線條 | — |
 
 ---
 
-## 9. 未來擴充性的修改建議
+## 6. 狀態層（state/）
 
-## 9.1 第一階段：低風險重構
+所有皆為 `ChangeNotifier`。函式以 setter / 動作為主，業務交給注入的 Use Case。
 
-這一階段幾乎不改行為，只改善結構。
-
-### 建議項目
-
-1. 把 `Store` 移到 `lib/storage/store.dart`
-2. 把 `FirstScreen` 與 `ThirdScreen` 改名
-3. 把 `App` 改名成 `HomeShell`
-4. 把 `fetchEveryCollectionFuture()` 改名
-5. 把圖片副檔名 / host fallback 常數移到獨立檔案
-
-## 9.2 第二階段：責任分離
-
-### 建議拆分
-
-- `services/cloudflare_service.dart`
-  - 管 `receiveCFCookies`
-  - 管 `testLastCFCookies`
-
-- `services/nhentai_api_client.dart`
-  - 管 `fetchSearch`
-  - 管 `fetchComic`
-
-- `storage/collection_repository.dart`
-  - 管 collection CRUD
-
-- `storage/search_history_repository.dart`
-  - 管 search history CRUD
-
-- `widgets/comic_card.dart`
-  - 對應 `ComicListItem`
-
-- `widgets/fallback_cached_network_image.dart`
-  - 對應 `SimpleCachedNetworkImage`
-
-## 9.3 第三階段：更好的型別與 domain model
-
-### 建議項目
-
-1. `NHPopularType` 改 enum
-2. 收藏夾名稱改 enum，例如：
-   - `favorite`
-   - `next`
-   - `history`
-3. `Store.getCollection()` / `getEveryCollection()` 不再回傳 `List<Map<String,Object?>>`
-4. 建立專門的 DB row model 或 mapper
-
-## 9.4 第四階段：可測試性改善
-
-### 目前難測的點
-
-- `fetchSearch()` 責任過多
-- `Store` 與 DB 綁太死
-- `FirstScreen` 同時處理 UI + side effects
-
-### 建議做法
-
-1. 把 HTTP client 注入，而不是在函式內直接 `Dio()`
-2. 把 `Store` 介面化
-3. 把 query fallback policy 抽出來
-4. 為 `SimpleCachedNetworkImage` 的 URL fallback 產生器補單元測試
+| 模型 | 代表性函式 | 擴充建議 |
+| --- | --- | --- |
+| `HomeUiModel` | `setNavigationIndex()`、`setLoading()`、`closeSearchView()`、`resetSearchView()` | 切頁清搜尋欄邏輯集中於此 |
+| `ComicFeedModel` | `loadHomeFeed()`、`search*`、分頁、`toggleSort()` / `setSortType()`、`setLanguage()`、tag 篩選 | 抓頁與封鎖 tag 套用已委派 Use Case / Repository |
+| `ComicReaderModel` | 頁碼導覽、`loadSettings()`、預抓 / 閱讀方向 / 點擊區設定、控制列顯示 | 設定持久化走 `ReaderSettingsRepository` |
+| `DownloadManagerModel` | 下載引擎（排程 / 暫停 / 續傳 / 重下 / 修復）、排序、生命週期觀察 | 體量最大；新增下載行為時留意併發保護（`_mutatingComicIds`） |
+| `FavoriteSyncModel` | `initialize()`、`syncFavorites()`、樂觀切換收藏 | 用 `_mutatingIds` 避免重複請求 |
+| `BlockedTagsModel` | `load()` / `addTag()` / `removeTag()` / `isBlocked()` | — |
+| `TagCatalogBrowserModel` | `ensureLoaded()` / `setType()` / `loadPage()`、多選 query | 用 `_requestSequence` 防競態 |
 
 ---
 
-## 10. 最後的整理建議
+## 7. 應用層（application/）
 
-如果你現在要開始做大一點的維護，我的建議順序是：
+每個 Use Case 封裝單一動作；Coordinator / Controller 編排多個 Use Case 與狀態。
 
-1. 改名：
-   - `FirstScreen`
-   - `ThirdScreen`
-   - `App`
-   - `fetchEveryCollectionFuture()`
-2. 把 `Store` 抽檔
-3. 把 `SimpleCachedNetworkImage` 抽檔
-4. 把 `fetchSearch()` 拆成 service + state update
-5. 把 `CollectionSliverGrid.childCount = 3` 改掉，避免未來收藏夾擴充卡住
+| 類別 | 功能 | 分類 |
+| --- | --- | --- |
+| `SearchComicsUseCase` | 建 URI → gateway 取列表 | feed |
+| `LoadCollectionSummariesUseCase` / `LoadCollectionComicsUseCase` | 收藏摘要 / 內容 | feed / library |
+| `LoadComicDetailUseCase` / `LoadOfflineComicUseCase` / `OpenComicUseCase` | 詳情 / 離線 / 開啟並寫 History | reader |
+| `LoadComicMetaUseCase` / `LoadTagCatalogUseCase` | meta / tag 目錄 | tags |
+| `SaveComicToCollectionUseCase` / `RemoveComicFromCollectionUseCase` | 收藏夾加入 / 移除 | library |
+| `InitializeFavoritesUseCase` / `SaveApiKeyUseCase` / `ClearFavoriteAuthUseCase` / `SyncRemoteFavoritesUseCase` / `ToggleFavoriteUseCase` | 收藏初始化 / API key / 遠端同步 / 切換 | favorites |
+| `HomeShellController` | `submitSearch()` / `searchWithTag()` / `submitTagSearch()` / `retryHomeFeed()` / `applySortAndFilters()` | home 編排 |
+| `AppShellNavigationController` | 切頁副作用 | home 編排 |
+| `CollectionPageCoordinator` | 收藏頁載入 / 快照協調 | library 編排 |
+| `ComicCardActionCoordinator` | `openComic()` / `loadComicMeta()` / `saveToCollection()` / `enqueueDownload()` / `removeFromCollection()` / `toggleFavorite()` | library 編排 |
+
+> 應用層同時持有部分 Repository 介面（`ReaderProgressRepository`、`ReaderSettingsRepository`、`DownloadSettingsRepository`、`BlockedTagsRepository`），實作在 `storage/`，達成依賴反轉。
 
 ---
 
-## 11. 一句話總結
+## 8. 服務層（services/）
 
-這個專案的函式目前大多「功能上可用、命名大致能看懂」，但最大的問題不是單點命名，而是：
+| 類別 | 代表性函式 | 擴充建議 |
+| --- | --- | --- |
+| `NhentaiApiClient`（`NhentaiGateway`） | `searchComics()` / `loadComicDetail()` / `loadComicMeta()` / `loadTagCatalog()` / `pingHomepage()` | 全部走 **v2** 端點；新增端點時擴充介面 |
+| `NhentaiCdnConfigService` | `load()` / `refreshInBackground()` | 啟動背景刷新，解析圖片主機 |
+| `ImageUrlResolver` / `ComicPageSourceResolver` | 組縮圖 / 內頁 URL | 與 fallback 影像元件搭配 |
+| `NhentaiAuthService` | `saveAndValidateApiKey()` / `validateStoredApiKey()` / `clearApiKey()` | API key 驗證 |
+| `NhentaiApiRemoteFavoriteGateway`（`RemoteFavoriteGateway`） | `loadRemoteFavorites()` / `addRemoteFavorite()` / `removeRemoteFavorite()` | 需認證 |
+| `DioRemoteAssetFetcher`（`RemoteAssetFetcher`） | `fetchBytes()` | 下載位元組 |
+| `FlutterImageCompressionService`（`ImageCompressionService`） | `compressToWebp()` | 下載頁壓縮 |
+| `DownloadAssetStore` | `savePage()` / `saveCover()` / `verifyPages()` / `deleteComicAssets()` | 下載檔案磁碟管理（與快取分離） |
+| `SearchQueryBuilder` / `TagSearchQueryBuilder` | `buildSearchUri()` / `build()` | 查詢字串建構（含封鎖 tag / 語言 fallback） |
+| `TagDisplayService` | `load()` / `displayName()` | tag 中文名（`assets/tag_zh.bin`） |
+| `LibraryImportService` | `importFromBaseUrl()` | 匯入 |
 
-- 太多責任集中在 `main.dart`
-- 有些名稱只反映「畫面順序」，沒有反映「業務語意」
-- 幾個核心函式同時做太多事
+多數服務以「抽象介面 + 具體實作」成對，便於測試替身。
 
-如果以未來可擴充性來看，最需要優先改善的是：
+---
 
-- 啟動畫面 / cookie 驗證流程
-- Store 分層
-- 首頁主畫面拆分
-- API / retry / image fallback 的責任抽離
+## 9. 儲存層（storage/）
 
+舊版的單一 `Store` 已拆成多個 Repository（phase P5 遷移到 Drift）。
+
+| 類別 | 功能 |
+| --- | --- |
+| `LocalDatabase`（`@DriftDatabase`, schemaVersion 9） | 開檔、建表、逐版本 migration |
+| `ComicRepository` | `Comic` 表存取 |
+| `CollectionRepository` | `Collection` 表（含 `favorite_rank`） |
+| `SearchHistoryRepository` | `SearchHistory` 表 |
+| `DownloadQueueRepository` | `DownloadJob` + `DownloadJobPage` |
+| `DownloadedLibraryRepository` | `DownloadedComic` 快照 |
+| `OptionsStore` | key-value 基礎存取 |
+| `ReaderProgressStore` / `ReaderSettingsStore` / `DownloadSettingsStore` / `BlockedTagsStore` | 各 typed 設定（皆建在 `OptionsStore` 上，實作對應介面） |
+| `NhentaiApiKeyStore` ← `SecureKeyValueStore`（`FlutterSecureKeyValueStore`） | API key 安全存放 |
+
+舊 `Store` 的問題（schema / CRUD / cookie / comic / collection 全混在一起）已不存在；cookie 相關 API 隨 Cloudflare 流程一併移除。
+
+---
+
+## 10. 歷史重構對照（已完成）
+
+舊版本文件列出的重構建議，目前狀態：
+
+| 舊建議 | 現狀 |
+| --- | --- |
+| 把 `main.dart` 拆成 screens / widgets / services / storage | ✅ 已分層 |
+| 把 `Store` 抽成獨立檔案並分層 | ✅ 拆成多個 Repository + `OptionsStore` |
+| 把 Cloudflare / cookie 流程抽成 service | ✅ 整個流程已移除（改用 API key 認證） |
+| 把圖片 fallback 抽成獨立元件 | ✅ `FallbackCachedNetworkImage` + resolver |
+| `bootstrapApp()` 化、router / provider 外抽 | ✅ `BootstrapApp` + `app_router` + `app_providers` |
+| 改名 `FirstScreen` / `ThirdScreen` / `App` | ✅ → `BootstrapScreen` / `ComicReaderScreen` / `HomeShell` |
+| `NHPopularType` 常數改 enum | ✅ `PopularSortType` |
+| 語言 fallback 政策抽出 | ✅ 進 query builder（見 `API-README.md`） |
+| sqflite → Drift | ✅ phase P5 |
+
+---
+
+## 11. 仍值得改善的點
+
+1. **`app_providers.dart` 偏長**：可依領域拆成 `buildStorageProviders()` / `buildServiceProviders()` / `buildStateProviders()` 等，組合後回傳。
+2. **`DownloadManagerModel` 體量大**：下載引擎邏輯（排程 / 重試 / 壓縮 / 存檔）可考慮抽出 `DownloadEngine` 服務，讓狀態模型更薄。
+3. **`HomeShell` 與 `ComicReaderScreen` 的 build 仍偏大**：各頁籤 / 各 overlay 可再抽為獨立 widget。
+4. **測試覆蓋**：`FallbackCachedNetworkImage` 的 URL 候選產生、`SearchQueryBuilder` / `TagSearchQueryBuilder` 的邊界情況，建議補單元測試。
+5. **Collection 型別**：收藏夾名稱仍以字串流通（`Favorite` / `Next` / `History`），可評估全面改用 `CollectionType` enum 收斂 magic string。
+
+---
+
+## 12. 一句話總結
+
+專案已從「單檔承載、責任集中」演進為清楚的分層架構：命名反映業務語意、儲存分散為 Repository、啟動與認證流程簡化。現階段函式大多職責單一、命名得當；後續維護重點不再是「拆大檔」，而是讓最大的狀態模型（下載）與最大的畫面（首頁 / 閱讀）持續瘦身，並補強核心邏輯的單元測試。
