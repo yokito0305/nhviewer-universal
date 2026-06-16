@@ -359,7 +359,7 @@ class _DownloadItemCard extends StatelessWidget {
           onPressed: isMutating
               ? null
               : () {
-                  Navigator.of(context).pop();
+                  Navigator.of(context, rootNavigator: true).pop();
                   _confirmAndDeleteFromSheet(context);
                 },
         ),
@@ -370,7 +370,7 @@ class _DownloadItemCard extends StatelessWidget {
           onPressed: isMutating
               ? null
               : () {
-                  Navigator.of(context).pop();
+                  Navigator.of(context, rootNavigator: true).pop();
                   _confirmAndReload(context);
                 },
         ),
@@ -381,7 +381,7 @@ class _DownloadItemCard extends StatelessWidget {
           onPressed: isMutating
               ? null
               : () {
-                  Navigator.of(context).pop();
+                  Navigator.of(context, rootNavigator: true).pop();
                   _runRepair(context);
                 },
         ),
