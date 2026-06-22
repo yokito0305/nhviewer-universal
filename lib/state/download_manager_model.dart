@@ -325,21 +325,84 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
   /// 3. Requeue the job and kick the download engine.
   ///
   /// If all pages are intact, this is a no-op (returns without re-queuing).
-  Future<void> repairCompleted(String comicId) async {
+  /// Repairs missing pages and/or a missing cover for [comicId].
+  ///
+  /// Returns true if a repair was actually performed (pages requeued and/or
+  /// the cover re-downloaded), false if everything was already intact.
+  Future<bool> repairCompleted(String comicId) async {
+    var repaired = false;
     await _runMutatingJobAction(comicId, () async {
       final pages = await downloadQueueRepository.loadPages(comicId);
       final pageLocalPaths = <int, String?>{
         for (final page in pages) page.pageNumber: page.localPath,
       };
       final missingPageNumbers = await downloadAssetStore.verifyPages(pageLocalPaths);
-      if (missingPageNumbers.isEmpty) {
+
+      final currentCoverPath = await downloadedLibraryRepository.loadCoverLocalPath(
+        comicId,
+      );
+      final coverMissing = !await downloadAssetStore.coverExists(currentCoverPath);
+
+      if (missingPageNumbers.isEmpty && !coverMissing) {
         return;
       }
-      await downloadQueueRepository.resetMissingPages(comicId, missingPageNumbers);
-      await downloadQueueRepository.requeueJob(comicId);
-      await refresh();
-      unawaited(_processQueue());
+
+      if (coverMissing) {
+        await _repairCover(comicId);
+      }
+
+      if (missingPageNumbers.isNotEmpty) {
+        await downloadQueueRepository.resetMissingPages(comicId, missingPageNumbers);
+        await downloadQueueRepository.requeueJob(comicId);
+        await refresh();
+        unawaited(_processQueue());
+      } else {
+        await refresh();
+      }
+      repaired = true;
     });
+    return repaired;
+  }
+
+  /// Re-fetches comic detail and re-downloads the cover for [comicId],
+  /// updating the stored [DownloadedComicSnapshot.coverLocalPath] on success.
+  ///
+  /// Best-effort: failures (e.g. offline) are swallowed so the caller can
+  /// still proceed with page repair.
+  Future<void> _repairCover(String comicId) async {
+    try {
+      final detail = await nhentaiGateway.loadComicDetail(comicId);
+      final imageHosts = await _loadImageHosts();
+      final newCoverPath = await _downloadCover(
+        comicId: comicId,
+        comic: detail.comic,
+        imageHosts: imageHosts,
+      );
+      if (newCoverPath != null) {
+        await downloadedLibraryRepository.updateCoverLocalPath(comicId, newCoverPath);
+      }
+    } catch (_) {
+      // best-effort; page repair (if any) still proceeds.
+    }
+  }
+
+  /// Scans every completed download, repairing missing pages and/or covers.
+  ///
+  /// Returns how many of the completed downloads needed a repair, out of the
+  /// total scanned. Runs sequentially to avoid bursts of network requests.
+  Future<({int repairedCount, int totalCount})> repairAllCompleted() async {
+    final completedIds = _downloadItems
+        .where((item) => item.isCompletedCard)
+        .map((item) => item.comicId)
+        .toList(growable: false);
+
+    var repairedCount = 0;
+    for (final comicId in completedIds) {
+      if (await repairCompleted(comicId)) {
+        repairedCount += 1;
+      }
+    }
+    return (repairedCount: repairedCount, totalCount: completedIds.length);
   }
 
   /// Returns the title stored in the downloaded library for [comicId], if any.

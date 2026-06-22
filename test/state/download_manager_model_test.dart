@@ -705,7 +705,179 @@ void main() {
 
       manager.dispose();
     });
+
+    test(
+      'repairCompleted re-downloads a missing cover without touching intact pages',
+      () async {
+        final comic = sampleComic(id: '930', mediaId: '441');
+        final manager = DownloadManagerModel(
+          nhentaiGateway: FakeNhentaiGateway(detailComic: comic),
+          cdnConfigService: _FakeCdnConfigService(),
+          downloadQueueRepository: harness.downloadQueueRepository,
+          downloadedLibraryRepository: harness.downloadedLibraryRepository,
+          downloadSettingsRepository: DownloadSettingsStore(
+            optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+          ),
+          downloadAssetStore: DownloadAssetStore(
+            directoryResolver: () async => tempDirectory,
+          ),
+          imageCompressionService: FakeImageCompressionService(
+            result: Uint8List.fromList(<int>[1, 2, 3, 4]),
+          ),
+          remoteAssetFetcher: FakeRemoteAssetFetcher(
+            responses: <String, Uint8List>{
+              'https://i1.nhentai.net/galleries/441/1.jpg': Uint8List.fromList(
+                <int>[1],
+              ),
+              'https://i1.nhentai.net/galleries/441/2.jpg': Uint8List.fromList(
+                <int>[2],
+              ),
+              'https://i1.nhentai.net/galleries/441/cover.jpg':
+                  Uint8List.fromList(<int>[3]),
+            },
+          ),
+        );
+
+        await manager.initialize();
+        await manager.enqueue(
+          const DownloadRequest(comicId: '930', title: 'Sample'),
+        );
+        await _waitForJobStatus(
+          harness: harness,
+          comicId: '930',
+          status: 'completed',
+        );
+        await manager.waitForIdle();
+
+        final coverPathBeforeBreak =
+            await harness.downloadedLibraryRepository.loadCoverLocalPath('930');
+        expect(coverPathBeforeBreak, isNotNull);
+
+        // Simulate the real-world scenario reported by the user: the cover
+        // never got saved (coverLocalPath is null) even though pages
+        // downloaded fine, so the UI silently falls back to a network thumb.
+        await harness.downloadedLibraryRepository.updateCoverLocalPath(
+          '930',
+          null,
+        );
+
+        final repaired = await manager.repairCompleted('930');
+        expect(repaired, isTrue);
+
+        final coverPathAfterRepair =
+            await harness.downloadedLibraryRepository.loadCoverLocalPath('930');
+        expect(coverPathAfterRepair, isNotNull);
+        expect(await File(coverPathAfterRepair!).exists(), isTrue);
+
+        // Repairing again should now be a no-op: pages and cover are intact.
+        final repairedAgain = await manager.repairCompleted('930');
+        expect(repairedAgain, isFalse);
+
+        manager.dispose();
+      },
+    );
+
+    test(
+      'repairAllCompleted scans every completed download and repairs only the broken cover',
+      () async {
+        final intactComic = sampleComic(id: '931', mediaId: '442');
+        final brokenComic = sampleComic(id: '932', mediaId: '443');
+        final gateway = _MultiComicNhentaiGateway(<String, Comic>{
+          '931': intactComic,
+          '932': brokenComic,
+        });
+        final manager = DownloadManagerModel(
+          nhentaiGateway: gateway,
+          cdnConfigService: _FakeCdnConfigService(),
+          downloadQueueRepository: harness.downloadQueueRepository,
+          downloadedLibraryRepository: harness.downloadedLibraryRepository,
+          downloadSettingsRepository: DownloadSettingsStore(
+            optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+          ),
+          downloadAssetStore: DownloadAssetStore(
+            directoryResolver: () async => tempDirectory,
+          ),
+          imageCompressionService: FakeImageCompressionService(
+            result: Uint8List.fromList(<int>[1, 2, 3, 4]),
+          ),
+          remoteAssetFetcher: FakeRemoteAssetFetcher(
+            responses: <String, Uint8List>{
+              'https://i1.nhentai.net/galleries/442/1.jpg': Uint8List.fromList(
+                <int>[1],
+              ),
+              'https://i1.nhentai.net/galleries/442/2.jpg': Uint8List.fromList(
+                <int>[2],
+              ),
+              'https://i1.nhentai.net/galleries/442/cover.jpg':
+                  Uint8List.fromList(<int>[3]),
+              'https://i1.nhentai.net/galleries/443/1.jpg': Uint8List.fromList(
+                <int>[4],
+              ),
+              'https://i1.nhentai.net/galleries/443/2.jpg': Uint8List.fromList(
+                <int>[5],
+              ),
+              'https://i1.nhentai.net/galleries/443/cover.jpg':
+                  Uint8List.fromList(<int>[6]),
+            },
+          ),
+        );
+
+        await manager.initialize();
+        await manager.enqueue(
+          const DownloadRequest(comicId: '931', title: 'Intact'),
+        );
+        await _waitForJobStatus(
+          harness: harness,
+          comicId: '931',
+          status: 'completed',
+        );
+        await manager.waitForIdle();
+        await manager.enqueue(
+          const DownloadRequest(comicId: '932', title: 'Broken'),
+        );
+        await _waitForJobStatus(
+          harness: harness,
+          comicId: '932',
+          status: 'completed',
+        );
+        await manager.waitForIdle();
+
+        // Break only comic 932's cover.
+        await harness.downloadedLibraryRepository.updateCoverLocalPath(
+          '932',
+          null,
+        );
+        await manager.refresh();
+
+        final result = await manager.repairAllCompleted();
+
+        expect(result.totalCount, 2);
+        expect(result.repairedCount, 1);
+
+        final repairedCoverPath =
+            await harness.downloadedLibraryRepository.loadCoverLocalPath('932');
+        expect(repairedCoverPath, isNotNull);
+
+        manager.dispose();
+      },
+    );
   });
+}
+
+/// Returns a different [Comic] per comicId, unlike [FakeNhentaiGateway] which
+/// always returns the same fixed `detailComic` regardless of the requested id.
+class _MultiComicNhentaiGateway extends FakeNhentaiGateway {
+  _MultiComicNhentaiGateway(this._comics);
+
+  final Map<String, Comic> _comics;
+
+  @override
+  Future<({Comic comic, Map<String, String>? headers})> loadComicDetail(
+    String comicId,
+  ) async {
+    loadedComicDetailIds.add(comicId);
+    return (comic: _comics[comicId] ?? sampleComic(id: comicId), headers: null);
+  }
 }
 
 class _FakeCdnConfigService extends NhentaiCdnConfigService {

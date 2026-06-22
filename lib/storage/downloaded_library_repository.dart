@@ -65,6 +65,14 @@ class DownloadedLibraryRepository {
     );
   }
 
+  Future<void> updateCoverLocalPath(String comicId, String? coverLocalPath) async {
+    final updateStatement = localDatabase.update(localDatabase.downloadedComics)
+      ..where((table) => table.comicId.equals(comicId));
+    await updateStatement.write(
+      DownloadedComicsCompanion(coverLocalPath: drift.Value(coverLocalPath)),
+    );
+  }
+
   Future<String?> loadCoverLocalPath(String comicId) async {
     final query = localDatabase.select(localDatabase.downloadedComics)
       ..where((table) => table.comicId.equals(comicId))

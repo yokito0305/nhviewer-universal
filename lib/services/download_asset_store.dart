@@ -65,6 +65,15 @@ class DownloadAssetStore {
     return missing;
   }
 
+  /// Returns true if [coverLocalPath] points to an existing, non-empty file.
+  Future<bool> coverExists(String? coverLocalPath) async {
+    if (coverLocalPath == null || coverLocalPath.isEmpty) {
+      return false;
+    }
+    final file = File(coverLocalPath);
+    return await file.exists() && await file.length() > 0;
+  }
+
   Future<void> deleteComicAssets(String comicId) async {
     final rootDirectory = Directory(
       p.join((await _directoryResolver()).path, comicId),

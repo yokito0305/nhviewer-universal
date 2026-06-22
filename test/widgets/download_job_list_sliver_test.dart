@@ -162,6 +162,83 @@ void main() {
         expect(controller.submittedTagQueries, <String>['tag:sample']);
       },
     );
+
+    testWidgets(
+      'toggles completed downloads between list and grid view',
+      (tester) async {
+        final model = _FakeDownloadManagerModel(
+          harness: harness,
+          itemsOverride: <DownloadListItemSnapshot>[
+            _itemFromDownloadedComic(
+              comicId: 'completed',
+              title: 'Downloaded Comic',
+              requestedAt: DateTime(2026, 4, 10),
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(_buildTestWidget(model: model));
+        await tester.pump();
+
+        // List view (default): summary shows "Completed" + page count text.
+        expect(find.text('Completed'), findsOneWidget);
+        expect(find.text('2 pages'), findsOneWidget);
+        expect(find.byIcon(Icons.grid_view), findsOneWidget);
+
+        await tester.tap(find.byIcon(Icons.grid_view));
+        await tester.pumpAndSettle();
+
+        // Grid view: compact cell shows title + "Np" page count, no "Completed" label.
+        expect(find.text('Completed'), findsNothing);
+        expect(find.text('2p'), findsOneWidget);
+        expect(find.byIcon(Icons.list), findsOneWidget);
+
+        // Tap the grid cell opens the offline reader.
+        bool opened = false;
+        await tester.pumpWidget(
+          _buildTestWidget(
+            model: model,
+            onOpenOfflineReader: (_) => opened = true,
+          ),
+        );
+        await tester.tap(find.byIcon(Icons.grid_view));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Downloaded Comic'));
+        await tester.pumpAndSettle();
+        expect(opened, isTrue);
+
+        // Toggle back to list view.
+        await tester.tap(find.byIcon(Icons.list));
+        await tester.pumpAndSettle();
+        expect(find.text('Completed'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'repair all button shows a summary snackbar after scanning completed downloads',
+      (tester) async {
+        final model = _FakeDownloadManagerModel(
+          harness: harness,
+          itemsOverride: <DownloadListItemSnapshot>[
+            _itemFromDownloadedComic(
+              comicId: 'completed',
+              title: 'Downloaded Comic',
+              requestedAt: DateTime(2026, 4, 10),
+            ),
+          ],
+          repairAllResult: (repairedCount: 1, totalCount: 2),
+        );
+
+        await tester.pumpWidget(_buildTestWidget(model: model));
+        await tester.pump();
+
+        await tester.tap(find.byIcon(Icons.build_circle_outlined));
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(find.text('Repaired 1 of 2 downloads'), findsOneWidget);
+      },
+    );
   });
 }
 
@@ -169,6 +246,7 @@ Widget _buildTestWidget({
   required DownloadManagerModel model,
   HomeShellController? controller,
   String searchQuery = '',
+  ValueChanged<String>? onOpenOfflineReader,
 }) {
   final providers = <SingleChildWidget>[
     Provider<TagDisplayService>.value(value: TagDisplayService.fromMap({})),
@@ -197,7 +275,7 @@ Widget _buildTestWidget({
               slivers: <Widget>[
                 DownloadJobListSliver(
                   searchQuery: searchQuery,
-                  onOpenOfflineReader: (_) {},
+                  onOpenOfflineReader: onOpenOfflineReader ?? (_) {},
                 ),
               ],
             ),
@@ -285,6 +363,7 @@ class _FakeDownloadManagerModel extends DownloadManagerModel {
   _FakeDownloadManagerModel({
     required this.harness,
     required this.itemsOverride,
+    this.repairAllResult = (repairedCount: 0, totalCount: 0),
   }) : super(
          nhentaiGateway: FakeNhentaiGateway(),
          cdnConfigService: NhentaiCdnConfigService(),
@@ -300,6 +379,11 @@ class _FakeDownloadManagerModel extends DownloadManagerModel {
 
   final SqliteTestHarness harness;
   final List<DownloadListItemSnapshot> itemsOverride;
+  final ({int repairedCount, int totalCount}) repairAllResult;
+
+  @override
+  Future<({int repairedCount, int totalCount})> repairAllCompleted() async =>
+      repairAllResult;
 
   @override
   List<DownloadJobSnapshot> get jobs => itemsOverride
