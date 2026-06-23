@@ -249,6 +249,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
       title: const Text('Clear API Key'),
       subtitle: const Text('Remove the saved API key from secure storage'),
       onTap: () async {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) {
+            return AlertDialog(
+              title: const Text('Clear API key?'),
+              content: const Text(
+                'This removes the saved API key from secure storage. You will '
+                'need to enter it again to sync favorites.',
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: const Text('Clear'),
+                ),
+              ],
+            );
+          },
+        );
+        if (confirmed != true || !context.mounted) {
+          return;
+        }
+
         final favoriteModel = context.read<FavoriteSyncModel>();
         final messenger = ScaffoldMessenger.of(context);
         await favoriteModel.clearApiKey();

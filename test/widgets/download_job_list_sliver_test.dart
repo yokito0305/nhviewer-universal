@@ -215,7 +215,7 @@ void main() {
     );
 
     testWidgets(
-      'repair all button shows a summary snackbar after scanning completed downloads',
+      'repair all button asks for confirmation before scanning completed downloads',
       (tester) async {
         final model = _FakeDownloadManagerModel(
           harness: harness,
@@ -226,13 +226,30 @@ void main() {
               requestedAt: DateTime(2026, 4, 10),
             ),
           ],
-          repairAllResult: (repairedCount: 1, totalCount: 2),
+          repairAllResult: (
+            repairedCount: 1,
+            failedCount: 0,
+            totalCount: 2,
+            stoppedEarly: false,
+          ),
         );
 
         await tester.pumpWidget(_buildTestWidget(model: model));
         await tester.pump();
 
         await tester.tap(find.byIcon(Icons.build_circle_outlined));
+        await tester.pumpAndSettle();
+
+        // Confirmation dialog appears; cancelling does not run the repair.
+        expect(find.text('Repair all completed downloads?'), findsOneWidget);
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect(find.text('Repaired 1 of 2 downloads'), findsNothing);
+
+        // Confirming runs the repair and shows the summary snackbar.
+        await tester.tap(find.byIcon(Icons.build_circle_outlined));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Repair All'));
         await tester.pump();
         await tester.pumpAndSettle();
 
@@ -363,7 +380,12 @@ class _FakeDownloadManagerModel extends DownloadManagerModel {
   _FakeDownloadManagerModel({
     required this.harness,
     required this.itemsOverride,
-    this.repairAllResult = (repairedCount: 0, totalCount: 0),
+    this.repairAllResult = (
+      repairedCount: 0,
+      failedCount: 0,
+      totalCount: 0,
+      stoppedEarly: false,
+    ),
   }) : super(
          nhentaiGateway: FakeNhentaiGateway(),
          cdnConfigService: NhentaiCdnConfigService(),
@@ -379,10 +401,12 @@ class _FakeDownloadManagerModel extends DownloadManagerModel {
 
   final SqliteTestHarness harness;
   final List<DownloadListItemSnapshot> itemsOverride;
-  final ({int repairedCount, int totalCount}) repairAllResult;
+  final ({int repairedCount, int failedCount, int totalCount, bool stoppedEarly})
+  repairAllResult;
 
   @override
-  Future<({int repairedCount, int totalCount})> repairAllCompleted() async =>
+  Future<({int repairedCount, int failedCount, int totalCount, bool stoppedEarly})>
+  repairAllCompleted({void Function(int processed, int total)? onProgress}) async =>
       repairAllResult;
 
   @override

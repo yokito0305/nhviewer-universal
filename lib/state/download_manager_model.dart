@@ -327,10 +327,18 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
   /// If all pages are intact, this is a no-op (returns without re-queuing).
   /// Repairs missing pages and/or a missing cover for [comicId].
   ///
-  /// Returns true if a repair was actually performed (pages requeued and/or
-  /// the cover re-downloaded), false if everything was already intact.
+  /// Returns true if a repair was actually performed and verified (pages
+  /// requeued and/or the cover re-downloaded), false if everything was
+  /// already intact.
+  ///
+  /// Throws if the cover was the *only* problem and repairing it failed —
+  /// callers must not treat that as success (a deferred page requeue, by
+  /// contrast, is reported optimistically since its outcome isn't known
+  /// synchronously, and a follow-up page repair gives the cover another
+  /// chance via [_processJob]).
   Future<bool> repairCompleted(String comicId) async {
     var repaired = false;
+    Object? coverFailure;
     await _runMutatingJobAction(comicId, () async {
       final pages = await downloadQueueRepository.loadPages(comicId);
       final pageLocalPaths = <int, String?>{
@@ -347,8 +355,9 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
         return;
       }
 
+      var coverFixed = true;
       if (coverMissing) {
-        await _repairCover(comicId);
+        coverFixed = await _repairCover(comicId);
       }
 
       if (missingPageNumbers.isNotEmpty) {
@@ -356,53 +365,109 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
         await downloadQueueRepository.requeueJob(comicId);
         await refresh();
         unawaited(_processQueue());
+        repaired = true;
+      } else if (coverFixed) {
+        await refresh();
+        repaired = true;
       } else {
         await refresh();
+        coverFailure = StateError('Failed to repair cover for $comicId');
       }
-      repaired = true;
     });
+    if (coverFailure != null) {
+      throw coverFailure!;
+    }
     return repaired;
   }
 
   /// Re-fetches comic detail and re-downloads the cover for [comicId],
   /// updating the stored [DownloadedComicSnapshot.coverLocalPath] on success.
   ///
-  /// Best-effort: failures (e.g. offline) are swallowed so the caller can
-  /// still proceed with page repair.
-  Future<void> _repairCover(String comicId) async {
+  /// Returns true only if the cover was actually verified and saved; callers
+  /// must not assume success just because this was attempted.
+  Future<bool> _repairCover(String comicId) async {
     try {
       final detail = await nhentaiGateway.loadComicDetail(comicId);
-      final imageHosts = await _loadImageHosts();
+      final thumbnailHosts = await _loadThumbnailHosts();
       final newCoverPath = await _downloadCover(
         comicId: comicId,
         comic: detail.comic,
-        imageHosts: imageHosts,
+        thumbnailHosts: thumbnailHosts,
       );
-      if (newCoverPath != null) {
-        await downloadedLibraryRepository.updateCoverLocalPath(comicId, newCoverPath);
+      if (newCoverPath == null) {
+        debugPrint(
+          '[repairCover] $comicId: no cover path on comic detail, or all '
+          'thumbnail hosts failed to return bytes.',
+        );
+        return false;
       }
-    } catch (_) {
-      // best-effort; page repair (if any) still proceeds.
+      await downloadedLibraryRepository.updateCoverLocalPath(comicId, newCoverPath);
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('[repairCover] $comicId failed: $error\n$stackTrace');
+      return false;
     }
   }
 
+  /// Minimum delay between repair attempts that hit the network, to avoid
+  /// bursting `loadComicDetail` calls.
+  static const Duration _repairThrottleDelay = Duration(milliseconds: 1000);
+
+  /// Stop scanning after this many consecutive failures — repeated failures
+  /// in a row suggest a systemic problem (e.g. the network or API is down),
+  /// and continuing to hammer it for the remaining items is more likely to
+  /// make things worse than to succeed.
+  static const int _maxConsecutiveRepairFailures = 3;
+
   /// Scans every completed download, repairing missing pages and/or covers.
   ///
-  /// Returns how many of the completed downloads needed a repair, out of the
-  /// total scanned. Runs sequentially to avoid bursts of network requests.
-  Future<({int repairedCount, int totalCount})> repairAllCompleted() async {
+  /// Returns how many of the [totalCount] completed downloads needed a
+  /// repair and how many failed. Runs sequentially. Stops early —
+  /// [stoppedEarly] is true — after [_maxConsecutiveRepairFailures]
+  /// consecutive failures, leaving the remaining items unscanned. A
+  /// throttling delay is inserted after any item that actually triggered a
+  /// network request (repaired or failed), but not after items that were
+  /// already intact (pure local check, no network involved).
+  Future<({int repairedCount, int failedCount, int totalCount, bool stoppedEarly})>
+  repairAllCompleted({void Function(int processed, int total)? onProgress}) async {
     final completedIds = _downloadItems
         .where((item) => item.isCompletedCard)
         .map((item) => item.comicId)
         .toList(growable: false);
 
     var repairedCount = 0;
+    var failedCount = 0;
+    var consecutiveFailures = 0;
+    var processedCount = 0;
     for (final comicId in completedIds) {
-      if (await repairCompleted(comicId)) {
-        repairedCount += 1;
+      var hitNetwork = false;
+      try {
+        if (await repairCompleted(comicId)) {
+          repairedCount += 1;
+          hitNetwork = true;
+        }
+        consecutiveFailures = 0;
+      } catch (_) {
+        failedCount += 1;
+        hitNetwork = true;
+        consecutiveFailures += 1;
+      }
+      processedCount += 1;
+      onProgress?.call(processedCount, completedIds.length);
+
+      if (consecutiveFailures >= _maxConsecutiveRepairFailures) {
+        break;
+      }
+      if (hitNetwork && processedCount < completedIds.length) {
+        await Future<void>.delayed(_repairThrottleDelay);
       }
     }
-    return (repairedCount: repairedCount, totalCount: completedIds.length);
+    return (
+      repairedCount: repairedCount,
+      failedCount: failedCount,
+      totalCount: completedIds.length,
+      stoppedEarly: consecutiveFailures >= _maxConsecutiveRepairFailures,
+    );
   }
 
   /// Returns the title stored in the downloaded library for [comicId], if any.
@@ -505,11 +570,20 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
 
-    final coverLocalPath = await _downloadCover(
-      comicId: job.comicId,
-      comic: comic,
-      imageHosts: imageHosts,
+    // Skip re-downloading the cover if a valid local copy already exists
+    // (e.g. when this job was re-queued only to repair missing pages) —
+    // otherwise a failed re-fetch here would silently overwrite a cover
+    // that a prior repair already fixed.
+    final existingCoverPath = await downloadedLibraryRepository.loadCoverLocalPath(
+      job.comicId,
     );
+    final coverLocalPath = await downloadAssetStore.coverExists(existingCoverPath)
+        ? existingCoverPath
+        : await _downloadCover(
+            comicId: job.comicId,
+            comic: comic,
+            thumbnailHosts: await _loadThumbnailHosts(),
+          );
     final rootDirectory = await downloadAssetStore.resolveRootDirectory(job.comicId);
     await downloadedLibraryRepository.saveDownloadedComic(
       comic: comic,
@@ -534,6 +608,17 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
       await cdnConfigService.load();
     } catch (_) {}
     return cdnConfigService.imageHosts;
+  }
+
+  /// Covers (and thumbnails) are served from a different CDN host pool than
+  /// full-resolution page images — using [_loadImageHosts] for covers
+  /// consistently fails (e.g. connection reset) since that path doesn't
+  /// exist on the page-image hosts.
+  Future<List<String>> _loadThumbnailHosts() async {
+    try {
+      await cdnConfigService.load();
+    } catch (_) {}
+    return cdnConfigService.thumbnailHosts;
   }
 
   Future<_PersistedAsset> _downloadAndPersistPage({
@@ -573,14 +658,15 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
   Future<String?> _downloadCover({
     required String comicId,
     required Comic comic,
-    required List<String> imageHosts,
+    required List<String> thumbnailHosts,
   }) async {
     final coverPath = comic.images.cover?.path;
     if (coverPath == null || coverPath.isEmpty) {
+      debugPrint('[downloadCover] $comicId: comic.images.cover.path is null/empty.');
       return null;
     }
 
-    for (final host in imageHosts) {
+    for (final host in thumbnailHosts) {
       final url = Uri.https(host, coverPath).toString();
       try {
         final originalBytes = await remoteAssetFetcher.fetchBytes(url);
@@ -593,7 +679,9 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
           bytes: compressed.bytes,
           extension: compressed.extension,
         );
-      } catch (_) {}
+      } catch (error) {
+        debugPrint('[downloadCover] $comicId: $url failed: $error');
+      }
     }
 
     return null;

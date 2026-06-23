@@ -32,6 +32,8 @@ class _DownloadJobListSliverState extends State<DownloadJobListSliver> {
   String? _expandedComicId;
   bool _completedViewIsGrid = false;
   bool _isRepairingAll = false;
+  int? _repairProgressCurrent;
+  int? _repairProgressTotal;
 
   @override
   Widget build(BuildContext context) {
@@ -86,6 +88,8 @@ class _DownloadJobListSliverState extends State<DownloadJobListSliver> {
               onViewToggle: () =>
                   setState(() => _completedViewIsGrid = !_completedViewIsGrid),
               isRepairingAll: _isRepairingAll,
+              repairProgressCurrent: _repairProgressCurrent,
+              repairProgressTotal: _repairProgressTotal,
               onRepairAll: () => _handleRepairAll(model),
             ),
           ));
@@ -153,21 +157,86 @@ class _DownloadJobListSliverState extends State<DownloadJobListSliver> {
     if (_isRepairingAll) {
       return;
     }
-    setState(() => _isRepairingAll = true);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Repair all completed downloads?'),
+          content: const Text(
+            'This scans every completed download for missing pages or a missing '
+            'cover and re-downloads anything broken. It may take a while and '
+            'will use network data.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Repair All'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _isRepairingAll = true;
+      _repairProgressCurrent = null;
+      _repairProgressTotal = null;
+    });
     try {
-      final result = await model.repairAllCompleted();
+      final result = await model.repairAllCompleted(
+        onProgress: (processed, total) {
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            _repairProgressCurrent = processed;
+            _repairProgressTotal = total;
+          });
+        },
+      );
       if (!mounted) {
         return;
       }
-      final message = result.repairedCount == 0
-          ? 'All ${result.totalCount} downloads are intact'
-          : 'Repaired ${result.repairedCount} of ${result.totalCount} downloads';
+      final message = switch ((
+        result.repairedCount,
+        result.failedCount,
+        result.stoppedEarly,
+      )) {
+        (0, 0, _) => 'All ${result.totalCount} downloads are intact',
+        (_, 0, _) =>
+          'Repaired ${result.repairedCount} of ${result.totalCount} downloads',
+        (_, _, true) =>
+          'Stopped after repeated failures — repaired ${result.repairedCount}, '
+              'failed ${result.failedCount} (of ${result.totalCount} total)',
+        _ =>
+          'Repaired ${result.repairedCount}, failed ${result.failedCount}, '
+              'of ${result.totalCount} downloads',
+      };
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
       );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Repair all failed: $error')),
+      );
     } finally {
       if (mounted) {
-        setState(() => _isRepairingAll = false);
+        setState(() {
+          _isRepairingAll = false;
+          _repairProgressCurrent = null;
+          _repairProgressTotal = null;
+        });
       }
     }
   }
@@ -184,6 +253,8 @@ class _DownloadsSectionHeader extends StatelessWidget {
     this.isGridView = false,
     this.onRepairAll,
     this.isRepairingAll = false,
+    this.repairProgressCurrent,
+    this.repairProgressTotal,
   });
 
   final String title;
@@ -191,6 +262,8 @@ class _DownloadsSectionHeader extends StatelessWidget {
   final bool isGridView;
   final VoidCallback? onRepairAll;
   final bool isRepairingAll;
+  final int? repairProgressCurrent;
+  final int? repairProgressTotal;
 
   @override
   Widget build(BuildContext context) {
@@ -208,6 +281,16 @@ class _DownloadsSectionHeader extends StatelessWidget {
                   ),
             ),
           ),
+          if (isRepairingAll &&
+              repairProgressCurrent != null &&
+              repairProgressTotal != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Text(
+                '$repairProgressCurrent/$repairProgressTotal',
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+            ),
           if (onRepairAll != null)
             IconButton(
               icon: isRepairingAll

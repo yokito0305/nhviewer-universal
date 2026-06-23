@@ -63,7 +63,7 @@ void main() {
           responses: <String, Uint8List>{
             'https://i1.nhentai.net/galleries/321/1.jpg': Uint8List.fromList(<int>[1]),
             'https://i1.nhentai.net/galleries/321/2.jpg': Uint8List.fromList(<int>[2]),
-            'https://i1.nhentai.net/galleries/321/cover.jpg': Uint8List.fromList(<int>[3]),
+            'https://t1.nhentai.net/galleries/321/cover.jpg': Uint8List.fromList(<int>[3]),
           },
         ),
       );
@@ -112,7 +112,7 @@ void main() {
           responses: <String, Uint8List>{
             'https://i1.nhentai.net/galleries/654/1.jpg': Uint8List.fromList(<int>[1]),
             'https://i1.nhentai.net/galleries/654/2.jpg': Uint8List.fromList(<int>[2]),
-            'https://i1.nhentai.net/galleries/654/cover.jpg': Uint8List.fromList(<int>[3]),
+            'https://t1.nhentai.net/galleries/654/cover.jpg': Uint8List.fromList(<int>[3]),
           },
         ),
       );
@@ -152,7 +152,7 @@ void main() {
           responses: <String, Uint8List>{
             'https://i1.nhentai.net/galleries/777/1.jpg': Uint8List.fromList(<int>[1]),
             'https://i1.nhentai.net/galleries/777/2.jpg': Uint8List.fromList(<int>[2]),
-            'https://i1.nhentai.net/galleries/777/cover.jpg': Uint8List.fromList(<int>[3]),
+            'https://t1.nhentai.net/galleries/777/cover.jpg': Uint8List.fromList(<int>[3]),
           },
         ),
       );
@@ -200,7 +200,7 @@ void main() {
           responses: <String, Uint8List>{
             'https://i1.nhentai.net/galleries/778/1.jpg': Uint8List.fromList(<int>[1]),
             'https://i1.nhentai.net/galleries/778/3.jpg': Uint8List.fromList(<int>[4]),
-            'https://i1.nhentai.net/galleries/778/cover.jpg': Uint8List.fromList(<int>[3]),
+            'https://t1.nhentai.net/galleries/778/cover.jpg': Uint8List.fromList(<int>[3]),
           },
           deferredResponses: <String, Future<Uint8List> Function()>{
             'https://i1.nhentai.net/galleries/778/2.jpg': () => secondPageCompleter.future,
@@ -289,7 +289,7 @@ void main() {
         responses: <String, Uint8List>{
           'https://i1.nhentai.net/galleries/779/1.jpg': Uint8List.fromList(<int>[1]),
           'https://i1.nhentai.net/galleries/779/2.jpg': Uint8List.fromList(<int>[2]),
-          'https://i1.nhentai.net/galleries/779/cover.jpg': Uint8List.fromList(<int>[3]),
+          'https://t1.nhentai.net/galleries/779/cover.jpg': Uint8List.fromList(<int>[3]),
         },
       );
       final manager = DownloadManagerModel(
@@ -388,7 +388,7 @@ void main() {
           responses: <String, Uint8List>{
             'https://i1.nhentai.net/galleries/781/1.jpg': Uint8List.fromList(<int>[1]),
             'https://i1.nhentai.net/galleries/781/3.jpg': Uint8List.fromList(<int>[3]),
-            'https://i1.nhentai.net/galleries/781/cover.jpg': Uint8List.fromList(<int>[4]),
+            'https://t1.nhentai.net/galleries/781/cover.jpg': Uint8List.fromList(<int>[4]),
           },
           deferredResponses: <String, Future<Uint8List> Function()>{
             'https://i1.nhentai.net/galleries/781/2.jpg': () => secondPageCompleter.future,
@@ -732,7 +732,7 @@ void main() {
               'https://i1.nhentai.net/galleries/441/2.jpg': Uint8List.fromList(
                 <int>[2],
               ),
-              'https://i1.nhentai.net/galleries/441/cover.jpg':
+              'https://t1.nhentai.net/galleries/441/cover.jpg':
                   Uint8List.fromList(<int>[3]),
             },
           ),
@@ -778,6 +778,322 @@ void main() {
     );
 
     test(
+      'repairing a missing page does not re-download or overwrite an already-valid cover',
+      () async {
+        final comic = sampleComic(id: '935', mediaId: '447');
+        final fetcher = FakeRemoteAssetFetcher(
+          responses: <String, Uint8List>{
+            'https://i1.nhentai.net/galleries/447/1.jpg': Uint8List.fromList(
+              <int>[1],
+            ),
+            'https://i1.nhentai.net/galleries/447/2.jpg': Uint8List.fromList(
+              <int>[2],
+            ),
+            'https://t1.nhentai.net/galleries/447/cover.jpg': Uint8List.fromList(
+              <int>[3],
+            ),
+          },
+        );
+        final manager = DownloadManagerModel(
+          nhentaiGateway: FakeNhentaiGateway(detailComic: comic),
+          cdnConfigService: _FakeCdnConfigService(),
+          downloadQueueRepository: harness.downloadQueueRepository,
+          downloadedLibraryRepository: harness.downloadedLibraryRepository,
+          downloadSettingsRepository: DownloadSettingsStore(
+            optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+          ),
+          downloadAssetStore: DownloadAssetStore(
+            directoryResolver: () async => tempDirectory,
+          ),
+          imageCompressionService: FakeImageCompressionService(
+            result: Uint8List.fromList(<int>[1, 2, 3, 4]),
+          ),
+          remoteAssetFetcher: fetcher,
+        );
+
+        await manager.initialize();
+        await manager.enqueue(
+          const DownloadRequest(comicId: '935', title: 'Sample'),
+        );
+        await _waitForJobStatus(
+          harness: harness,
+          comicId: '935',
+          status: 'completed',
+        );
+        await manager.waitForIdle();
+
+        final coverUrl = 'https://t1.nhentai.net/galleries/447/cover.jpg';
+        expect(
+          fetcher.requestedUrls.where((url) => url == coverUrl).length,
+          1,
+        );
+        final coverPathBeforeRepair =
+            await harness.downloadedLibraryRepository.loadCoverLocalPath('935');
+        expect(coverPathBeforeRepair, isNotNull);
+
+        // Break only page 1 on disk, leaving the cover untouched.
+        final pages = await harness.downloadQueueRepository.loadPages('935');
+        final page1 = pages.firstWhere((page) => page.pageNumber == 1);
+        await File(page1.localPath!).delete();
+
+        final repaired = await manager.repairCompleted('935');
+        expect(repaired, isTrue);
+
+        await _waitForPageStatus(
+          harness: harness,
+          comicId: '935',
+          pageNumber: 1,
+          status: 'completed',
+        );
+        await manager.waitForIdle();
+
+        // The cover must not have been re-fetched: a failed re-fetch would
+        // have silently overwritten the already-valid coverLocalPath.
+        expect(
+          fetcher.requestedUrls.where((url) => url == coverUrl).length,
+          1,
+        );
+        final coverPathAfterRepair =
+            await harness.downloadedLibraryRepository.loadCoverLocalPath('935');
+        expect(coverPathAfterRepair, coverPathBeforeRepair);
+        expect(await File(coverPathAfterRepair!).exists(), isTrue);
+
+        manager.dispose();
+      },
+    );
+
+    test(
+      'repairCompleted throws (does not falsely report success) when the cover '
+      'is the only problem and re-downloading it fails',
+      () async {
+        final comic = sampleComic(id: '936', mediaId: '448');
+        final gateway = _SelectiveFailureGateway(<String, Comic>{'936': comic});
+        final manager = DownloadManagerModel(
+          nhentaiGateway: gateway,
+          cdnConfigService: _FakeCdnConfigService(),
+          downloadQueueRepository: harness.downloadQueueRepository,
+          downloadedLibraryRepository: harness.downloadedLibraryRepository,
+          downloadSettingsRepository: DownloadSettingsStore(
+            optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+          ),
+          downloadAssetStore: DownloadAssetStore(
+            directoryResolver: () async => tempDirectory,
+          ),
+          imageCompressionService: FakeImageCompressionService(
+            result: Uint8List.fromList(<int>[1, 2, 3, 4]),
+          ),
+          remoteAssetFetcher: FakeRemoteAssetFetcher(
+            responses: <String, Uint8List>{
+              'https://i1.nhentai.net/galleries/448/1.jpg': Uint8List.fromList(
+                <int>[1],
+              ),
+              'https://i1.nhentai.net/galleries/448/2.jpg': Uint8List.fromList(
+                <int>[2],
+              ),
+              'https://t1.nhentai.net/galleries/448/cover.jpg':
+                  Uint8List.fromList(<int>[3]),
+            },
+          ),
+        );
+
+        await manager.initialize();
+        await manager.enqueue(
+          const DownloadRequest(comicId: '936', title: 'Sample'),
+        );
+        await _waitForJobStatus(
+          harness: harness,
+          comicId: '936',
+          status: 'completed',
+        );
+        await manager.waitForIdle();
+
+        // Break the cover, then make the API fail for any further attempts
+        // to repair this comic — pages stay intact the whole time.
+        await harness.downloadedLibraryRepository.updateCoverLocalPath(
+          '936',
+          null,
+        );
+        gateway.throwingComicIds.add('936');
+
+        await expectLater(
+          () => manager.repairCompleted('936'),
+          throwsA(anything),
+        );
+
+        final coverPathAfterFailedRepair =
+            await harness.downloadedLibraryRepository.loadCoverLocalPath('936');
+        expect(coverPathAfterFailedRepair, isNull);
+
+        manager.dispose();
+      },
+    );
+
+    test(
+      'repairAllCompleted counts a cover-only repair failure as failed, not repaired',
+      () async {
+        final healthyComic = sampleComic(id: '937', mediaId: '449');
+        final brokenComic = sampleComic(id: '938', mediaId: '450');
+        final gateway = _SelectiveFailureGateway(<String, Comic>{
+          '937': healthyComic,
+          '938': brokenComic,
+        });
+        final manager = DownloadManagerModel(
+          nhentaiGateway: gateway,
+          cdnConfigService: _FakeCdnConfigService(),
+          downloadQueueRepository: harness.downloadQueueRepository,
+          downloadedLibraryRepository: harness.downloadedLibraryRepository,
+          downloadSettingsRepository: DownloadSettingsStore(
+            optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+          ),
+          downloadAssetStore: DownloadAssetStore(
+            directoryResolver: () async => tempDirectory,
+          ),
+          imageCompressionService: FakeImageCompressionService(
+            result: Uint8List.fromList(<int>[1, 2, 3, 4]),
+          ),
+          remoteAssetFetcher: FakeRemoteAssetFetcher(
+            responses: <String, Uint8List>{
+              'https://i1.nhentai.net/galleries/449/1.jpg': Uint8List.fromList(
+                <int>[1],
+              ),
+              'https://i1.nhentai.net/galleries/449/2.jpg': Uint8List.fromList(
+                <int>[2],
+              ),
+              'https://t1.nhentai.net/galleries/449/cover.jpg':
+                  Uint8List.fromList(<int>[3]),
+              'https://i1.nhentai.net/galleries/450/1.jpg': Uint8List.fromList(
+                <int>[4],
+              ),
+              'https://i1.nhentai.net/galleries/450/2.jpg': Uint8List.fromList(
+                <int>[5],
+              ),
+              'https://t1.nhentai.net/galleries/450/cover.jpg':
+                  Uint8List.fromList(<int>[6]),
+            },
+          ),
+        );
+
+        await manager.initialize();
+        await manager.enqueue(
+          const DownloadRequest(comicId: '937', title: 'Healthy'),
+        );
+        await _waitForJobStatus(
+          harness: harness,
+          comicId: '937',
+          status: 'completed',
+        );
+        await manager.waitForIdle();
+        await manager.enqueue(
+          const DownloadRequest(comicId: '938', title: 'Broken'),
+        );
+        await _waitForJobStatus(
+          harness: harness,
+          comicId: '938',
+          status: 'completed',
+        );
+        await manager.waitForIdle();
+
+        // Break only comic 938's cover, and make repairing it fail.
+        await harness.downloadedLibraryRepository.updateCoverLocalPath(
+          '938',
+          null,
+        );
+        gateway.throwingComicIds.add('938');
+        await manager.refresh();
+
+        final result = await manager.repairAllCompleted();
+
+        expect(result.totalCount, 2);
+        expect(result.repairedCount, 0);
+        expect(result.failedCount, 1);
+
+        manager.dispose();
+      },
+    );
+
+    test(
+      'repairAllCompleted stops early after 3 consecutive failures, leaving '
+      'the rest unscanned',
+      () async {
+        // Download order matters here: loadJobs() sorts by updatedAt desc,
+        // so the comic downloaded *first* ends up *last* in the scan order.
+        // Download '942' first so it's the one left unscanned once the
+        // other three (downloaded after, so scanned first) fail in a row.
+        final comics = <String, Comic>{
+          '942': sampleComic(id: '942', mediaId: '454'),
+          '939': sampleComic(id: '939', mediaId: '451'),
+          '940': sampleComic(id: '940', mediaId: '452'),
+          '941': sampleComic(id: '941', mediaId: '453'),
+        };
+        final gateway = _SelectiveFailureGateway(comics);
+        final fetcher = FakeRemoteAssetFetcher(
+          responses: <String, Uint8List>{
+            for (final entry in comics.entries) ...{
+              'https://i1.nhentai.net/galleries/${entry.value.mediaId}/1.jpg':
+                  Uint8List.fromList(<int>[1]),
+              'https://i1.nhentai.net/galleries/${entry.value.mediaId}/2.jpg':
+                  Uint8List.fromList(<int>[2]),
+              'https://t1.nhentai.net/galleries/${entry.value.mediaId}/cover.jpg':
+                  Uint8List.fromList(<int>[3]),
+            },
+          },
+        );
+        final manager = DownloadManagerModel(
+          nhentaiGateway: gateway,
+          cdnConfigService: _FakeCdnConfigService(),
+          downloadQueueRepository: harness.downloadQueueRepository,
+          downloadedLibraryRepository: harness.downloadedLibraryRepository,
+          downloadSettingsRepository: DownloadSettingsStore(
+            optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+          ),
+          downloadAssetStore: DownloadAssetStore(
+            directoryResolver: () async => tempDirectory,
+          ),
+          imageCompressionService: FakeImageCompressionService(
+            result: Uint8List.fromList(<int>[1, 2, 3, 4]),
+          ),
+          remoteAssetFetcher: fetcher,
+        );
+
+        await manager.initialize();
+        for (final comicId in <String>['942', '939', '940', '941']) {
+          await manager.enqueue(DownloadRequest(comicId: comicId, title: comicId));
+          await _waitForJobStatus(
+            harness: harness,
+            comicId: comicId,
+            status: 'completed',
+          );
+          await manager.waitForIdle();
+        }
+
+        // Break every cover, but only make 939/940/941 fail on repair —
+        // 942 would succeed if the scan ever reached it.
+        for (final comicId in comics.keys) {
+          await harness.downloadedLibraryRepository.updateCoverLocalPath(
+            comicId,
+            null,
+          );
+        }
+        gateway.throwingComicIds.addAll(<String>['939', '940', '941']);
+        await manager.refresh();
+
+        final result = await manager.repairAllCompleted();
+
+        expect(result.stoppedEarly, isTrue);
+        expect(result.failedCount, 3);
+        expect(result.repairedCount, 0);
+        expect(result.totalCount, 4);
+
+        // '942' was never reached, so its cover is still broken.
+        final coverPath942 =
+            await harness.downloadedLibraryRepository.loadCoverLocalPath('942');
+        expect(coverPath942, isNull);
+
+        manager.dispose();
+      },
+    );
+
+    test(
       'repairAllCompleted scans every completed download and repairs only the broken cover',
       () async {
         final intactComic = sampleComic(id: '931', mediaId: '442');
@@ -808,7 +1124,7 @@ void main() {
               'https://i1.nhentai.net/galleries/442/2.jpg': Uint8List.fromList(
                 <int>[2],
               ),
-              'https://i1.nhentai.net/galleries/442/cover.jpg':
+              'https://t1.nhentai.net/galleries/442/cover.jpg':
                   Uint8List.fromList(<int>[3]),
               'https://i1.nhentai.net/galleries/443/1.jpg': Uint8List.fromList(
                 <int>[4],
@@ -816,7 +1132,7 @@ void main() {
               'https://i1.nhentai.net/galleries/443/2.jpg': Uint8List.fromList(
                 <int>[5],
               ),
-              'https://i1.nhentai.net/galleries/443/cover.jpg':
+              'https://t1.nhentai.net/galleries/443/cover.jpg':
                   Uint8List.fromList(<int>[6]),
             },
           ),
@@ -861,6 +1177,98 @@ void main() {
         manager.dispose();
       },
     );
+
+    test(
+      'repairAllCompleted isolates a failing comic and still processes the rest, reporting progress',
+      () async {
+        final okComic = sampleComic(id: '933', mediaId: '444');
+        final throwingComic = sampleComic(id: '934', mediaId: '445');
+        final gateway = _MultiComicNhentaiGateway(<String, Comic>{
+          '933': okComic,
+          '934': throwingComic,
+        });
+        final manager = _ThrowingForOneComicManager(
+          throwingComicId: '934',
+          nhentaiGateway: gateway,
+          cdnConfigService: _FakeCdnConfigService(),
+          downloadQueueRepository: harness.downloadQueueRepository,
+          downloadedLibraryRepository: harness.downloadedLibraryRepository,
+          downloadSettingsRepository: DownloadSettingsStore(
+            optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+          ),
+          downloadAssetStore: DownloadAssetStore(
+            directoryResolver: () async => tempDirectory,
+          ),
+          imageCompressionService: FakeImageCompressionService(
+            result: Uint8List.fromList(<int>[1, 2, 3, 4]),
+          ),
+          remoteAssetFetcher: FakeRemoteAssetFetcher(
+            responses: <String, Uint8List>{
+              'https://i1.nhentai.net/galleries/444/1.jpg': Uint8List.fromList(
+                <int>[1],
+              ),
+              'https://i1.nhentai.net/galleries/444/2.jpg': Uint8List.fromList(
+                <int>[2],
+              ),
+              'https://t1.nhentai.net/galleries/444/cover.jpg':
+                  Uint8List.fromList(<int>[3]),
+              'https://i1.nhentai.net/galleries/445/1.jpg': Uint8List.fromList(
+                <int>[4],
+              ),
+              'https://i1.nhentai.net/galleries/445/2.jpg': Uint8List.fromList(
+                <int>[5],
+              ),
+              'https://t1.nhentai.net/galleries/445/cover.jpg':
+                  Uint8List.fromList(<int>[6]),
+            },
+          ),
+        );
+
+        await manager.initialize();
+        await manager.enqueue(
+          const DownloadRequest(comicId: '933', title: 'Ok'),
+        );
+        await _waitForJobStatus(
+          harness: harness,
+          comicId: '933',
+          status: 'completed',
+        );
+        await manager.waitForIdle();
+        await manager.enqueue(
+          const DownloadRequest(comicId: '934', title: 'Throws'),
+        );
+        await _waitForJobStatus(
+          harness: harness,
+          comicId: '934',
+          status: 'completed',
+        );
+        await manager.waitForIdle();
+
+        // Break both covers so each item attempts a repair.
+        await harness.downloadedLibraryRepository.updateCoverLocalPath(
+          '933',
+          null,
+        );
+        await harness.downloadedLibraryRepository.updateCoverLocalPath(
+          '934',
+          null,
+        );
+        await manager.refresh();
+
+        final progressUpdates = <(int, int)>[];
+        final result = await manager.repairAllCompleted(
+          onProgress: (processed, total) =>
+              progressUpdates.add((processed, total)),
+        );
+
+        expect(result.totalCount, 2);
+        expect(result.repairedCount, 1);
+        expect(result.failedCount, 1);
+        expect(progressUpdates, <(int, int)>[(1, 2), (2, 2)]);
+
+        manager.dispose();
+      },
+    );
   });
 }
 
@@ -876,6 +1284,54 @@ class _MultiComicNhentaiGateway extends FakeNhentaiGateway {
     String comicId,
   ) async {
     loadedComicDetailIds.add(comicId);
+    return (comic: _comics[comicId] ?? sampleComic(id: comicId), headers: null);
+  }
+}
+
+/// Throws for [throwingComicId] when `repairCompleted` is called, to exercise
+/// the per-item error isolation in `repairAllCompleted`.
+class _ThrowingForOneComicManager extends DownloadManagerModel {
+  _ThrowingForOneComicManager({
+    required this.throwingComicId,
+    required super.nhentaiGateway,
+    required super.cdnConfigService,
+    required super.downloadQueueRepository,
+    required super.downloadedLibraryRepository,
+    required super.downloadSettingsRepository,
+    required super.downloadAssetStore,
+    required super.imageCompressionService,
+    required super.remoteAssetFetcher,
+  });
+
+  final String throwingComicId;
+
+  @override
+  Future<bool> repairCompleted(String comicId) async {
+    if (comicId == throwingComicId) {
+      throw Exception('simulated repair failure');
+    }
+    return super.repairCompleted(comicId);
+  }
+}
+
+/// Like [_MultiComicNhentaiGateway], but `loadComicDetail` throws for any
+/// comicId added to [throwingComicIds] — used to simulate a repair attempt
+/// failing for a specific, already-downloaded comic without affecting its
+/// (earlier) successful initial download.
+class _SelectiveFailureGateway extends FakeNhentaiGateway {
+  _SelectiveFailureGateway(this._comics);
+
+  final Map<String, Comic> _comics;
+  final Set<String> throwingComicIds = <String>{};
+
+  @override
+  Future<({Comic comic, Map<String, String>? headers})> loadComicDetail(
+    String comicId,
+  ) async {
+    loadedComicDetailIds.add(comicId);
+    if (throwingComicIds.contains(comicId)) {
+      throw Exception('simulated API failure for $comicId');
+    }
     return (comic: _comics[comicId] ?? sampleComic(id: comicId), headers: null);
   }
 }

@@ -227,6 +227,44 @@ void main() {
 
       expect(await downloadSettingsStore.loadPageIntervalMs(), 3000);
     });
+
+    testWidgets(
+      'clear API key asks for confirmation before clearing',
+      (tester) async {
+        await tester.pumpWidget(
+          _buildSettingsScreen(
+            downloadSettingsRepository: downloadSettingsStore,
+            favoriteSyncModel: favoriteSyncModel,
+            comicFeedModel: comicFeedModel,
+            comicReaderModel: comicReaderModel,
+            libraryImportService: LibraryImportService(
+              comicRepository: harness.comicRepository,
+              collectionRepository: harness.collectionRepository,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(find.text('Clear API Key'), 300);
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Clear API Key'));
+        await tester.pumpAndSettle();
+
+        // Cancelling the confirmation dialog does not clear the key.
+        expect(find.text('Clear API key?'), findsOneWidget);
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect(find.text('API key cleared'), findsNothing);
+
+        // Confirming clears the key and shows the snackbar.
+        await tester.tap(find.text('Clear API Key'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Clear'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('API key cleared'), findsOneWidget);
+      },
+    );
   });
 }
 
