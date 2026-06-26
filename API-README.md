@@ -53,13 +53,29 @@ The app currently uses `tag` and `language` for the tag catalog browser.
 
 ## Image CDN
 
-### Thumbnails
+### CDN config
+
+```
+GET https://nhentai.net/api/v2/config
+```
+
+Returns the currently active CDN host pools:
+
+| Field | Host pool | Used for |
+|-------|-----------|----------|
+| `image_servers` | `https://i<1-4>.nhentai.net` | Full page image paths from `pages[].path` |
+| `thumb_servers` | `https://t<1-4>.nhentai.net` | `thumbnail.path`, `cover.path`, and page preview thumbnails |
+
+The app resolves this via `NhentaiCdnConfigService`. If the config endpoint is unavailable, it falls back to the default `i1~i4` and `t1~t4` host lists.
+
+### Thumbnails and covers
 
 ```
 https://t<1-4>.nhentai.net/galleries/<media_id>/thumb.<ext>
+https://t<1-4>.nhentai.net/galleries/<media_id>/cover.<ext>
 ```
 
-The app resolves the CDN host dynamically via the CDN config endpoint and falls back to alternate hosts on failure.
+For gallery detail responses, both `thumbnail.path` and `cover.path` are relative paths and must be resolved against `thumb_servers` (`t1~t4`). Do not resolve covers against `image_servers`; that causes failed cover downloads because cover assets live on the thumbnail CDN host pool.
 
 ### Full pages
 
@@ -108,5 +124,5 @@ language:chinese -tag:full-color -artist:xxx
 
 ## Notes
 
-- The CDN config endpoint (`/api/v2`) is pinged on startup via `NhentaiCdnConfigService` to resolve the current active image host.
+- The CDN config endpoint (`/api/v2/config`) is loaded on startup via `NhentaiCdnConfigService` to resolve the active image and thumbnail host pools.
 - Favorites sync uses a separate paginated endpoint under `/api/v2/users/...`; see `NhentaiApiRemoteFavoriteGateway` for details.

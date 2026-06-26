@@ -113,7 +113,6 @@ class _HomeShellState extends State<HomeShell> {
                       controller.closeView(query);
                       _handleSearchSubmit(context, query);
                     },
-                    onTagSearchSubmitted: () => controller.closeView(null),
                   ),
                 ),
               ];

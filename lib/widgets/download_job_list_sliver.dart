@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:concept_nhv/application/home/home_shell_controller.dart';
 import 'package:concept_nhv/application/tags/load_comic_meta_use_case.dart';
@@ -34,6 +35,7 @@ class _DownloadJobListSliverState extends State<DownloadJobListSliver> {
   bool _isRepairingAll = false;
   int? _repairProgressCurrent;
   int? _repairProgressTotal;
+  final Random _random = Random();
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +92,7 @@ class _DownloadJobListSliverState extends State<DownloadJobListSliver> {
               isRepairingAll: _isRepairingAll,
               repairProgressCurrent: _repairProgressCurrent,
               repairProgressTotal: _repairProgressTotal,
+              onRandomCompleted: () => _openRandomCompleted(completedItems),
               onRepairAll: () => _handleRepairAll(model),
             ),
           ));
@@ -132,6 +135,14 @@ class _DownloadJobListSliverState extends State<DownloadJobListSliver> {
         return SliverMainAxisGroup(slivers: slivers);
       },
     );
+  }
+
+  void _openRandomCompleted(List<DownloadListItemSnapshot> completedItems) {
+    if (completedItems.isEmpty) {
+      return;
+    }
+    final item = completedItems[_random.nextInt(completedItems.length)];
+    widget.onOpenOfflineReader(item.comicId);
   }
 
   Widget _buildItemCard(
@@ -251,6 +262,7 @@ class _DownloadsSectionHeader extends StatelessWidget {
     required this.title,
     this.onViewToggle,
     this.isGridView = false,
+    this.onRandomCompleted,
     this.onRepairAll,
     this.isRepairingAll = false,
     this.repairProgressCurrent,
@@ -260,6 +272,7 @@ class _DownloadsSectionHeader extends StatelessWidget {
   final String title;
   final VoidCallback? onViewToggle;
   final bool isGridView;
+  final VoidCallback? onRandomCompleted;
   final VoidCallback? onRepairAll;
   final bool isRepairingAll;
   final int? repairProgressCurrent;
@@ -267,7 +280,10 @@ class _DownloadsSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasTrailingActions = onViewToggle != null || onRepairAll != null;
+    final hasTrailingActions =
+        onViewToggle != null ||
+        onRandomCompleted != null ||
+        onRepairAll != null;
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 12, hasTrailingActions ? 4 : 16, 4),
       child: Row(
@@ -290,6 +306,14 @@ class _DownloadsSectionHeader extends StatelessWidget {
                 '$repairProgressCurrent/$repairProgressTotal',
                 style: Theme.of(context).textTheme.labelSmall,
               ),
+            ),
+          if (onRandomCompleted != null)
+            IconButton(
+              icon: const Icon(Icons.shuffle),
+              tooltip: 'Open a random completed download',
+              onPressed: onRandomCompleted,
+              iconSize: 20,
+              visualDensity: VisualDensity.compact,
             ),
           if (onRepairAll != null)
             IconButton(

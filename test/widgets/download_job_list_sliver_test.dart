@@ -214,6 +214,35 @@ void main() {
       },
     );
 
+    testWidgets('random completed button opens a visible completed download', (
+      tester,
+    ) async {
+      final model = _FakeDownloadManagerModel(
+        harness: harness,
+        itemsOverride: <DownloadListItemSnapshot>[
+          _itemFromDownloadedComic(
+            comicId: 'completed',
+            title: 'Downloaded Comic',
+            requestedAt: DateTime(2026, 4, 10),
+          ),
+        ],
+      );
+      String? openedComicId;
+
+      await tester.pumpWidget(
+        _buildTestWidget(
+          model: model,
+          onOpenOfflineReader: (comicId) => openedComicId = comicId,
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.shuffle));
+      await tester.pumpAndSettle();
+
+      expect(openedComicId, 'completed');
+    });
+
     testWidgets(
       'repair all button asks for confirmation before scanning completed downloads',
       (tester) async {

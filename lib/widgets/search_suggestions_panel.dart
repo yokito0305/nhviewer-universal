@@ -12,11 +12,9 @@ class SearchSuggestionsPanel extends StatefulWidget {
   const SearchSuggestionsPanel({
     super.key,
     required this.onHistorySelected,
-    this.onTagSearchSubmitted,
   });
 
   final ValueChanged<String> onHistorySelected;
-  final VoidCallback? onTagSearchSubmitted;
 
   @override
   State<SearchSuggestionsPanel> createState() => _SearchSuggestionsPanelState();
@@ -176,7 +174,9 @@ class _SearchSuggestionsPanelState extends State<SearchSuggestionsPanel> {
                         runSpacing: 6,
                         children: page.result.map((item) {
                           return FilterChip(
-                            label: Text('${context.read<TagDisplayService>().displayName(item.slug, item.name)} (${item.count})'),
+                            label: Text(
+                              '${context.read<TagDisplayService>().displayName(item.slug, item.name)} (${item.count})',
+                            ),
                             selected: model.isSelected(item),
                             onSelected: (_) => model.toggleSelection(item),
                           );
@@ -214,14 +214,12 @@ class _SearchSuggestionsPanelState extends State<SearchSuggestionsPanel> {
                     onPressed: model.selectedQueries.isEmpty
                         ? null
                         : () async {
-                            await context
-                                .read<HomeShellController>()
-                                .submitTagSearch(model.selectedQueries);
-                            if (!mounted) {
-                              return;
-                            }
+                            final controller =
+                                context.read<HomeShellController>();
+                            final selectedQueries =
+                                List<String>.of(model.selectedQueries);
                             model.clearSelection();
-                            widget.onTagSearchSubmitted?.call();
+                            await controller.submitTagSearch(selectedQueries);
                           },
                     icon: const Icon(Icons.search),
                     label: const Text('Search'),
