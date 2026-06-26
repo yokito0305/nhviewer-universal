@@ -1,5 +1,6 @@
 import 'package:concept_nhv/application/home/home_shell_controller.dart';
 import 'package:concept_nhv/models/search_history_entry.dart';
+import 'package:concept_nhv/models/tag_catalog_item.dart';
 import 'package:concept_nhv/models/tag_catalog_type.dart';
 import 'package:concept_nhv/models/tag_type_l10n.dart';
 import 'package:concept_nhv/state/tag_catalog_browser_model.dart';
@@ -9,10 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 class SearchSuggestionsPanel extends StatefulWidget {
-  const SearchSuggestionsPanel({
-    super.key,
-    required this.onHistorySelected,
-  });
+  const SearchSuggestionsPanel({super.key, required this.onHistorySelected});
 
   final ValueChanged<String> onHistorySelected;
 
@@ -22,6 +20,8 @@ class SearchSuggestionsPanel extends StatefulWidget {
 
 class _SearchSuggestionsPanelState extends State<SearchSuggestionsPanel> {
   late Future<List<SearchHistoryEntry>> _historyFuture;
+  final TextEditingController _tagFilterController = TextEditingController();
+  String _tagFilterQuery = '';
 
   @override
   void initState() {
@@ -33,6 +33,12 @@ class _SearchSuggestionsPanelState extends State<SearchSuggestionsPanel> {
       }
       context.read<TagCatalogBrowserModel>().ensureLoaded();
     });
+  }
+
+  @override
+  void dispose() {
+    _tagFilterController.dispose();
+    super.dispose();
   }
 
   @override
@@ -105,6 +111,20 @@ class _SearchSuggestionsPanelState extends State<SearchSuggestionsPanel> {
     return Consumer<TagCatalogBrowserModel>(
       builder: (context, model, child) {
         final page = model.currentPage;
+        final tagDisplayService = context.read<TagDisplayService>();
+        final visibleItems = page == null
+            ? const <TagCatalogItem>[]
+            : page.result
+                  .where((item) {
+                    return _matchesTagFilter(
+                      item: item,
+                      displayName: tagDisplayService.displayName(
+                        item.slug,
+                        item.name,
+                      ),
+                    );
+                  })
+                  .toList(growable: false);
         return Column(
           children: <Widget>[
             Padding(
@@ -120,32 +140,45 @@ class _SearchSuggestionsPanelState extends State<SearchSuggestionsPanel> {
                 }).toList(),
                 selected: <TagCatalogType>{model.type},
                 onSelectionChanged: (selection) {
+                  _clearTagFilter();
                   model.setType(selection.first);
                 },
               ),
             ),
-            if (model.selectedQueries.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: model.selectedQueries.map((query) {
-                      return Chip(
-                        label: Text(query),
-                        onDeleted: () => model.removeSelection(query),
-                      );
-                    }).toList(),
-                  ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: TextField(
+                controller: _tagFilterController,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _tagFilterQuery.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Clear tag filter',
+                          icon: const Icon(Icons.clear),
+                          onPressed: _clearTagFilter,
+                        ),
+                  hintText: 'Filter current tag page',
+                  isDense: true,
+                  border: const OutlineInputBorder(),
                 ),
+                textInputAction: TextInputAction.search,
+                onChanged: (value) {
+                  setState(() {
+                    _tagFilterQuery = value;
+                  });
+                },
+              ),
+            ),
+            if (model.selectedQueries.isNotEmpty)
+              _SelectedTagSummary(
+                selectedQueries: model.selectedQueries,
+                onRemove: model.removeSelection,
+                onClear: model.clearSelection,
               ),
             if (model.selectedQueries.isNotEmpty) const SizedBox(height: 8),
             if (model.isLoading && page == null)
-              const Expanded(
-                child: Center(child: CircularProgressIndicator()),
-              )
+              const Expanded(child: Center(child: CircularProgressIndicator()))
             else if (model.errorMessage != null && page == null)
               Expanded(
                 child: Center(
@@ -169,19 +202,33 @@ class _SearchSuggestionsPanelState extends State<SearchSuggestionsPanel> {
                   children: <Widget>[
                     if (model.isLoading) const LinearProgressIndicator(),
                     if (page != null)
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        children: page.result.map((item) {
-                          return FilterChip(
-                            label: Text(
-                              '${context.read<TagDisplayService>().displayName(item.slug, item.name)} (${item.count})',
+                      if (visibleItems.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Center(
+                            child: Text(
+                              _tagFilterQuery.trim().isEmpty
+                                  ? 'No tags on this page'
+                                  : 'No tags match "${_tagFilterQuery.trim()}" on this page',
                             ),
-                            selected: model.isSelected(item),
-                            onSelected: (_) => model.toggleSelection(item),
-                          );
-                        }).toList(),
-                      ),
+                          ),
+                        )
+                      else
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: visibleItems.map((item) {
+                            final displayName = tagDisplayService.displayName(
+                              item.slug,
+                              item.name,
+                            );
+                            return FilterChip(
+                              label: Text('$displayName (${item.count})'),
+                              selected: model.isSelected(item),
+                              onSelected: (_) => model.toggleSelection(item),
+                            );
+                          }).toList(),
+                        ),
                   ],
                 ),
               ),
@@ -214,10 +261,11 @@ class _SearchSuggestionsPanelState extends State<SearchSuggestionsPanel> {
                     onPressed: model.selectedQueries.isEmpty
                         ? null
                         : () async {
-                            final controller =
-                                context.read<HomeShellController>();
-                            final selectedQueries =
-                                List<String>.of(model.selectedQueries);
+                            final controller = context
+                                .read<HomeShellController>();
+                            final selectedQueries = List<String>.of(
+                              model.selectedQueries,
+                            );
                             model.clearSelection();
                             await controller.submitTagSearch(selectedQueries);
                           },
@@ -235,5 +283,83 @@ class _SearchSuggestionsPanelState extends State<SearchSuggestionsPanel> {
 
   Future<List<SearchHistoryEntry>> _loadHistory() {
     return context.read<SearchHistoryRepository>().load();
+  }
+
+  bool _matchesTagFilter({
+    required TagCatalogItem item,
+    required String displayName,
+  }) {
+    final query = _tagFilterQuery.trim().toLowerCase();
+    if (query.isEmpty) {
+      return true;
+    }
+    return displayName.toLowerCase().contains(query) ||
+        item.name.toLowerCase().contains(query) ||
+        item.slug.toLowerCase().contains(query) ||
+        item.query.toLowerCase().contains(query);
+  }
+
+  void _clearTagFilter() {
+    if (_tagFilterQuery.isEmpty && _tagFilterController.text.isEmpty) {
+      return;
+    }
+    setState(() {
+      _tagFilterQuery = '';
+      _tagFilterController.clear();
+    });
+  }
+}
+
+class _SelectedTagSummary extends StatelessWidget {
+  const _SelectedTagSummary({
+    required this.selectedQueries,
+    required this.onRemove,
+    required this.onClear,
+  });
+
+  final List<String> selectedQueries;
+  final ValueChanged<String> onRemove;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.only(left: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: <Widget>[
+          Text(
+            'Selected ${selectedQueries.length}',
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: selectedQueries.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 6),
+              itemBuilder: (context, index) {
+                final query = selectedQueries[index];
+                return Center(
+                  child: InputChip(
+                    label: Text(query),
+                    onDeleted: () => onRemove(query),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                );
+              },
+            ),
+          ),
+          TextButton(onPressed: onClear, child: const Text('Clear')),
+        ],
+      ),
+    );
   }
 }

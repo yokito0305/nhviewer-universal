@@ -29,16 +29,12 @@ import '../test_support/fixtures/sample_comic.dart';
 import '../test_support/storage/sqlite_test_harness.dart';
 
 void main() {
-  testWidgets('submits selected tag catalog queries without extra overlay cleanup', (
-    tester,
-  ) async {
-    final harness = SqliteTestHarness();
-    await harness.initialize();
-    addTearDown(harness.dispose);
-
-    final gateway = FakeNhentaiGateway(
-      tagCatalogPage: const TagCatalogPage(
-        result: <TagCatalogItem>[
+  testWidgets(
+    'submits selected tag catalog queries without extra overlay cleanup',
+    (tester) async {
+      final setup = await _pumpSearchSuggestionsPanel(
+        tester,
+        tagCatalogItems: const <TagCatalogItem>[
           TagCatalogItem(
             id: 1,
             type: 'tag',
@@ -48,102 +44,171 @@ void main() {
             count: 10,
           ),
         ],
-        numPages: 1,
-        perPage: 1,
-        page: 1,
-      ),
-    );
-    final homeUiModel = HomeUiModel();
-    addTearDown(homeUiModel.searchController.dispose);
-    addTearDown(homeUiModel.dispose);
+      );
 
-    final feedModel = ComicFeedModel(
-      searchComicsUseCase: SearchComicsUseCase(
-        nhentaiGateway: gateway,
-        searchQueryBuilder: const SearchQueryBuilder(),
-      ),
-      loadCollectionSummariesUseCase: LoadCollectionSummariesUseCase(
-        collectionRepository: harness.collectionRepository,
-      ),
-      blockedTagsRepository: FakeBlockedTagsRepository(),
-    );
-    addTearDown(feedModel.dispose);
+      await tester.tap(find.text('Tags').last);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.ensureVisible(
+        find.widgetWithText(FilterChip, 'full color (10)'),
+      );
+      await tester.tap(find.widgetWithText(FilterChip, 'full color (10)'));
+      await tester.pump();
+      expect(find.text('Selected 1'), findsOneWidget);
+      expect(find.widgetWithText(InputChip, 'tag:full-color'), findsOneWidget);
 
-    final readerModel = ComicReaderModel(
-      loadComicDetailUseCase: LoadComicDetailUseCase(
-        nhentaiGateway: FakeNhentaiGateway(detailComic: sampleComic()),
-      ),
-      loadOfflineComicUseCase: LoadOfflineComicUseCase(
-        downloadQueueRepository: harness.downloadQueueRepository,
-        downloadedLibraryRepository: harness.downloadedLibraryRepository,
-      ),
-      openComicUseCase: OpenComicUseCase(
-        comicRepository: harness.comicRepository,
-        collectionRepository: harness.collectionRepository,
-      ),
-      readerProgressRepository: ReaderProgressStore(
-        optionsStore: OptionsStore(localDatabase: harness.localDatabase),
-      ),
-      readerSettingsRepository: FakeReaderSettingsRepository(),
-      downloadedLibraryRepository: harness.downloadedLibraryRepository,
-    );
-    addTearDown(readerModel.dispose);
+      await tester.tap(find.text('Search'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
 
-    final tagCatalogModel = TagCatalogBrowserModel(
-      loadTagCatalogUseCase: LoadTagCatalogUseCase(nhentaiGateway: gateway),
-    );
-    addTearDown(tagCatalogModel.dispose);
+      final history = await setup.harness.searchHistoryRepository.load();
+      expect(history.first.query, 'tag:full-color');
+      expect(setup.homeUiModel.searchController.text, 'tag:full-color');
+      expect(
+        setup.gateway.searchedUris.single.queryParameters['query'],
+        'tag:full-color language:chinese',
+      );
+    },
+  );
 
-    final providers = <SingleChildWidget>[
-      Provider<TagDisplayService>.value(value: TagDisplayService.fromMap({})),
-      Provider.value(value: harness.searchHistoryRepository),
-      ChangeNotifierProvider<HomeUiModel>.value(value: homeUiModel),
-      ChangeNotifierProvider<TagCatalogBrowserModel>.value(
-        value: tagCatalogModel,
-      ),
-      Provider<HomeShellController>(
-        create: (_) => HomeShellController(
-          searchHistoryRepository: harness.searchHistoryRepository,
-          homeUiModel: homeUiModel,
-          feedModel: feedModel,
-          readerModel: readerModel,
-          tagSearchQueryBuilder: const TagSearchQueryBuilder(),
+  testWidgets('filters the current tag page without hiding selection summary', (
+    tester,
+  ) async {
+    await _pumpSearchSuggestionsPanel(
+      tester,
+      tagCatalogItems: const <TagCatalogItem>[
+        TagCatalogItem(
+          id: 1,
+          type: 'tag',
+          name: 'full color',
+          slug: 'full-color',
+          url: '/tag/full-color/',
+          count: 10,
         ),
-      ),
-    ];
-
-    await tester.pumpWidget(
-      MultiProvider(
-        providers: providers,
-        child: MaterialApp(
-          home: Scaffold(
-            body: SizedBox(
-              height: 500,
-              child: SearchSuggestionsPanel(onHistorySelected: (_) {}),
-            ),
-          ),
+        TagCatalogItem(
+          id: 2,
+          type: 'tag',
+          name: 'big breasts',
+          slug: 'big-breasts',
+          url: '/tag/big-breasts/',
+          count: 20,
         ),
-      ),
+      ],
     );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
 
     await tester.tap(find.text('Tags').last);
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
-    await tester.ensureVisible(find.widgetWithText(FilterChip, 'full color (10)'));
     await tester.tap(find.widgetWithText(FilterChip, 'full color (10)'));
     await tester.pump();
-    await tester.tap(find.text('Search'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
 
-    final history = await harness.searchHistoryRepository.load();
-    expect(history.first.query, 'tag:full-color');
-    expect(homeUiModel.searchController.text, 'tag:full-color');
-    expect(
-      gateway.searchedUris.single.queryParameters['query'],
-      'tag:full-color language:chinese',
-    );
+    await tester.enterText(find.byType(TextField), 'breasts');
+    await tester.pump();
+
+    expect(find.widgetWithText(FilterChip, 'full color (10)'), findsNothing);
+    expect(find.widgetWithText(FilterChip, 'big breasts (20)'), findsOneWidget);
+    expect(find.text('Selected 1'), findsOneWidget);
+    expect(find.widgetWithText(InputChip, 'tag:full-color'), findsOneWidget);
   });
+}
+
+Future<
+  ({
+    SqliteTestHarness harness,
+    FakeNhentaiGateway gateway,
+    HomeUiModel homeUiModel,
+  })
+>
+_pumpSearchSuggestionsPanel(
+  WidgetTester tester, {
+  required List<TagCatalogItem> tagCatalogItems,
+}) async {
+  final harness = SqliteTestHarness();
+  await harness.initialize();
+  addTearDown(harness.dispose);
+
+  final gateway = FakeNhentaiGateway(
+    tagCatalogPage: TagCatalogPage(
+      result: tagCatalogItems,
+      numPages: 1,
+      perPage: tagCatalogItems.length,
+      page: 1,
+    ),
+  );
+  final homeUiModel = HomeUiModel();
+  addTearDown(homeUiModel.searchController.dispose);
+  addTearDown(homeUiModel.dispose);
+
+  final feedModel = ComicFeedModel(
+    searchComicsUseCase: SearchComicsUseCase(
+      nhentaiGateway: gateway,
+      searchQueryBuilder: const SearchQueryBuilder(),
+    ),
+    loadCollectionSummariesUseCase: LoadCollectionSummariesUseCase(
+      collectionRepository: harness.collectionRepository,
+    ),
+    blockedTagsRepository: FakeBlockedTagsRepository(),
+  );
+  addTearDown(feedModel.dispose);
+
+  final readerModel = ComicReaderModel(
+    loadComicDetailUseCase: LoadComicDetailUseCase(
+      nhentaiGateway: FakeNhentaiGateway(detailComic: sampleComic()),
+    ),
+    loadOfflineComicUseCase: LoadOfflineComicUseCase(
+      downloadQueueRepository: harness.downloadQueueRepository,
+      downloadedLibraryRepository: harness.downloadedLibraryRepository,
+    ),
+    openComicUseCase: OpenComicUseCase(
+      comicRepository: harness.comicRepository,
+      collectionRepository: harness.collectionRepository,
+    ),
+    readerProgressRepository: ReaderProgressStore(
+      optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+    ),
+    readerSettingsRepository: FakeReaderSettingsRepository(),
+    downloadedLibraryRepository: harness.downloadedLibraryRepository,
+  );
+  addTearDown(readerModel.dispose);
+
+  final tagCatalogModel = TagCatalogBrowserModel(
+    loadTagCatalogUseCase: LoadTagCatalogUseCase(nhentaiGateway: gateway),
+  );
+  addTearDown(tagCatalogModel.dispose);
+
+  final providers = <SingleChildWidget>[
+    Provider<TagDisplayService>.value(value: TagDisplayService.fromMap({})),
+    Provider.value(value: harness.searchHistoryRepository),
+    ChangeNotifierProvider<HomeUiModel>.value(value: homeUiModel),
+    ChangeNotifierProvider<TagCatalogBrowserModel>.value(
+      value: tagCatalogModel,
+    ),
+    Provider<HomeShellController>(
+      create: (_) => HomeShellController(
+        searchHistoryRepository: harness.searchHistoryRepository,
+        homeUiModel: homeUiModel,
+        feedModel: feedModel,
+        readerModel: readerModel,
+        tagSearchQueryBuilder: const TagSearchQueryBuilder(),
+      ),
+    ),
+  ];
+
+  await tester.pumpWidget(
+    MultiProvider(
+      providers: providers,
+      child: MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 500,
+            child: SearchSuggestionsPanel(onHistorySelected: (_) {}),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 200));
+
+  return (harness: harness, gateway: gateway, homeUiModel: homeUiModel);
 }
