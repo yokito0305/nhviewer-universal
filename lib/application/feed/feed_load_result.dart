@@ -6,6 +6,7 @@ class FeedLoadResult {
     required this.pageLoaded,
     required this.noMorePage,
     required this.statusCode,
+    this.numPages,
     this.errorMessage,
   });
 
@@ -13,5 +14,6 @@ class FeedLoadResult {
   final int pageLoaded;
   final bool noMorePage;
   final int statusCode;
+  final int? numPages;
   final String? errorMessage;
 }

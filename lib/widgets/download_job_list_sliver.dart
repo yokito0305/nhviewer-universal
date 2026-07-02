@@ -8,6 +8,7 @@ import 'package:concept_nhv/models/download_list_item_snapshot.dart';
 import 'package:concept_nhv/state/download_manager_model.dart';
 import 'package:concept_nhv/widgets/comic_tag_bottom_sheet.dart';
 import 'package:concept_nhv/widgets/fallback_cached_network_image.dart';
+import 'package:concept_nhv/widgets/page_jump_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -36,6 +37,16 @@ class _DownloadJobListSliverState extends State<DownloadJobListSliver> {
   int? _repairProgressCurrent;
   int? _repairProgressTotal;
   final Random _random = Random();
+
+  @override
+  void didUpdateWidget(DownloadJobListSliver oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.searchQuery != widget.searchQuery) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.read<DownloadManagerModel>().resetCompletedPage();
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +79,16 @@ class _DownloadJobListSliverState extends State<DownloadJobListSliver> {
           );
         }
 
+        // Pagination for completed items.
+        final pageSize = DownloadManagerModel.completedPageSize;
+        final totalCompletedPages =
+            completedItems.isEmpty ? 1 : ((completedItems.length + pageSize - 1) ~/ pageSize);
+        final currentPage = model.completedPage.clamp(1, totalCompletedPages);
+        final pageStart = (currentPage - 1) * pageSize;
+        final pageEnd = (pageStart + pageSize).clamp(0, completedItems.length);
+        final pagedCompletedItems = completedItems.sublist(pageStart, pageEnd);
+        final showPageBar = completedItems.length > pageSize;
+
         final slivers = <Widget>[];
 
         if (activeItems.isNotEmpty) {
@@ -97,6 +118,26 @@ class _DownloadJobListSliverState extends State<DownloadJobListSliver> {
             ),
           ));
 
+          if (showPageBar) {
+            slivers.add(SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    PageJumpBar(
+                      currentPage: currentPage,
+                      totalPages: totalCompletedPages,
+                      onJump: (page) async {
+                        model.setCompletedPage(page);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ));
+          }
+
           if (_completedViewIsGrid) {
             slivers.add(SliverPadding(
               padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
@@ -109,7 +150,7 @@ class _DownloadJobListSliverState extends State<DownloadJobListSliver> {
                 ),
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
-                    final item = completedItems[index];
+                    final item = pagedCompletedItems[index];
                     return _CompletedGridCell(
                       key: ValueKey<String>(item.comicId),
                       item: item,
@@ -117,7 +158,7 @@ class _DownloadJobListSliverState extends State<DownloadJobListSliver> {
                       onTap: () => widget.onOpenOfflineReader(item.comicId),
                     );
                   },
-                  childCount: completedItems.length,
+                  childCount: pagedCompletedItems.length,
                 ),
               ),
             ));
@@ -125,8 +166,8 @@ class _DownloadJobListSliverState extends State<DownloadJobListSliver> {
             slivers.add(SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) =>
-                    _buildItemCard(model, completedItems[index]),
-                childCount: completedItems.length,
+                    _buildItemCard(model, pagedCompletedItems[index]),
+                childCount: pagedCompletedItems.length,
               ),
             ));
           }

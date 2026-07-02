@@ -21,6 +21,7 @@ class ComicFeedModel extends ChangeNotifier {
   final List<Comic> _comics = <Comic>[];
   Future<List<CollectionSummary>>? collectionSummariesFuture;
   int pageLoaded = 1;
+  int? _numPages;
   List<String> _sessionBlockedTags = const <String>[];
   bool _noMorePage = false;
   String _lastQuery = '';
@@ -39,6 +40,7 @@ class ComicFeedModel extends ChangeNotifier {
   }
 
   bool get noMorePage => _noMorePage;
+  int? get numPages => _numPages;
   int get comicsLoaded => _comics.length;
   String? get feedErrorMessage => _feedErrorMessage;
   List<String> get tagFilters => List<String>.unmodifiable(_tagFilters);
@@ -88,6 +90,7 @@ class ComicFeedModel extends ChangeNotifier {
     if (clearComic) {
       _comics.clear();
       _noMorePage = false;
+      _numPages = null;
       _sessionBlockedTags = await blockedTagsRepository.loadBlockedTags();
     }
 
@@ -113,6 +116,7 @@ class ComicFeedModel extends ChangeNotifier {
     _noMorePage = result.noMorePage;
     if (!_noMorePage) {
       _comics.addAll(result.comics);
+      _numPages = result.numPages;
     }
     pageLoaded = result.pageLoaded;
     notifyListeners();
@@ -132,6 +136,16 @@ class ComicFeedModel extends ChangeNotifier {
       includeTagFilters:
           includeTagFilters ?? _includePersistentTagFiltersForCurrentQuery,
       languageOverride: languageOverride ?? _languageForCurrentQuery,
+    );
+  }
+
+  Future<void> jumpToPage(int page) async {
+    await searchComics(
+      query: _lastQuery,
+      page: page,
+      clearComic: true,
+      includeTagFilters: _includePersistentTagFiltersForCurrentQuery,
+      languageOverride: _languageForCurrentQuery,
     );
   }
 }

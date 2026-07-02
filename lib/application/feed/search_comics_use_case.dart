@@ -45,6 +45,7 @@ class SearchComicsUseCase {
           pageLoaded: page,
           noMorePage: freshComics.result.isEmpty,
           statusCode: 200,
+          numPages: freshComics.numPages,
         );
       } on DioException catch (error) {
         lastStatusCode = error.response?.statusCode ?? lastStatusCode;

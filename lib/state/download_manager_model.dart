@@ -42,12 +42,15 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
   final ImageCompressionService imageCompressionService;
   final RemoteAssetFetcher remoteAssetFetcher;
 
+  static const int completedPageSize = 30;
+
   List<DownloadJobSnapshot> _jobs = const <DownloadJobSnapshot>[];
   List<DownloadListItemSnapshot> _downloadItems =
       const <DownloadListItemSnapshot>[];
   DownloadsSortMode _downloadsSortMode = DownloadsSortMode.latestDownloaded;
   DownloadsSortDirection _downloadsSortDirection =
       DownloadsSortDirection.descending;
+  int _completedPage = 1;
   bool _isInitialized = false;
   bool _isProcessing = false;
   bool _isRefreshing = false;
@@ -59,8 +62,21 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
   DownloadsSortMode get downloadsSortMode => _downloadsSortMode;
   DownloadsSortDirection get downloadsSortDirection =>
       _downloadsSortDirection;
+  int get completedPage => _completedPage;
   bool get isRefreshing => _isRefreshing;
   bool isMutating(String comicId) => _mutatingComicIds.contains(comicId);
+
+  void setCompletedPage(int page) {
+    if (_completedPage == page) return;
+    _completedPage = page;
+    notifyListeners();
+  }
+
+  void resetCompletedPage() {
+    if (_completedPage == 1) return;
+    _completedPage = 1;
+    notifyListeners();
+  }
 
   List<DownloadListItemSnapshot> get sortedDownloadItems {
     final activeItems = _downloadItems

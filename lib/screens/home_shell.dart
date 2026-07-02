@@ -9,6 +9,7 @@ import 'package:concept_nhv/widgets/collection_grid_sliver.dart';
 import 'package:concept_nhv/widgets/comic_grid_sliver.dart';
 import 'package:concept_nhv/widgets/download_job_list_sliver.dart';
 import 'package:concept_nhv/widgets/loading_indicator_bar.dart';
+import 'package:concept_nhv/widgets/page_jump_bar.dart';
 import 'package:concept_nhv/widgets/search_suggestions_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -155,10 +156,33 @@ class _HomeShellState extends State<HomeShell> {
           return SliverList(delegate: SliverChildListDelegate(const <Widget>[]));
         }
 
-        return ComicGridSliver(
-          comics: comics.map(ComicCardData.fromComic).toList(),
-          pageLoaded: feedModel.pageLoaded,
-          onTagSelected: (tagQueries) => _handleTagSelected(context, tagQueries),
+        final numPages = feedModel.numPages;
+        final showPageBar = numPages != null && numPages > 1;
+
+        return SliverMainAxisGroup(
+          slivers: <Widget>[
+            if (showPageBar)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      PageJumpBar(
+                        currentPage: feedModel.pageLoaded,
+                        totalPages: numPages,
+                        onJump: feedModel.jumpToPage,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ComicGridSliver(
+              comics: comics.map(ComicCardData.fromComic).toList(),
+              pageLoaded: feedModel.pageLoaded,
+              onTagSelected: (tagQueries) => _handleTagSelected(context, tagQueries),
+            ),
+          ],
         );
       },
     );
