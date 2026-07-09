@@ -36,6 +36,8 @@ class NhentaiApiRemoteFavoriteGateway implements RemoteFavoriteGateway {
   final NhentaiAuthService authService;
   final Dio _dio;
 
+  static const Duration _favoritePageDelay = Duration(milliseconds: 1000);
+
   @override
   Future<List<Comic>> loadRemoteFavorites() async {
     final comics = <Comic>[];
@@ -55,6 +57,7 @@ class NhentaiApiRemoteFavoriteGateway implements RemoteFavoriteGateway {
         break;
       }
       page += 1;
+      await Future<void>.delayed(_favoritePageDelay);
     }
 
     return comics;

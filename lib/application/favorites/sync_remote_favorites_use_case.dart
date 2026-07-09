@@ -4,6 +4,7 @@ import 'package:concept_nhv/models/stored_comic.dart';
 import 'package:concept_nhv/services/nhentai_auth_service.dart';
 import 'package:concept_nhv/services/remote_favorite_gateway.dart';
 import 'package:concept_nhv/storage/collection_repository.dart';
+import 'package:dio/dio.dart';
 
 class SyncRemoteFavoritesUseCase {
   const SyncRemoteFavoritesUseCase({
@@ -48,13 +49,16 @@ class SyncRemoteFavoritesUseCase {
         success: false,
         errorMessage: error.message,
       );
-    } catch (_) {
+    } catch (e) {
+      final detail = e is DioException
+          ? 'HTTP ${e.response?.statusCode ?? 'network error'}'
+          : e.runtimeType.toString();
       return FavoriteSyncResult(
         favoriteIds: await _loadCachedFavoriteIds(),
         isAuthenticated: true,
         lastSyncAt: null,
         success: false,
-        errorMessage: 'Failed to sync API favorites.',
+        errorMessage: 'Failed to sync favorites ($detail).',
       );
     }
   }
