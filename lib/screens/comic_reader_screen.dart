@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:concept_nhv/application/reader/reader_settings_repository.dart';
+import 'package:concept_nhv/models/comic.dart';
 import 'package:concept_nhv/services/comic_page_source_resolver.dart';
 import 'package:concept_nhv/state/comic_reader_model.dart';
 import 'package:concept_nhv/widgets/reader/reader_bottom_controls.dart';
@@ -90,38 +92,21 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
       backgroundColor: Colors.black,
       body: Consumer<ComicReaderModel>(
         builder: (context, model, _) {
-          final comic = model.currentComic;
-          if (comic == null) {
+          if (model.currentComic == null) {
             return const Center(child: CircularProgressIndicator());
           }
 
           return Stack(
             children: [
               // ── Main paged reader ──────────────────────────────────────────
-              PageView.builder(
-                controller: model.pageController,
-                itemCount: comic.numPages,
-                onPageChanged: (index) => _onPageChanged(index, model),
-                itemBuilder: (context, index) {
-                  final page = index + 1;
-                  final pageImage = comic.images.pages[index];
-                  final url = context
-                      .read<ComicPageSourceResolver>()
-                      .resolvePageUrl(comic: comic, pageNumber: page);
-
-                  return ReaderPageView(
-                    url: url,
-                    width: pageImage.w ?? 9,
-                    height: pageImage.h ?? 16,
-                    tapZoneRatio: model.tapZoneRatio,
-                    onTapZone: (zone) => _handleTapZone(zone, model),
-                  );
-                },
+              // Isolated in its own widget so that page-change notifyListeners()
+              // does not rebuild the PageView and flash image placeholders.
+              _ComicPageView(
+                comicId: widget.comicId,
+                onPageChanged: _onPageChanged,
               ),
 
               // ── Top bar (fades in with controls) ──────────────────────────
-              // Use Positioned so it never expands beyond its natural height
-              // and cannot swallow taps in the centre of the screen.
               Positioned(
                 top: 0,
                 left: 0,
@@ -165,22 +150,6 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // Tap zone handler
-  // ---------------------------------------------------------------------------
-
-  void _handleTapZone(ReaderTapZone zone, ComicReaderModel model) {
-    final isRtl = model.readingDirection == ReadingDirection.rtl;
-    switch (zone) {
-      case ReaderTapZone.left:
-        model.goToPage(isRtl ? model.currentPage + 1 : model.currentPage - 1);
-      case ReaderTapZone.right:
-        model.goToPage(isRtl ? model.currentPage - 1 : model.currentPage + 1);
-      case ReaderTapZone.center:
-        model.toggleControls();
-    }
-  }
-
-  // ---------------------------------------------------------------------------
   // Pre-fetch surrounding pages
   // ---------------------------------------------------------------------------
 
@@ -199,7 +168,10 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
     for (int page = first; page <= last; page++) {
       if (page == currentPage) continue;
       final url = resolver.resolvePageUrl(comic: comic, pageNumber: page);
-      if (ComicPageSourceResolver.isLocalPath(url)) continue;
+      if (ComicPageSourceResolver.isLocalPath(url)) {
+        precacheImage(FileImage(File(url)), context);
+        continue;
+      }
       precacheImage(CachedNetworkImageProvider(url, headers: headers), context);
     }
   }
@@ -215,5 +187,73 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
         return ReaderSettingsSheet(model: model);
       },
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Isolated PageView widget
+// ---------------------------------------------------------------------------
+
+/// Wraps [PageView.builder] in a [Selector] that only rebuilds when the comic
+/// itself, tap-zone ratio, or reading direction changes — NOT on every page
+/// turn. This prevents [ReaderPageView] from rebuilding on each
+/// [ComicReaderModel.notifyListeners] call, which would flash image
+/// placeholders and produce a visible flicker on tap navigation.
+class _ComicPageView extends StatelessWidget {
+  const _ComicPageView({
+    required this.comicId,
+    required this.onPageChanged,
+  });
+
+  final String comicId;
+  final void Function(int index, ComicReaderModel model) onPageChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<ComicReaderModel,
+        ({Comic comic, double tapZoneRatio, ReadingDirection readingDirection})>(
+      selector: (_, m) => (
+        comic: m.currentComic!,
+        tapZoneRatio: m.tapZoneRatio,
+        readingDirection: m.readingDirection,
+      ),
+      builder: (context, data, _) {
+        final model = context.read<ComicReaderModel>();
+        return PageView.builder(
+          controller: model.pageController,
+          itemCount: data.comic.numPages,
+          onPageChanged: (index) => onPageChanged(index, model),
+          itemBuilder: (context, index) {
+            final pageImage = data.comic.images.pages[index];
+            final url = context
+                .read<ComicPageSourceResolver>()
+                .resolvePageUrl(comic: data.comic, pageNumber: index + 1);
+            return ReaderPageView(
+              url: url,
+              width: pageImage.w ?? 9,
+              height: pageImage.h ?? 16,
+              tapZoneRatio: data.tapZoneRatio,
+              onTapZone: (zone) => _handleTapZone(zone, model, data.readingDirection),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _handleTapZone(
+    ReaderTapZone zone,
+    ComicReaderModel model,
+    ReadingDirection direction,
+  ) {
+    final isRtl = direction == ReadingDirection.rtl;
+    switch (zone) {
+      case ReaderTapZone.left:
+        model.goToPage(isRtl ? model.currentPage + 1 : model.currentPage - 1);
+      case ReaderTapZone.right:
+        model.goToPage(isRtl ? model.currentPage - 1 : model.currentPage + 1);
+      case ReaderTapZone.center:
+        model.toggleControls();
+    }
   }
 }
