@@ -1,4 +1,5 @@
 import 'package:concept_nhv/application/library/collection_page_coordinator.dart';
+import 'package:concept_nhv/application/library/comic_card_action_coordinator.dart';
 import 'package:concept_nhv/application/home/home_shell_controller.dart';
 import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/models/comic_card_data.dart';
@@ -8,29 +9,101 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-class CollectionScreen extends StatelessWidget {
+class CollectionScreen extends StatefulWidget {
   const CollectionScreen({super.key, required this.collectionName});
 
   final String collectionName;
 
   @override
+  State<CollectionScreen> createState() => _CollectionScreenState();
+}
+
+class _CollectionScreenState extends State<CollectionScreen> {
+  bool _selectionMode = false;
+  final Map<String, ComicCardData> _selectedComics = {};
+
+  CollectionType? get _collectionType =>
+      CollectionType.fromStorageName(widget.collectionName);
+
+  bool get _isFavorite => _collectionType == CollectionType.favorite;
+
+  void _toggleSelection(ComicCardData comic) {
+    setState(() {
+      if (_selectedComics.containsKey(comic.id)) {
+        _selectedComics.remove(comic.id);
+      } else {
+        _selectedComics[comic.id] = comic;
+      }
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _selectionMode = false;
+      _selectedComics.clear();
+    });
+  }
+
+  Future<void> _downloadSelected(BuildContext context) async {
+    final coordinator = context.read<ComicCardActionCoordinator>();
+    final messenger = ScaffoldMessenger.of(context);
+    final comics = _selectedComics.values.toList();
+    _exitSelectionMode();
+
+    var queued = 0;
+    for (final comic in comics) {
+      if (!mounted) break;
+      final result = await coordinator.enqueueDownload(comic);
+      if (result.success) queued++;
+    }
+
+    final total = comics.length;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          queued == total
+              ? '$queued comic${queued > 1 ? 's' : ''} added to Downloads'
+              : '$queued / $total comics added to Downloads',
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final collectionType = CollectionType.fromStorageName(collectionName);
+    final collectionType = _collectionType;
     if (collectionType == null) {
       return Scaffold(
-        body: Center(child: Text('Unknown collection: $collectionName')),
+        body: Center(child: Text('Unknown collection: ${widget.collectionName}')),
       );
     }
 
-    return Container(
-      color: Theme.of(context).scaffoldBackgroundColor,
-      child: CustomScrollView(
+    final selectedCount = _selectedComics.length;
+
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: <Widget>[
           SliverAppBar(
             floating: true,
             snap: true,
-            title: Text(collectionType.displayName),
+            title: _selectionMode
+                ? Text('$selectedCount selected')
+                : Text(collectionType.displayName),
+            actions: <Widget>[
+              if (_isFavorite && !_selectionMode)
+                IconButton(
+                  icon: const Icon(Icons.checklist_outlined),
+                  tooltip: 'Select comics',
+                  onPressed: () => setState(() => _selectionMode = true),
+                ),
+              if (_selectionMode)
+                TextButton(
+                  onPressed: _exitSelectionMode,
+                  child: const Text('Done'),
+                ),
+            ],
           ),
           if (collectionType == CollectionType.favorite)
             Consumer<FavoriteSyncModel>(
@@ -61,17 +134,42 @@ class CollectionScreen extends StatelessWidget {
                 );
               },
             ),
-          CollectionComicSliver(collectionType: collectionType),
+          CollectionComicSliver(
+            collectionType: collectionType,
+            selectedIds: _selectedComics.keys.toSet(),
+            onToggleSelection: _selectionMode ? _toggleSelection : null,
+          ),
         ],
       ),
+      bottomNavigationBar: _selectionMode && selectedCount > 0
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: FilledButton.icon(
+                  onPressed: () => _downloadSelected(context),
+                  icon: const Icon(Icons.download_outlined),
+                  label: Text(
+                    'Download $selectedCount comic${selectedCount > 1 ? 's' : ''}',
+                  ),
+                ),
+              ),
+            )
+          : null,
     );
   }
 }
 
 class CollectionComicSliver extends StatefulWidget {
-  const CollectionComicSliver({super.key, required this.collectionType});
+  const CollectionComicSliver({
+    super.key,
+    required this.collectionType,
+    this.selectedIds = const <String>{},
+    this.onToggleSelection,
+  });
 
   final CollectionType collectionType;
+  final Set<String> selectedIds;
+  final void Function(ComicCardData comic)? onToggleSelection;
 
   @override
   State<CollectionComicSliver> createState() => _CollectionComicSliverState();
@@ -153,6 +251,8 @@ class _CollectionComicSliverState extends State<CollectionComicSliver> {
               context.goNamed('index');
             }
           },
+          selectedIds: widget.selectedIds,
+          onToggleSelection: widget.onToggleSelection,
         );
       },
     );

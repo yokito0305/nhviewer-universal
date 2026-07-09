@@ -20,6 +20,8 @@ class ComicCard extends StatelessWidget {
     this.collectionType,
     this.onCollectionChanged,
     this.onTagSelected,
+    this.isSelected = false,
+    this.onSelectionToggle,
   });
 
   final ComicCardData comic;
@@ -30,34 +32,69 @@ class ComicCard extends StatelessWidget {
   /// Receives the selected search queries (e.g. ["tag:full-color"]).
   final ValueChanged<List<String>>? onTagSelected;
 
+  /// When non-null, the card is in selection mode: tap toggles selection,
+  /// long press is disabled.
+  final bool isSelected;
+  final VoidCallback? onSelectionToggle;
+
   @override
   Widget build(BuildContext context) {
+    final inSelectionMode = onSelectionToggle != null;
     return Column(
       children: <Widget>[
         Expanded(
           child: Card(
             clipBehavior: Clip.hardEdge,
-            child: InkWell(
-              splashColor: Colors.blue.withAlpha(30),
-              onTap: () async {
-                await context.read<ComicCardActionCoordinator>().openComic(comic);
-                if (!context.mounted) return;
-                await context.push(
-                  Uri(
-                    path: '/third',
-                    queryParameters: <String, String>{'id': comic.id},
-                  ).toString(),
-                );
-                if (!context.mounted) return;
-                context.read<ComicReaderModel>().clearComic();
-                await context.read<DownloadManagerModel>().refresh();
-              },
-              onLongPress: () => _showTagSheet(context),
-              child: FallbackCachedNetworkImage(
-                url: comic.thumbnailUrl,
-                width: comic.thumbnailWidth,
-                height: comic.thumbnailHeight,
-              ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                InkWell(
+                  splashColor: Colors.blue.withAlpha(30),
+                  onTap: inSelectionMode
+                      ? onSelectionToggle
+                      : () async {
+                          await context
+                              .read<ComicCardActionCoordinator>()
+                              .openComic(comic);
+                          if (!context.mounted) return;
+                          await context.push(
+                            Uri(
+                              path: '/third',
+                              queryParameters: <String, String>{'id': comic.id},
+                            ).toString(),
+                          );
+                          if (!context.mounted) return;
+                          context.read<ComicReaderModel>().clearComic();
+                          await context.read<DownloadManagerModel>().refresh();
+                        },
+                  onLongPress: inSelectionMode ? null : () => _showTagSheet(context),
+                  child: FallbackCachedNetworkImage(
+                    url: comic.thumbnailUrl,
+                    width: comic.thumbnailWidth,
+                    height: comic.thumbnailHeight,
+                  ),
+                ),
+                if (isSelected)
+                  IgnorePointer(
+                    child: Container(color: Theme.of(context).colorScheme.primary.withAlpha(64)),
+                  ),
+                if (inSelectionMode)
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: IgnorePointer(
+                      child: Icon(
+                        isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.white,
+                        shadows: const <Shadow>[
+                          Shadow(blurRadius: 4, color: Colors.black54),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),

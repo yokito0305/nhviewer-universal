@@ -15,6 +15,8 @@ class ComicGridSliver extends StatelessWidget {
     this.collectionType,
     this.onCollectionChanged,
     this.onTagSelected,
+    this.selectedIds = const <String>{},
+    this.onToggleSelection,
   });
 
   final List<ComicCardData> comics;
@@ -24,6 +26,9 @@ class ComicGridSliver extends StatelessWidget {
 
   /// Forwarded to each [ComicCard]; called when a tag chip is tapped.
   final ValueChanged<List<String>>? onTagSelected;
+
+  final Set<String> selectedIds;
+  final void Function(ComicCardData comic)? onToggleSelection;
 
   @override
   Widget build(BuildContext context) {
@@ -59,11 +64,16 @@ class ComicGridSliver extends StatelessWidget {
           });
         }
 
+        final comic = comics[index];
         return ComicCard(
-          comic: comics[index],
+          comic: comic,
           collectionType: collectionType,
           onCollectionChanged: onCollectionChanged,
           onTagSelected: onTagSelected,
+          isSelected: selectedIds.contains(comic.id),
+          onSelectionToggle: onToggleSelection != null
+              ? () => onToggleSelection!(comic)
+              : null,
         );
       }, childCount: comics.length),
     );
