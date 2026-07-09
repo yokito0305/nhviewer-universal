@@ -20,6 +20,7 @@ class FakeRemoteFavoriteGateway implements RemoteFavoriteGateway {
   @override
   Future<List<Comic>> loadRemoteFavorites({
     void Function(int page, int totalPages)? onProgress,
+    void Function(Duration retryIn)? onRateLimit,
   }) async {
     if (throwAuthException) {
       throw const RemoteFavoriteAuthException(

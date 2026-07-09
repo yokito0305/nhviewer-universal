@@ -184,9 +184,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (favoriteModel.isSyncing) {
       final page = favoriteModel.syncPage;
       final total = favoriteModel.syncTotalPages;
-      subtitle = (page != null && total != null)
-          ? '$status\nSyncing... page $page / $total'
-          : '$status\nSyncing...';
+      final retryDeadline = favoriteModel.syncRetryDeadline;
+      final progressPart = (page != null && total != null)
+          ? 'Syncing... page $page / $total'
+          : 'Syncing...';
+      if (retryDeadline != null) {
+        final secondsLeft = retryDeadline
+            .difference(DateTime.now())
+            .inSeconds
+            .clamp(0, 9999);
+        subtitle = '$status\n$progressPart\nRate limited, retrying in ${secondsLeft}s...';
+      } else {
+        subtitle = '$status\n$progressPart';
+      }
     } else if (syncError != null) {
       subtitle = '$status\n$syncError';
     } else {

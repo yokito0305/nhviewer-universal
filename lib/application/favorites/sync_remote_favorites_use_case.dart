@@ -16,10 +16,12 @@ class SyncRemoteFavoritesUseCase {
 
   Future<FavoriteSyncResult> execute({
     void Function(int page, int totalPages)? onProgress,
+    void Function(Duration retryIn)? onRateLimit,
   }) async {
     try {
       final comics = await remoteFavoriteGateway.loadRemoteFavorites(
         onProgress: onProgress,
+        onRateLimit: onRateLimit,
       );
       await collectionRepository.replaceCollectionCache(
         collectionType: CollectionType.favorite,

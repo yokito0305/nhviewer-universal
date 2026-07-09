@@ -20,6 +20,7 @@ class RemoteFavoriteAuthException implements Exception {
 abstract class RemoteFavoriteGateway {
   Future<List<Comic>> loadRemoteFavorites({
     void Function(int page, int totalPages)? onProgress,
+    void Function(Duration retryIn)? onRateLimit,
   });
 
   Future<void> addRemoteFavorite(String comicId);
@@ -38,24 +39,25 @@ class NhentaiApiRemoteFavoriteGateway implements RemoteFavoriteGateway {
   final NhentaiAuthService authService;
   final Dio _dio;
 
-  static const Duration _favoritePageDelay = Duration(milliseconds: 1000);
+  static const Duration _favoritePageDelay = Duration(milliseconds: 2000);
+  static const int _rateLimitMaxRetries = 3;
+  static const List<Duration> _rateLimitBackoffs = <Duration>[
+    Duration(seconds: 30),
+    Duration(seconds: 60),
+    Duration(seconds: 120),
+  ];
 
   @override
   Future<List<Comic>> loadRemoteFavorites({
     void Function(int page, int totalPages)? onProgress,
+    void Function(Duration retryIn)? onRateLimit,
   }) async {
     final comics = <Comic>[];
     var page = 1;
 
     while (true) {
-      if (page > 1) {
-        await Future<void>.delayed(_favoritePageDelay);
-      }
-      final response = await _withAuthRequest<Map<String, dynamic>>(
-        Uri.https('nhentai.net', '/api/v2/favorites', <String, String>{
-          'page': '$page',
-        }),
-      );
+      await Future<void>.delayed(_favoritePageDelay);
+      final response = await _fetchFavoritesPage(page, onRateLimit: onRateLimit);
       final searchResponse = _mapFavoritesResponse(response.data ?? const {});
       comics.addAll(searchResponse.result);
 
@@ -68,6 +70,38 @@ class NhentaiApiRemoteFavoriteGateway implements RemoteFavoriteGateway {
     }
 
     return comics;
+  }
+
+  Future<Response<Map<String, dynamic>>> _fetchFavoritesPage(
+    int page, {
+    void Function(Duration retryIn)? onRateLimit,
+  }) async {
+    final uri = Uri.https('nhentai.net', '/api/v2/favorites', <String, String>{
+      'page': '$page',
+    });
+    for (var attempt = 0; attempt < _rateLimitMaxRetries; attempt++) {
+      try {
+        return await _withAuthRequest<Map<String, dynamic>>(uri);
+      } on DioException catch (e) {
+        if (e.response?.statusCode == 429 && attempt + 1 < _rateLimitMaxRetries) {
+          final backoff = _retryAfterDuration(e.response) ??
+              _rateLimitBackoffs[attempt];
+          onRateLimit?.call(backoff);
+          await Future<void>.delayed(backoff);
+          continue;
+        }
+        rethrow;
+      }
+    }
+    throw StateError('unreachable');
+  }
+
+  Duration? _retryAfterDuration(Response<dynamic>? response) {
+    final header = response?.headers.value('retry-after');
+    if (header == null) return null;
+    final seconds = int.tryParse(header.trim());
+    if (seconds == null || seconds <= 0) return null;
+    return Duration(seconds: seconds + 1);
   }
 
   @override

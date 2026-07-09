@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 
 import 'package:concept_nhv/application/favorites/clear_favorite_auth_use_case.dart';
@@ -32,6 +33,8 @@ class FavoriteSyncModel extends ChangeNotifier {
   DateTime? _lastSyncAt;
   int? _syncPage;
   int? _syncTotalPages;
+  DateTime? _syncRetryDeadline;
+  Timer? _syncRetryTimer;
 
   Set<String> get favoriteIds => UnmodifiableSetView<String>(_favoriteIds);
   bool get isSyncing => _isSyncing;
@@ -41,6 +44,7 @@ class FavoriteSyncModel extends ChangeNotifier {
   DateTime? get lastSyncAt => _lastSyncAt;
   int? get syncPage => _syncPage;
   int? get syncTotalPages => _syncTotalPages;
+  DateTime? get syncRetryDeadline => _syncRetryDeadline;
   bool get hasCachedFavorites => _favoriteIds.isNotEmpty;
 
   bool isFavorite(String comicId) => _favoriteIds.contains(comicId);
@@ -67,6 +71,7 @@ class FavoriteSyncModel extends ChangeNotifier {
     _syncError = null;
     _syncPage = null;
     _syncTotalPages = null;
+    _syncRetryDeadline = null;
     notifyListeners();
 
     try {
@@ -74,7 +79,11 @@ class FavoriteSyncModel extends ChangeNotifier {
         onProgress: (page, totalPages) {
           _syncPage = page;
           _syncTotalPages = totalPages;
+          _clearRetryCountdown();
           notifyListeners();
+        },
+        onRateLimit: (retryIn) {
+          _startRetryCountdown(retryIn);
         },
       );
       _favoriteIds
@@ -88,8 +97,34 @@ class FavoriteSyncModel extends ChangeNotifier {
       _isSyncing = false;
       _syncPage = null;
       _syncTotalPages = null;
+      _clearRetryCountdown();
       notifyListeners();
     }
+  }
+
+  void _startRetryCountdown(Duration retryIn) {
+    _syncRetryDeadline = DateTime.now().add(retryIn);
+    _syncRetryTimer?.cancel();
+    _syncRetryTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      notifyListeners();
+      if (_syncRetryDeadline != null &&
+          DateTime.now().isAfter(_syncRetryDeadline!)) {
+        _clearRetryCountdown();
+      }
+    });
+    notifyListeners();
+  }
+
+  void _clearRetryCountdown() {
+    _syncRetryTimer?.cancel();
+    _syncRetryTimer = null;
+    _syncRetryDeadline = null;
+  }
+
+  @override
+  void dispose() {
+    _syncRetryTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> saveAndValidateApiKey(String apiKey) async {
