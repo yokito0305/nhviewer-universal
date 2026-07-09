@@ -7,6 +7,7 @@ class FakeRemoteFavoriteGateway implements RemoteFavoriteGateway {
   List<Comic> remoteFavorites = <Comic>[];
   final List<String> addedComicIds = <String>[];
   final List<String> removedComicIds = <String>[];
+  bool throwAuthException = false;
 
   @override
   Future<void> addRemoteFavorite(String comicId) async {
@@ -17,7 +18,14 @@ class FakeRemoteFavoriteGateway implements RemoteFavoriteGateway {
   }
 
   @override
-  Future<List<Comic>> loadRemoteFavorites() async {
+  Future<List<Comic>> loadRemoteFavorites({
+    void Function(int page, int totalPages)? onProgress,
+  }) async {
+    if (throwAuthException) {
+      throw const RemoteFavoriteAuthException(
+        'API key expired or invalid. Showing cached favorites.',
+      );
+    }
     return List<Comic>.from(remoteFavorites);
   }
 

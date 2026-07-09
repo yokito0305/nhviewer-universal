@@ -178,15 +178,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final status = favoriteModel.isAuthenticated
         ? 'Authenticated'
         : 'Not configured';
-    final lastSync = favoriteModel.lastSyncAt?.toLocal().toString() ?? 'Never';
     final syncError = favoriteModel.syncError;
+
+    String subtitle;
+    if (favoriteModel.isSyncing) {
+      final page = favoriteModel.syncPage;
+      final total = favoriteModel.syncTotalPages;
+      subtitle = (page != null && total != null)
+          ? '$status\nSyncing... page $page / $total'
+          : '$status\nSyncing...';
+    } else if (syncError != null) {
+      subtitle = '$status\n$syncError';
+    } else {
+      final lastSync = favoriteModel.lastSyncAt?.toLocal().toString() ?? 'Never';
+      subtitle = '$status\nLast sync: $lastSync';
+    }
+
     return ListTile(
       title: const Text('Status'),
-      subtitle: Text(
-        syncError == null
-            ? '$status\nLast sync: $lastSync'
-            : '$status\n$syncError',
-      ),
+      subtitle: Text(subtitle),
     );
   }
 

@@ -30,7 +30,6 @@ void main() {
       useCase = SyncRemoteFavoritesUseCase(
         collectionRepository: harness.collectionRepository,
         remoteFavoriteGateway: remoteFavoriteGateway,
-        authService: authService,
       );
     });
 
@@ -65,7 +64,7 @@ void main() {
         collectionType: CollectionType.favorite,
         comicId: '1',
       );
-      authService.isValid = false;
+      remoteFavoriteGateway.throwAuthException = true;
 
       final result = await useCase.execute();
 

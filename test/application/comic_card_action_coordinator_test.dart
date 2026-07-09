@@ -71,7 +71,6 @@ void main() {
         syncRemoteFavoritesUseCase: SyncRemoteFavoritesUseCase(
           collectionRepository: harness.collectionRepository,
           remoteFavoriteGateway: remoteFavoriteGateway,
-          authService: authService,
         ),
         toggleFavoriteUseCase: ToggleFavoriteUseCase(
           collectionRepository: harness.collectionRepository,
@@ -80,7 +79,6 @@ void main() {
           syncRemoteFavoritesUseCase: SyncRemoteFavoritesUseCase(
             collectionRepository: harness.collectionRepository,
             remoteFavoriteGateway: remoteFavoriteGateway,
-            authService: authService,
           ),
         ),
       );

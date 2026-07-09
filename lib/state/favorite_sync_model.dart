@@ -30,6 +30,8 @@ class FavoriteSyncModel extends ChangeNotifier {
   bool _initialized = false;
   String? _syncError;
   DateTime? _lastSyncAt;
+  int? _syncPage;
+  int? _syncTotalPages;
 
   Set<String> get favoriteIds => UnmodifiableSetView<String>(_favoriteIds);
   bool get isSyncing => _isSyncing;
@@ -37,6 +39,8 @@ class FavoriteSyncModel extends ChangeNotifier {
   bool get isInitialized => _initialized;
   String? get syncError => _syncError;
   DateTime? get lastSyncAt => _lastSyncAt;
+  int? get syncPage => _syncPage;
+  int? get syncTotalPages => _syncTotalPages;
   bool get hasCachedFavorites => _favoriteIds.isNotEmpty;
 
   bool isFavorite(String comicId) => _favoriteIds.contains(comicId);
@@ -61,10 +65,18 @@ class FavoriteSyncModel extends ChangeNotifier {
 
     _isSyncing = true;
     _syncError = null;
+    _syncPage = null;
+    _syncTotalPages = null;
     notifyListeners();
 
     try {
-      final result = await syncRemoteFavoritesUseCase.execute();
+      final result = await syncRemoteFavoritesUseCase.execute(
+        onProgress: (page, totalPages) {
+          _syncPage = page;
+          _syncTotalPages = totalPages;
+          notifyListeners();
+        },
+      );
       _favoriteIds
         ..clear()
         ..addAll(result.favoriteIds);
@@ -74,6 +86,8 @@ class FavoriteSyncModel extends ChangeNotifier {
       return result.success;
     } finally {
       _isSyncing = false;
+      _syncPage = null;
+      _syncTotalPages = null;
       notifyListeners();
     }
   }

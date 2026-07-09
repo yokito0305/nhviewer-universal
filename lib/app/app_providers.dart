@@ -232,7 +232,6 @@ List<SingleChildWidget> _buildUseCaseProviders() {
       create: (context) => SyncRemoteFavoritesUseCase(
         collectionRepository: context.read(),
         remoteFavoriteGateway: context.read(),
-        authService: context.read(),
       ),
     ),
     Provider(

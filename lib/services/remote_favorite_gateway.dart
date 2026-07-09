@@ -18,7 +18,9 @@ class RemoteFavoriteAuthException implements Exception {
 }
 
 abstract class RemoteFavoriteGateway {
-  Future<List<Comic>> loadRemoteFavorites();
+  Future<List<Comic>> loadRemoteFavorites({
+    void Function(int page, int totalPages)? onProgress,
+  });
 
   Future<void> addRemoteFavorite(String comicId);
 
@@ -39,11 +41,16 @@ class NhentaiApiRemoteFavoriteGateway implements RemoteFavoriteGateway {
   static const Duration _favoritePageDelay = Duration(milliseconds: 1000);
 
   @override
-  Future<List<Comic>> loadRemoteFavorites() async {
+  Future<List<Comic>> loadRemoteFavorites({
+    void Function(int page, int totalPages)? onProgress,
+  }) async {
     final comics = <Comic>[];
     var page = 1;
 
     while (true) {
+      if (page > 1) {
+        await Future<void>.delayed(_favoritePageDelay);
+      }
       final response = await _withAuthRequest<Map<String, dynamic>>(
         Uri.https('nhentai.net', '/api/v2/favorites', <String, String>{
           'page': '$page',
@@ -53,11 +60,11 @@ class NhentaiApiRemoteFavoriteGateway implements RemoteFavoriteGateway {
       comics.addAll(searchResponse.result);
 
       final numPages = searchResponse.numPages ?? 1;
+      onProgress?.call(page, numPages);
       if (page >= numPages || searchResponse.result.isEmpty) {
         break;
       }
       page += 1;
-      await Future<void>.delayed(_favoritePageDelay);
     }
 
     return comics;
