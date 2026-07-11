@@ -764,7 +764,7 @@ class _SettingsSection extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 8),
             child: Text(
-              title.toUpperCase(),
+              title,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
                 letterSpacing: 0.8,
