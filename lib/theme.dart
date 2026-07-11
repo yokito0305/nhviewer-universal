@@ -30,4 +30,10 @@ ThemeData _buildTheme(ColorScheme colorScheme) => ThemeData(
   textButtonTheme: TextButtonThemeData(
     style: TextButton.styleFrom(shape: const StadiumBorder()),
   ),
+  dialogTheme: DialogThemeData(
+    backgroundColor: colorScheme.surfaceContainerHigh,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(28),
+    ),
+  ),
 );
