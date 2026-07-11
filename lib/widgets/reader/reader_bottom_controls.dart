@@ -1,3 +1,4 @@
+import 'package:concept_nhv/widgets/glass_container.dart';
 import 'package:flutter/material.dart';
 
 /// Animated bottom controls bar for the comic reader.
@@ -29,14 +30,7 @@ class ReaderBottomControls extends StatelessWidget {
       child: AnimatedOpacity(
         opacity: visible ? 1.0 : 0.0,
         duration: const Duration(milliseconds: 200),
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.bottomCenter,
-              end: Alignment.topCenter,
-              colors: [Colors.black87, Colors.transparent],
-            ),
-          ),
+        child: GlassContainer.bar(
           child: SafeArea(
             top: false,
             child: Padding(

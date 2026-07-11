@@ -1,5 +1,6 @@
 import 'package:concept_nhv/models/popular_sort_type.dart';
 import 'package:concept_nhv/state/comic_feed_model.dart';
+import 'package:concept_nhv/widgets/glass_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -12,13 +13,10 @@ class SortFilterBottomSheet extends StatefulWidget {
 
   /// Shows the sheet and returns whether the user applied changes.
   static Future<bool> show(BuildContext context) async {
-    final result = await showModalBottomSheet<bool>(
+    final result = await showGlassModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
       builder: (_) => ChangeNotifierProvider.value(
         value: context.read<ComicFeedModel>(),
         child: const SortFilterBottomSheet(),

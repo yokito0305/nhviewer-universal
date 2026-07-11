@@ -10,6 +10,7 @@ import 'package:concept_nhv/widgets/comic_grid_sliver.dart';
 import 'package:concept_nhv/widgets/download_job_list_sliver.dart';
 import 'package:concept_nhv/widgets/loading_indicator_bar.dart';
 import 'package:concept_nhv/widgets/page_jump_bar.dart';
+import 'package:concept_nhv/widgets/glass_container.dart';
 import 'package:concept_nhv/widgets/search_suggestions_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -63,6 +64,8 @@ class _HomeShellState extends State<HomeShell> {
     return Consumer<DownloadManagerModel>(
       builder: (context, model, _) {
         return SliverAppBar(
+          backgroundColor: Colors.transparent,
+          flexibleSpace: GlassContainer.bar(child: const SizedBox.expand()),
           floating: true,
           snap: true,
           title: TextField(
@@ -91,6 +94,7 @@ class _HomeShellState extends State<HomeShell> {
         return SliverAppBar(
           clipBehavior: Clip.none,
           backgroundColor: Colors.transparent,
+          flexibleSpace: GlassContainer.bar(child: const SizedBox.expand()),
           floating: true,
           snap: true,
           bottom: LoadingIndicatorBar(isLoading: homeUiModel.isLoading),

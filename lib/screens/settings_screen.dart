@@ -7,6 +7,7 @@ import 'package:concept_nhv/state/blocked_tags_model.dart';
 import 'package:concept_nhv/state/comic_feed_model.dart';
 import 'package:concept_nhv/state/comic_reader_model.dart';
 import 'package:concept_nhv/state/favorite_sync_model.dart';
+import 'package:concept_nhv/widgets/glass_container.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:provider/provider.dart';
@@ -42,44 +43,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       body: CustomScrollView(
         slivers: <Widget>[
-          const SliverAppBar(title: Text('Settings')),
+          SliverAppBar(
+            pinned: true,
+            backgroundColor: Colors.transparent,
+            flexibleSpace: GlassContainer.bar(child: const SizedBox.expand()),
+            title: const Text('Settings'),
+          ),
           SliverList.list(
             children: <Widget>[
-              // ── nhentai API ──────────────────────────────────────────────
-              const ListTile(title: Text('nhentai API Key')),
-              _buildSessionStatusTile(context),
-              _buildLoginTile(context),
-              _buildSyncFavoritesTile(context),
-              _buildLogoutTile(context),
-              const Divider(),
-
-              // ── Reader ───────────────────────────────────────────────────
-              const ListTile(title: Text('Reader')),
-              _buildPrefetchCountTile(context),
-              _buildClearCacheTile(context),
-              const Divider(),
-
-              // ── Downloads ────────────────────────────────────────────────
-              const ListTile(title: Text('Downloads')),
-              _buildAutoResumeDownloadsTile(context),
-              _buildPageDownloadIntervalTile(context),
-              const Divider(),
-
-              // ── Blocked Tags ─────────────────────────────────────────────
-              const ListTile(title: Text('Blocked Tags')),
-              _buildBlockedTagsSection(context),
-              const Divider(),
-
-              // ── General ──────────────────────────────────────────────────
-              _buildLanguageTile(context),
-              _buildDiagnoseTile(),
-              const Divider(),
-
-              // ── About ────────────────────────────────────────────────────
-              const ListTile(title: Text('About')),
-              _buildImportTile(context),
-              const Divider(),
-              _buildLicenseTile(context),
+              _SettingsSection(
+                title: 'nhentai API',
+                children: <Widget>[
+                  _buildSessionStatusTile(context),
+                  _buildLoginTile(context),
+                  _buildSyncFavoritesTile(context),
+                  _buildLogoutTile(context),
+                ],
+              ),
+              _SettingsSection(
+                title: 'Reader',
+                children: <Widget>[
+                  _buildPrefetchCountTile(context),
+                  _buildClearCacheTile(context),
+                ],
+              ),
+              _SettingsSection(
+                title: 'Downloads',
+                children: <Widget>[
+                  _buildAutoResumeDownloadsTile(context),
+                  _buildPageDownloadIntervalTile(context),
+                ],
+              ),
+              _SettingsSection(
+                title: 'Blocked Tags',
+                children: <Widget>[_buildBlockedTagsSection(context)],
+              ),
+              _SettingsSection(
+                title: 'General',
+                children: <Widget>[
+                  _buildLanguageTile(context),
+                  _buildDiagnoseTile(),
+                ],
+              ),
+              _SettingsSection(
+                title: 'About',
+                children: <Widget>[
+                  _buildImportTile(context),
+                  _buildLicenseTile(context),
+                ],
+              ),
+              const SizedBox(height: 24),
             ],
           ),
         ],
@@ -729,4 +742,54 @@ String _formatPresetSeconds(double seconds) {
 
 int _secondsToMilliseconds(double seconds) {
   return (seconds * 1000).round();
+}
+
+// ---------------------------------------------------------------------------
+// iOS-style grouped section (see .codex/phases/P48-settings-ios-card-redesign.md)
+// ---------------------------------------------------------------------------
+
+class _SettingsSection extends StatelessWidget {
+  const _SettingsSection({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              title.toUpperCase(),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(children: _withDividers(children)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _withDividers(List<Widget> items) {
+    return <Widget>[
+      for (int i = 0; i < items.length; i++) ...<Widget>[
+        if (i > 0) const Divider(height: 1, indent: 16),
+        items[i],
+      ],
+    ];
+  }
 }

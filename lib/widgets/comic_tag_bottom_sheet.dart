@@ -2,6 +2,7 @@ import 'package:concept_nhv/models/comic_tag.dart';
 import 'package:concept_nhv/models/tag_type_l10n.dart';
 import 'package:concept_nhv/services/tag_display_service.dart';
 import 'package:concept_nhv/state/blocked_tags_model.dart';
+import 'package:concept_nhv/widgets/glass_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -56,14 +57,11 @@ class ComicTagBottomSheet extends StatefulWidget {
     Widget? downloadSlot,
     Widget? actionSlot,
   }) {
-    return showModalBottomSheet<void>(
+    return showGlassModalBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
       useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
       builder: (_) => ComicTagBottomSheet(
         title: title,
         initialTags: tags,
@@ -259,7 +257,7 @@ class _ComicTagBottomSheetState extends State<ComicTagBottomSheet> {
     if (query.isEmpty) return;
 
     final isBlocked = blockedTagsModel.isBlocked(query);
-    showModalBottomSheet<void>(
+    showGlassModalBottomSheet<void>(
       context: context,
       useRootNavigator: true,
       builder: (sheetContext) {

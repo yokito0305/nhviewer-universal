@@ -10,6 +10,7 @@ import 'package:concept_nhv/state/home_ui_model.dart';
 import 'package:concept_nhv/state/download_manager_model.dart';
 import 'package:concept_nhv/models/downloads_sort_mode.dart';
 import 'package:concept_nhv/widgets/downloads_sort_bottom_sheet.dart';
+import 'package:concept_nhv/widgets/glass_container.dart';
 import 'package:concept_nhv/widgets/sort_filter_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -66,6 +67,7 @@ class _AppShellScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true,
       body: child,
       floatingActionButton: Consumer<HomeUiModel>(
         builder: (context, homeUiModel, child) {
@@ -78,27 +80,30 @@ class _AppShellScaffold extends StatelessWidget {
       ),
       bottomNavigationBar: Consumer<HomeUiModel>(
         builder: (context, homeUiModel, child) {
-          return NavigationBar(
-            selectedIndex: homeUiModel.navigationIndex,
-            onDestinationSelected: (index) =>
-                _handleDestinationSelected(context, index),
-            destinations: const <Widget>[
-              NavigationDestination(
-                selectedIcon: Icon(Icons.home),
-                icon: Icon(Icons.home_outlined),
-                label: 'Home',
-              ),
-              NavigationDestination(
-                selectedIcon: Icon(Icons.download),
-                icon: Icon(Icons.download_outlined),
-                label: 'Downloads',
-              ),
-              NavigationDestination(
-                selectedIcon: Icon(Icons.folder),
-                icon: Icon(Icons.folder_outlined),
-                label: 'Collections',
-              ),
-            ],
+          return GlassContainer.bar(
+            child: NavigationBar(
+              backgroundColor: Colors.transparent,
+              selectedIndex: homeUiModel.navigationIndex,
+              onDestinationSelected: (index) =>
+                  _handleDestinationSelected(context, index),
+              destinations: const <Widget>[
+                NavigationDestination(
+                  selectedIcon: Icon(Icons.home),
+                  icon: Icon(Icons.home_outlined),
+                  label: 'Home',
+                ),
+                NavigationDestination(
+                  selectedIcon: Icon(Icons.download),
+                  icon: Icon(Icons.download_outlined),
+                  label: 'Downloads',
+                ),
+                NavigationDestination(
+                  selectedIcon: Icon(Icons.folder),
+                  icon: Icon(Icons.folder_outlined),
+                  label: 'Collections',
+                ),
+              ],
+            ),
           );
         },
       ),

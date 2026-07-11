@@ -1,5 +1,6 @@
 import 'package:concept_nhv/models/downloads_sort_mode.dart';
 import 'package:concept_nhv/state/download_manager_model.dart';
+import 'package:concept_nhv/widgets/glass_bottom_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,13 +8,10 @@ class DownloadsSortBottomSheet extends StatefulWidget {
   const DownloadsSortBottomSheet({super.key});
 
   static Future<bool> show(BuildContext context) async {
-    final result = await showModalBottomSheet<bool>(
+    final result = await showGlassModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
       builder: (_) => ChangeNotifierProvider.value(
         value: context.read<DownloadManagerModel>(),
         child: const DownloadsSortBottomSheet(),

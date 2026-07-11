@@ -1,3 +1,4 @@
+import 'package:concept_nhv/widgets/glass_container.dart';
 import 'package:flutter/material.dart';
 
 /// End-of-comic overlay card shown briefly when the reader reaches the
@@ -14,19 +15,17 @@ class ReaderEndCard extends StatelessWidget {
         opacity: visible ? 1.0 : 0.0,
         duration: const Duration(milliseconds: 300),
         child: Center(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
-            decoration: BoxDecoration(
-              color: Colors.black.withAlpha(179),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Text(
-              'The End',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1.2,
+          child: GlassContainer.card(
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+              child: Text(
+                'The End',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.2,
+                ),
               ),
             ),
           ),
