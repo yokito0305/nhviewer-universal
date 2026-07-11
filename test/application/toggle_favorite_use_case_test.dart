@@ -1,5 +1,5 @@
-import 'package:concept_nhv/application/favorites/sync_remote_favorites_use_case.dart';
 import 'package:concept_nhv/application/favorites/toggle_favorite_use_case.dart';
+import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/models/comic_card_data.dart';
 import 'package:concept_nhv/storage/nhentai_api_key_store.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,7 +16,6 @@ void main() {
     late NhentaiApiKeyStore apiKeyStore;
     late FakeNhentaiAuthService authService;
     late FakeRemoteFavoriteGateway remoteFavoriteGateway;
-    late SyncRemoteFavoritesUseCase syncRemoteFavoritesUseCase;
     late ToggleFavoriteUseCase useCase;
 
     setUp(() async {
@@ -27,15 +26,10 @@ void main() {
       );
       authService = FakeNhentaiAuthService(apiKeyStore);
       remoteFavoriteGateway = FakeRemoteFavoriteGateway();
-      syncRemoteFavoritesUseCase = SyncRemoteFavoritesUseCase(
-        collectionRepository: harness.collectionRepository,
-        remoteFavoriteGateway: remoteFavoriteGateway,
-      );
       useCase = ToggleFavoriteUseCase(
         collectionRepository: harness.collectionRepository,
         remoteFavoriteGateway: remoteFavoriteGateway,
         authService: authService,
-        syncRemoteFavoritesUseCase: syncRemoteFavoritesUseCase,
       );
     });
 
@@ -43,17 +37,28 @@ void main() {
       await harness.dispose();
     });
 
-    test('updates remote favorite and resyncs cache when authenticated', () async {
+    test('updates remote favorite and local cache without a full resync', () async {
       authService.isValid = true;
       final comic = ComicCardData.fromComic(sampleComic(id: '7'));
 
       final addResult = await useCase.execute(comic: comic, isFavorite: false);
+      final idsAfterAdd = await harness.collectionRepository
+          .loadCollectedComicIds(CollectionType.favorite);
+
       final removeResult = await useCase.execute(comic: comic, isFavorite: true);
+      final idsAfterRemove = await harness.collectionRepository
+          .loadCollectedComicIds(CollectionType.favorite);
 
       expect(addResult.success, isTrue);
+      expect(addResult.favoriteIds, <String>{'7'});
+      expect(idsAfterAdd, <String>{'7'});
       expect(removeResult.success, isTrue);
+      expect(removeResult.favoriteIds, isEmpty);
+      expect(idsAfterRemove, isEmpty);
       expect(remoteFavoriteGateway.addedComicIds, <String>['7']);
       expect(remoteFavoriteGateway.removedComicIds, <String>['7']);
+      // A lightweight toggle never calls the paginated listing endpoint.
+      expect(remoteFavoriteGateway.loadCallCount, 0);
     });
 
     test('returns cached ids when no valid api key is available', () async {

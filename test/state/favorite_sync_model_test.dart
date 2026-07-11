@@ -51,7 +51,6 @@ void main() {
       collectionRepository: harness.collectionRepository,
       remoteFavoriteGateway: remoteFavoriteGateway,
       authService: authService,
-      syncRemoteFavoritesUseCase: syncRemoteFavoritesUseCase,
     );
     model = FavoriteSyncModel(
       initializeFavoritesUseCase: initializeFavoritesUseCase,

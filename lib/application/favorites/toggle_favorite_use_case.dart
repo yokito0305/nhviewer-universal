@@ -5,21 +5,24 @@ import 'package:concept_nhv/services/nhentai_auth_service.dart';
 import 'package:concept_nhv/services/remote_favorite_gateway.dart';
 import 'package:concept_nhv/storage/collection_repository.dart';
 
-import 'sync_remote_favorites_use_case.dart';
-
 class ToggleFavoriteUseCase {
   const ToggleFavoriteUseCase({
     required this.collectionRepository,
     required this.remoteFavoriteGateway,
     required this.authService,
-    required this.syncRemoteFavoritesUseCase,
   });
 
   final CollectionRepository collectionRepository;
   final RemoteFavoriteGateway remoteFavoriteGateway;
   final NhentaiAuthService authService;
-  final SyncRemoteFavoritesUseCase syncRemoteFavoritesUseCase;
 
+  /// Toggles a single comic's favorite status. Calls the lightweight
+  /// single-comic remote endpoint, then updates the local cache
+  /// incrementally (insert/delete one row) instead of triggering a full
+  /// multi-page resync — see
+  /// .codex/phases/P49-lightweight-favorite-toggle.md. Use
+  /// `SyncRemoteFavoritesUseCase` (the "Sync Favorites Now" button) to
+  /// reconcile the full local cache against the remote source of truth.
   Future<FavoriteSyncResult> execute({
     required ComicCardData comic,
     required bool isFavorite,
@@ -38,10 +41,23 @@ class ToggleFavoriteUseCase {
     try {
       if (isFavorite) {
         await remoteFavoriteGateway.removeRemoteFavorite(comic.id);
+        await collectionRepository.removeComicFromCollection(
+          collectionType: CollectionType.favorite,
+          comicId: comic.id,
+        );
       } else {
         await remoteFavoriteGateway.addRemoteFavorite(comic.id);
+        await collectionRepository.upsertComicAndAddToCollection(
+          collectionType: CollectionType.favorite,
+          comic: comic.toStoredComic(),
+        );
       }
-      return syncRemoteFavoritesUseCase.execute();
+      return FavoriteSyncResult(
+        favoriteIds: await _loadCachedFavoriteIds(),
+        isAuthenticated: true,
+        lastSyncAt: null,
+        success: true,
+      );
     } on RemoteFavoriteAuthException catch (error) {
       return FavoriteSyncResult(
         favoriteIds: await _loadCachedFavoriteIds(),

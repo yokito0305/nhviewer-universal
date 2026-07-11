@@ -9,6 +9,11 @@ class FakeRemoteFavoriteGateway implements RemoteFavoriteGateway {
   final List<String> removedComicIds = <String>[];
   bool throwAuthException = false;
 
+  /// Number of times [loadRemoteFavorites] (the paginated listing endpoint)
+  /// was called — used to assert that a lightweight single-favorite toggle
+  /// never triggers a full resync.
+  int loadCallCount = 0;
+
   @override
   Future<void> addRemoteFavorite(String comicId) async {
     addedComicIds.add(comicId);
@@ -22,6 +27,7 @@ class FakeRemoteFavoriteGateway implements RemoteFavoriteGateway {
     void Function(int page, int totalPages)? onProgress,
     void Function(Duration retryIn)? onRateLimit,
   }) async {
+    loadCallCount += 1;
     if (throwAuthException) {
       throw const RemoteFavoriteAuthException(
         'API key expired or invalid. Showing cached favorites.',

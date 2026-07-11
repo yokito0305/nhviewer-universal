@@ -68,10 +68,6 @@ void main() {
           collectionRepository: harness.collectionRepository,
           remoteFavoriteGateway: remoteFavoriteGateway,
           authService: authService,
-          syncRemoteFavoritesUseCase: SyncRemoteFavoritesUseCase(
-            collectionRepository: harness.collectionRepository,
-            remoteFavoriteGateway: remoteFavoriteGateway,
-          ),
         ),
       );
       coordinator = CollectionPageCoordinator(

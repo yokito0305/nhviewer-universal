@@ -40,6 +40,44 @@ class CollectionRepository {
     return statement.go();
   }
 
+  /// Incrementally adds a single comic to a collection without touching any
+  /// other rows — upserts [comic] into the `comics` table (so it survives the
+  /// join in [loadCollectionComics]) and inserts a `collections` row with
+  /// [favoriteRank] `-1` so it sorts ahead of comics written by a full
+  /// [replaceCollectionCache] sync (which ranks from `0`). Used by
+  /// `ToggleFavoriteUseCase` to avoid a full remote resync for a single
+  /// favorite toggle (see .codex/phases/P49-lightweight-favorite-toggle.md).
+  Future<void> upsertComicAndAddToCollection({
+    required CollectionType collectionType,
+    required StoredComic comic,
+  }) async {
+    await localDatabase.transaction(() async {
+      await localDatabase
+          .into(localDatabase.comics)
+          .insert(
+            ComicsCompanion.insert(
+              id: comic.id,
+              mid: comic.mediaId,
+              title: comic.title,
+              images: comic.serializedImages,
+              pages: comic.pages,
+            ),
+            mode: drift.InsertMode.insertOrReplace,
+          );
+      await localDatabase
+          .into(localDatabase.collections)
+          .insert(
+            CollectionsCompanion.insert(
+              name: collectionType.storageName,
+              comicid: comic.id,
+              dateCreated: DateTime.now().toIso8601String(),
+              favoriteRank: const drift.Value(-1),
+            ),
+            mode: drift.InsertMode.insertOrReplace,
+          );
+    });
+  }
+
   Future<List<CollectedComic>> loadCollectionComics(
     CollectionType collectionType,
   ) async {

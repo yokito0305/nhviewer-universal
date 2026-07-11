@@ -239,7 +239,6 @@ List<SingleChildWidget> _buildUseCaseProviders() {
         collectionRepository: context.read(),
         remoteFavoriteGateway: context.read(),
         authService: context.read(),
-        syncRemoteFavoritesUseCase: context.read(),
       ),
     ),
     Provider(
