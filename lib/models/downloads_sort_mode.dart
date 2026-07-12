@@ -1,7 +1,9 @@
 enum DownloadsSortMode {
   latestDownloaded('Latest Downloaded'),
   lastRead('Last Read'),
-  mostFavorited('Most Favorited');
+  mostFavorited('Most Favorited'),
+  title('Title'),
+  author('Author');
 
   const DownloadsSortMode(this.label);
 

@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:concept_nhv/models/comic.dart';
 import 'package:concept_nhv/models/comic_images.dart';
 import 'package:concept_nhv/models/comic_page_image.dart';
+import 'package:concept_nhv/models/comic_tag.dart';
+import 'package:concept_nhv/models/comic_title.dart';
 import 'package:concept_nhv/models/download_job_status.dart';
 import 'package:concept_nhv/models/downloads_sort_mode.dart';
 import 'package:concept_nhv/models/download_page_status.dart';
@@ -636,6 +638,122 @@ void main() {
       expect(
         manager.sortedDownloadItems.map((item) => item.comicId),
         <String>['916', '913', '914', '915'],
+      );
+
+      manager.dispose();
+    });
+
+    test('sorts completed items by title', () async {
+      final comicB = sampleComic(
+        id: '920',
+        mediaId: '792',
+      ).copyWith(title: ComicTitle(pretty: 'Banana Story'));
+      final comicA = sampleComic(
+        id: '921',
+        mediaId: '793',
+      ).copyWith(title: ComicTitle(pretty: 'apple tale'));
+      final comicC = sampleComic(
+        id: '922',
+        mediaId: '794',
+      ).copyWith(title: ComicTitle(pretty: 'Cherry Log'));
+      final manager = DownloadManagerModel(
+        nhentaiGateway: FakeNhentaiGateway(detailComic: comicA),
+        cdnConfigService: _FakeCdnConfigService(),
+        downloadQueueRepository: harness.downloadQueueRepository,
+        downloadedLibraryRepository: harness.downloadedLibraryRepository,
+        downloadSettingsRepository: DownloadSettingsStore(
+          optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+        ),
+        downloadAssetStore: DownloadAssetStore(
+          directoryResolver: () async => tempDirectory,
+        ),
+        imageCompressionService: FakeImageCompressionService(),
+        remoteAssetFetcher: FakeRemoteAssetFetcher(),
+      );
+
+      for (final comic in <Comic>[comicB, comicA, comicC]) {
+        await harness.downloadQueueRepository.upsertJobManifest(
+          comic: comic,
+          title: comic.title.pretty!,
+        );
+        await harness.downloadQueueRepository.markJobCompleted(comic.id);
+        await harness.downloadedLibraryRepository.saveDownloadedComic(
+          comic: comic,
+          rootDirectoryPath: '/downloads/${comic.id}',
+          coverLocalPath: null,
+        );
+      }
+
+      await manager.refresh();
+      manager.setDownloadsSortMode(DownloadsSortMode.title);
+      manager.setDownloadsSortDirection(DownloadsSortDirection.ascending);
+
+      expect(
+        manager.sortedDownloadItems.map((item) => item.comicId),
+        <String>['921', '920', '922'],
+      );
+
+      manager.setDownloadsSortDirection(DownloadsSortDirection.descending);
+
+      expect(
+        manager.sortedDownloadItems.map((item) => item.comicId),
+        <String>['922', '920', '921'],
+      );
+
+      manager.dispose();
+    });
+
+    test('sorts completed items by author, with untagged comics last', () async {
+      final comicWithArtist = sampleComic(id: '923', mediaId: '795').copyWith(
+        tags: <ComicTag>[ComicTag(type: 'artist', name: 'zeta')],
+      );
+      final comicWithGroup = sampleComic(id: '924', mediaId: '796').copyWith(
+        tags: <ComicTag>[ComicTag(type: 'group', name: 'alpha team')],
+      );
+      final comicWithoutAuthor = sampleComic(
+        id: '925',
+        mediaId: '797',
+      ).copyWith(tags: const <ComicTag>[]);
+      final manager = DownloadManagerModel(
+        nhentaiGateway: FakeNhentaiGateway(detailComic: comicWithArtist),
+        cdnConfigService: _FakeCdnConfigService(),
+        downloadQueueRepository: harness.downloadQueueRepository,
+        downloadedLibraryRepository: harness.downloadedLibraryRepository,
+        downloadSettingsRepository: DownloadSettingsStore(
+          optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+        ),
+        downloadAssetStore: DownloadAssetStore(
+          directoryResolver: () async => tempDirectory,
+        ),
+        imageCompressionService: FakeImageCompressionService(),
+        remoteAssetFetcher: FakeRemoteAssetFetcher(),
+      );
+
+      for (final comic in <Comic>[
+        comicWithArtist,
+        comicWithGroup,
+        comicWithoutAuthor,
+      ]) {
+        await harness.downloadQueueRepository.upsertJobManifest(
+          comic: comic,
+          title: comic.title.pretty!,
+        );
+        await harness.downloadQueueRepository.markJobCompleted(comic.id);
+        await harness.downloadedLibraryRepository.saveDownloadedComic(
+          comic: comic,
+          rootDirectoryPath: '/downloads/${comic.id}',
+          coverLocalPath: null,
+        );
+      }
+
+      await manager.refresh();
+      manager.setDownloadsSortMode(DownloadsSortMode.author);
+      manager.setDownloadsSortDirection(DownloadsSortDirection.ascending);
+
+      expect(
+        manager.sortedDownloadItems.map((item) => item.comicId),
+        // "alpha team" (group) < "zeta" (artist), untagged always last.
+        <String>['924', '923', '925'],
       );
 
       manager.dispose();

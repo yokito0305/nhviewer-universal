@@ -235,7 +235,44 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
       ),
       DownloadsSortMode.lastRead => _compareLastReadItems(a, b),
       DownloadsSortMode.mostFavorited => _compareMostFavoritedItems(a, b),
+      DownloadsSortMode.title => _compareByDirection(
+        a.title.toLowerCase(),
+        b.title.toLowerCase(),
+      ),
+      DownloadsSortMode.author => _compareAuthorItems(a, b),
     };
+  }
+
+  int _compareAuthorItems(
+    DownloadListItemSnapshot a,
+    DownloadListItemSnapshot b,
+  ) {
+    final aAuthor = _authorName(a);
+    final bAuthor = _authorName(b);
+    if (aAuthor == null && bAuthor == null) {
+      return _compareByDirection(a.title.toLowerCase(), b.title.toLowerCase());
+    }
+    if (aAuthor == null) return 1;
+    if (bAuthor == null) return -1;
+    return _compareByDirection(aAuthor.toLowerCase(), bAuthor.toLowerCase());
+  }
+
+  /// First `artist` tag name, falling back to the first `group` tag —
+  /// this project has no dedicated author field; artist/group tags are how
+  /// doujin authorship is represented (same convention used to group tags
+  /// in comic_tag_bottom_sheet.dart).
+  String? _authorName(DownloadListItemSnapshot item) {
+    for (final tag in item.tags) {
+      if (tag.type == 'artist' && (tag.name?.isNotEmpty ?? false)) {
+        return tag.name;
+      }
+    }
+    for (final tag in item.tags) {
+      if (tag.type == 'group' && (tag.name?.isNotEmpty ?? false)) {
+        return tag.name;
+      }
+    }
+    return null;
   }
 
   int _compareLastReadItems(
