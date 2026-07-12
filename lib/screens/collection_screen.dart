@@ -206,11 +206,10 @@ class _CollectionComicSliverState extends State<CollectionComicSliver> {
     }
   }
 
-  Future<List<ComicCardData>> _loadInitialComics() async {
-    final snapshot = await context.read<CollectionPageCoordinator>().load(
+  Future<List<ComicCardData>> _loadInitialComics() {
+    return context.read<CollectionPageCoordinator>().load(
       widget.collectionType,
     );
-    return snapshot.comics;
   }
 
   void _refresh() {

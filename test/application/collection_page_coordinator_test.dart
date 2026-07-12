@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:concept_nhv/application/feed/load_collection_summaries_use_case.dart';
 import 'package:concept_nhv/application/feed/search_comics_use_case.dart';
 import 'package:concept_nhv/application/favorites/clear_favorite_auth_use_case.dart';
@@ -85,17 +87,44 @@ void main() {
       await harness.dispose();
     });
 
-    test('syncs favorites before loading the favorite collection', () async {
+    test(
+      'load returns locally cached comics without waiting for favorite sync',
+      () async {
+        authService.isValid = true;
+        await harness.comicRepository.upsertComic(
+          StoredComic.fromComic(sampleComic(id: '12')),
+        );
+        await harness.collectionRepository.addComicToCollection(
+          collectionType: CollectionType.favorite,
+          comicId: '12',
+        );
+        // Simulate a remote sync that never completes (e.g. stuck in a
+        // rate-limit backoff) — load() must not block on it.
+        remoteFavoriteGateway.hangCompleter = Completer<void>();
+
+        final comics = await coordinator
+            .load(CollectionType.favorite)
+            .timeout(const Duration(seconds: 2));
+
+        expect(comics.map((comic) => comic.id).toList(), <String>['12']);
+      },
+    );
+
+    test('load triggers a background favorite sync that eventually refreshes collections', () async {
       authService.isValid = true;
       remoteFavoriteGateway.remoteFavorites = <Comic>[
         sampleComic(id: '11'),
       ];
 
-      final snapshot = await coordinator.load(CollectionType.favorite);
+      await coordinator.load(CollectionType.favorite);
+      // Let the un-awaited background sync run to completion.
+      await Future<void>.delayed(Duration.zero);
 
-      expect(snapshot.didRefreshCollections, isTrue);
-      expect(snapshot.comics.map((comic) => comic.id).toList(), <String>['11']);
       expect(feedModel.collectionSummariesFuture, isNotNull);
+      final ids = await harness.collectionRepository.loadCollectedComicIds(
+        CollectionType.favorite,
+      );
+      expect(ids, <String>{'11'});
     });
 
     test('refresh loads collection records without favorite sync side effects', () async {

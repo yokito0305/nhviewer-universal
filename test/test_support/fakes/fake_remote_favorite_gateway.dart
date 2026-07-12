@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:concept_nhv/models/comic.dart';
 import 'package:concept_nhv/services/remote_favorite_gateway.dart';
 
@@ -14,6 +16,11 @@ class FakeRemoteFavoriteGateway implements RemoteFavoriteGateway {
   /// never triggers a full resync.
   int loadCallCount = 0;
 
+  /// When set, [loadRemoteFavorites] awaits this before returning — lets
+  /// tests simulate a slow/never-completing remote sync to assert that
+  /// callers (e.g. CollectionPageCoordinator.load) don't block on it.
+  Completer<void>? hangCompleter;
+
   @override
   Future<void> addRemoteFavorite(String comicId) async {
     addedComicIds.add(comicId);
@@ -28,6 +35,9 @@ class FakeRemoteFavoriteGateway implements RemoteFavoriteGateway {
     void Function(Duration retryIn)? onRateLimit,
   }) async {
     loadCallCount += 1;
+    if (hangCompleter != null) {
+      await hangCompleter!.future;
+    }
     if (throwAuthException) {
       throw const RemoteFavoriteAuthException(
         'API key expired or invalid. Showing cached favorites.',
