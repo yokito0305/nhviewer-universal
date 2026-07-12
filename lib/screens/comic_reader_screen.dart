@@ -73,17 +73,22 @@ class _ComicReaderScreenState extends State<ComicReaderScreen> {
     model.goToPage(targetPage);
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Resumed from page $targetPage'),
-        action: SnackBarAction(
-          label: 'Go to start',
-          onPressed: () => model.goToPage(1),
+    // Clear any still-queued/showing snackbar first — without this, opening
+    // several comics in quick succession queues up one "Resumed from page"
+    // message per comic, forcing the user to dismiss each one in turn.
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Resumed from page $targetPage'),
+          action: SnackBarAction(
+            label: 'Go to start',
+            onPressed: () => model.goToPage(1),
+          ),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
         ),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-      ),
-    );
+      );
   }
 
   @override

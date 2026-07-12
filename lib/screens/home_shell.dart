@@ -46,7 +46,14 @@ class _HomeShellState extends State<HomeShell> {
       physics: const BouncingScrollPhysics(),
       slivers: <Widget>[
         _buildTopBar(context, navigationIndex),
-        _buildBody(context, navigationIndex),
+        // Scaffold(extendBody: true) lets content scroll behind the glass
+        // bottom nav bar (see app_router.dart), but a bare CustomScrollView
+        // doesn't consume the resulting bottom MediaQuery padding on its
+        // own — without this, the last row(s) render underneath the bar.
+        SliverSafeArea(
+          top: false,
+          sliver: _buildBody(context, navigationIndex),
+        ),
       ],
     );
   }
