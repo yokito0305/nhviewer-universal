@@ -66,6 +66,7 @@ class ComicGridSliver extends StatelessWidget {
 
         final comic = comics[index];
         return ComicCard(
+          key: ValueKey<String>(comic.id),
           comic: comic,
           collectionType: collectionType,
           onCollectionChanged: onCollectionChanged,

@@ -22,6 +22,10 @@ class CollectionScreen extends StatefulWidget {
 class _CollectionScreenState extends State<CollectionScreen> {
   bool _selectionMode = false;
   final Map<String, ComicCardData> _selectedComics = {};
+  // A State-owned controller (rather than CustomScrollView's default
+  // PrimaryScrollController/PageStorage) so scroll position survives even if
+  // the Element tree gets rebuilt — see .codex/phases/P52-collections-screen-reliability.md.
+  final ScrollController _scrollController = ScrollController();
 
   CollectionType? get _collectionType =>
       CollectionType.fromStorageName(widget.collectionName);
@@ -43,6 +47,12 @@ class _CollectionScreenState extends State<CollectionScreen> {
       _selectionMode = false;
       _selectedComics.clear();
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _downloadSelected(BuildContext context) async {
@@ -84,6 +94,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: CustomScrollView(
+        controller: _scrollController,
         physics: const BouncingScrollPhysics(),
         slivers: <Widget>[
           SliverAppBar(

@@ -302,6 +302,25 @@ class _CollectionOverviewScreenState extends State<CollectionOverviewScreen> {
     return FutureBuilder<List<CollectionSummary>>(
       future: future,
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const Text('Failed to load collections'),
+                  const SizedBox(height: 8),
+                  FilledButton(
+                    onPressed: () =>
+                        context.read<ComicFeedModel>().refreshCollections(),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
         if (!snapshot.hasData) {
           return const SliverFillRemaining(hasScrollBody: false);
         }
