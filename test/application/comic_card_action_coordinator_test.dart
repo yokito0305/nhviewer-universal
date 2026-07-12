@@ -95,6 +95,9 @@ void main() {
         loadOfflineComicUseCase: LoadOfflineComicUseCase(
           downloadQueueRepository: harness.downloadQueueRepository,
           downloadedLibraryRepository: harness.downloadedLibraryRepository,
+          downloadAssetStore: DownloadAssetStore(
+            directoryResolver: () async => throw UnimplementedError(),
+          ),
         ),
         openComicUseCase: OpenComicUseCase(
           comicRepository: harness.comicRepository,

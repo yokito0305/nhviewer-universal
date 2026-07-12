@@ -119,8 +119,9 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
     _isRefreshing = true;
     notifyListeners();
     final jobs = await downloadQueueRepository.loadJobs();
-    final downloadedComics =
+    final rawDownloadedComics =
         await downloadedLibraryRepository.loadDownloadedComics();
+    final downloadedComics = await _resolveCoverPaths(rawDownloadedComics);
     _jobs = jobs;
     _downloadItems = _buildDownloadItems(jobs, downloadedComics);
     if (_isDisposed) {
@@ -153,6 +154,35 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
     }
     _downloadsSortDirection = direction;
     notifyListeners();
+  }
+
+  /// Resolves each [DownloadedComicSnapshot.coverLocalPath] (stored relative
+  /// to the downloads root — see .codex/phases/P51-relative-download-paths.md)
+  /// to an absolute path before it reaches [DownloadListItemSnapshot] and,
+  /// downstream, `Image.file`/`File` in the downloads UI.
+  Future<List<DownloadedComicSnapshot>> _resolveCoverPaths(
+    List<DownloadedComicSnapshot> comics,
+  ) async {
+    return Future.wait(comics.map((comic) async {
+      final coverLocalPath = comic.coverLocalPath;
+      if (coverLocalPath == null || coverLocalPath.isEmpty) {
+        return comic;
+      }
+      return DownloadedComicSnapshot(
+        comicId: comic.comicId,
+        mediaId: comic.mediaId,
+        title: comic.title,
+        rootDirectoryPath: comic.rootDirectoryPath,
+        pageCount: comic.pageCount,
+        downloadedAt: comic.downloadedAt,
+        tags: comic.tags,
+        coverLocalPath: await downloadAssetStore.resolveAbsolutePath(
+          coverLocalPath,
+        ),
+        lastReadAt: comic.lastReadAt,
+        numFavorites: comic.numFavorites,
+      );
+    }));
   }
 
   List<DownloadListItemSnapshot> _buildDownloadItems(
@@ -600,10 +630,12 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
             comic: comic,
             thumbnailHosts: await _loadThumbnailHosts(),
           );
-    final rootDirectory = await downloadAssetStore.resolveRootDirectory(job.comicId);
     await downloadedLibraryRepository.saveDownloadedComic(
       comic: comic,
-      rootDirectoryPath: rootDirectory.path,
+      // Relative (just the comicId) rather than an absolute path — this
+      // column is never read back as a filesystem path (see P51), so it
+      // must not carry a container-bound absolute value either.
+      rootDirectoryPath: job.comicId,
       coverLocalPath: coverLocalPath,
     );
     await downloadQueueRepository.markJobCompleted(job.comicId);

@@ -7,6 +7,7 @@ import 'package:concept_nhv/application/reader/open_comic_use_case.dart';
 import 'package:concept_nhv/application/tags/load_tag_catalog_use_case.dart';
 import 'package:concept_nhv/models/tag_catalog_item.dart';
 import 'package:concept_nhv/models/tag_catalog_page.dart';
+import 'package:concept_nhv/services/download_asset_store.dart';
 import 'package:concept_nhv/services/search_query_builder.dart';
 import 'package:concept_nhv/services/tag_display_service.dart';
 import 'package:concept_nhv/services/tag_search_query_builder.dart';
@@ -158,6 +159,9 @@ _pumpSearchSuggestionsPanel(
     loadOfflineComicUseCase: LoadOfflineComicUseCase(
       downloadQueueRepository: harness.downloadQueueRepository,
       downloadedLibraryRepository: harness.downloadedLibraryRepository,
+      downloadAssetStore: DownloadAssetStore(
+        directoryResolver: () async => throw UnimplementedError(),
+      ),
     ),
     openComicUseCase: OpenComicUseCase(
       comicRepository: harness.comicRepository,

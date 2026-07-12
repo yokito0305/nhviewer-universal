@@ -189,6 +189,7 @@ List<SingleChildWidget> _buildUseCaseProviders() {
       create: (context) => LoadOfflineComicUseCase(
         downloadQueueRepository: context.read(),
         downloadedLibraryRepository: context.read(),
+        downloadAssetStore: context.read(),
       ),
     ),
     Provider(

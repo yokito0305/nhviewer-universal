@@ -1,5 +1,9 @@
+import 'dart:io';
+
 import 'package:concept_nhv/application/reader/load_offline_comic_use_case.dart';
+import 'package:concept_nhv/services/download_asset_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 import '../test_support/fixtures/sample_comic.dart';
 import '../test_support/storage/sqlite_test_harness.dart';
@@ -7,19 +11,27 @@ import '../test_support/storage/sqlite_test_harness.dart';
 void main() {
   group('LoadOfflineComicUseCase', () {
     late SqliteTestHarness harness;
+    late Directory tempDirectory;
     late LoadOfflineComicUseCase useCase;
 
     setUp(() async {
       harness = SqliteTestHarness();
       await harness.initialize();
+      tempDirectory = await Directory.systemTemp.createTemp(
+        'load_offline_comic_use_case_test',
+      );
       useCase = LoadOfflineComicUseCase(
         downloadQueueRepository: harness.downloadQueueRepository,
         downloadedLibraryRepository: harness.downloadedLibraryRepository,
+        downloadAssetStore: DownloadAssetStore(
+          directoryResolver: () async => tempDirectory,
+        ),
       );
     });
 
     tearDown(() async {
       await harness.dispose();
+      await tempDirectory.delete(recursive: true);
     });
 
     test('returns null when no completed download exists for the comic', () async {
@@ -28,7 +40,42 @@ void main() {
       expect(result, isNull);
     });
 
-    test('reconstructs Comic with local paths for completed pages', () async {
+    test('reconstructs Comic resolving relative local paths to absolute', () async {
+      final comic = sampleComic(id: '803', mediaId: '503');
+
+      await harness.downloadedLibraryRepository.saveDownloadedComic(
+        comic: comic,
+        rootDirectoryPath: '803',
+        coverLocalPath: p.join('803', 'cover.webp'),
+        downloadedAt: DateTime(2026, 5, 1),
+      );
+
+      await harness.downloadQueueRepository.upsertJobManifest(
+        comic: comic,
+        title: 'Sample Comic',
+      );
+      await harness.downloadQueueRepository.markJobDownloading('803');
+      await harness.downloadQueueRepository.markPageCompleted(
+        comicId: '803',
+        pageNumber: 1,
+        sourceServer: 'i1.nhentai.net',
+        localPath: p.join('803', 'pages', '1.jpg'),
+        storedFormat: 'jpg',
+        byteSize: 100,
+      );
+
+      final result = await useCase.execute('803');
+
+      expect(result, isNotNull);
+      expect(
+        result!.images.pages[0].path,
+        p.join(tempDirectory.path, '803', 'pages', '1.jpg'),
+      );
+    });
+
+    test(
+      'keeps legacy absolute local paths unchanged (pre-P51 downloads)',
+      () async {
       final comic = sampleComic(id: '800', mediaId: '500');
 
       // Save the completed library record.

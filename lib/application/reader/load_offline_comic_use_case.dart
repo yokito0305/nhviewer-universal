@@ -3,6 +3,7 @@ import 'package:concept_nhv/models/comic_images.dart';
 import 'package:concept_nhv/models/comic_page_image.dart';
 import 'package:concept_nhv/models/comic_title.dart';
 import 'package:concept_nhv/models/download_page_status.dart';
+import 'package:concept_nhv/services/download_asset_store.dart';
 import 'package:concept_nhv/storage/download_queue_repository.dart';
 import 'package:concept_nhv/storage/downloaded_library_repository.dart';
 
@@ -10,14 +11,20 @@ class LoadOfflineComicUseCase {
   const LoadOfflineComicUseCase({
     required this.downloadQueueRepository,
     required this.downloadedLibraryRepository,
+    required this.downloadAssetStore,
   });
 
   final DownloadQueueRepository downloadQueueRepository;
   final DownloadedLibraryRepository downloadedLibraryRepository;
+  final DownloadAssetStore downloadAssetStore;
 
   /// Reconstructs a [Comic] from locally stored download data.
   ///
-  /// Page paths are resolved from [DownloadJobPage.localPath]. Pages that
+  /// Page paths are resolved from [DownloadJobPage.localPath] (stored
+  /// relative to the downloads root — see
+  /// .codex/phases/P51-relative-download-paths.md — and resolved to an
+  /// absolute path here since [ComicPageSourceResolver] distinguishes local
+  /// files from remote URLs by an absolute `/`-prefixed path). Pages that
   /// were not fully downloaded fall back to [DownloadJobPage.remotePath] so
   /// the reader degrades gracefully to a network fetch for those pages.
   ///
@@ -31,16 +38,16 @@ class LoadOfflineComicUseCase {
 
     final pages = await downloadQueueRepository.loadPages(comicId);
 
-    final pageImages = pages.map((page) {
+    final pageImages = await Future.wait(pages.map((page) async {
       final isCompleted = page.status == DownloadPageStatus.completed;
       final localPath = page.localPath;
       final effectivePath =
           (isCompleted && localPath != null && localPath.isNotEmpty)
-              ? localPath
+              ? await downloadAssetStore.resolveAbsolutePath(localPath)
               : page.remotePath;
 
       return ComicPageImage(path: effectivePath);
-    }).toList(growable: false);
+    }));
 
     return Comic(
       id: snapshot.comicId,

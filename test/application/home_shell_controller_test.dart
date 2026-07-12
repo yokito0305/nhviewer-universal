@@ -4,6 +4,7 @@ import 'package:concept_nhv/application/home/home_shell_controller.dart';
 import 'package:concept_nhv/application/reader/load_comic_detail_use_case.dart';
 import 'package:concept_nhv/application/reader/load_offline_comic_use_case.dart';
 import 'package:concept_nhv/application/reader/open_comic_use_case.dart';
+import 'package:concept_nhv/services/download_asset_store.dart';
 import 'package:concept_nhv/services/search_query_builder.dart';
 import 'package:concept_nhv/services/tag_search_query_builder.dart';
 import 'package:concept_nhv/state/comic_feed_model.dart';
@@ -50,6 +51,9 @@ void main() {
         loadOfflineComicUseCase: LoadOfflineComicUseCase(
           downloadQueueRepository: harness.downloadQueueRepository,
           downloadedLibraryRepository: harness.downloadedLibraryRepository,
+          downloadAssetStore: DownloadAssetStore(
+            directoryResolver: () async => throw UnimplementedError(),
+          ),
         ),
         openComicUseCase: OpenComicUseCase(
           comicRepository: harness.comicRepository,

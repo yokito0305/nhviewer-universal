@@ -16,6 +16,7 @@ import 'package:concept_nhv/storage/download_settings_store.dart';
 import 'package:concept_nhv/storage/options_store.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 import '../test_support/fakes/fake_image_compression_service.dart';
 import '../test_support/fakes/fake_nhentai_gateway.dart';
@@ -86,7 +87,9 @@ void main() {
       expect(job?.completedPages, comic.numPages);
       expect(pages.every((page) => page.storedFormat == 'webp'), isTrue);
       expect(downloadedRows.single.read<String>('comic_id'), '900');
-      final firstPageFile = File(pages.first.localPath!);
+      final firstPageFile = File(
+        p.join(tempDirectory.path, pages.first.localPath!),
+      );
       expect(await firstPageFile.exists(), isTrue);
 
       manager.dispose();
@@ -767,7 +770,10 @@ void main() {
         final coverPathAfterRepair =
             await harness.downloadedLibraryRepository.loadCoverLocalPath('930');
         expect(coverPathAfterRepair, isNotNull);
-        expect(await File(coverPathAfterRepair!).exists(), isTrue);
+        expect(
+          await File(p.join(tempDirectory.path, coverPathAfterRepair!)).exists(),
+          isTrue,
+        );
 
         // Repairing again should now be a no-op: pages and cover are intact.
         final repairedAgain = await manager.repairCompleted('930');
@@ -834,7 +840,7 @@ void main() {
         // Break only page 1 on disk, leaving the cover untouched.
         final pages = await harness.downloadQueueRepository.loadPages('935');
         final page1 = pages.firstWhere((page) => page.pageNumber == 1);
-        await File(page1.localPath!).delete();
+        await File(p.join(tempDirectory.path, page1.localPath!)).delete();
 
         final repaired = await manager.repairCompleted('935');
         expect(repaired, isTrue);
@@ -856,7 +862,10 @@ void main() {
         final coverPathAfterRepair =
             await harness.downloadedLibraryRepository.loadCoverLocalPath('935');
         expect(coverPathAfterRepair, coverPathBeforeRepair);
-        expect(await File(coverPathAfterRepair!).exists(), isTrue);
+        expect(
+          await File(p.join(tempDirectory.path, coverPathAfterRepair!)).exists(),
+          isTrue,
+        );
 
         manager.dispose();
       },
