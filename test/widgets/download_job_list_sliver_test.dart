@@ -6,6 +6,7 @@ import 'package:concept_nhv/application/home/home_shell_controller.dart';
 import 'package:concept_nhv/application/reader/load_comic_detail_use_case.dart';
 import 'package:concept_nhv/application/reader/load_offline_comic_use_case.dart';
 import 'package:concept_nhv/application/reader/open_comic_use_case.dart';
+import 'package:concept_nhv/models/comic_tag.dart';
 import 'package:concept_nhv/models/download_job_snapshot.dart';
 import 'package:concept_nhv/models/download_job_status.dart';
 import 'package:concept_nhv/models/download_list_item_snapshot.dart';
@@ -85,6 +86,66 @@ void main() {
       expect(find.text('Resume'), findsOneWidget);
       expect(find.text('Remove'), findsOneWidget);
       expect(find.text('Delete Download'), findsNothing);
+    });
+
+    testWidgets('filters by tag raw name', (tester) async {
+      final model = _FakeDownloadManagerModel(
+        harness: harness,
+        itemsOverride: <DownloadListItemSnapshot>[
+          _itemFromDownloadedComic(
+            comicId: 'tagged',
+            title: 'Tagged Comic',
+            requestedAt: DateTime(2026, 4, 11),
+            tags: <ComicTag>[ComicTag(type: 'tag', name: 'Full Color')],
+          ),
+          _itemFromDownloadedComic(
+            comicId: 'untagged',
+            title: 'Untagged Comic',
+            requestedAt: DateTime(2026, 4, 10),
+            tags: const <ComicTag>[],
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        _buildTestWidget(model: model, searchQuery: 'full color'),
+      );
+      await tester.pump();
+
+      expect(find.text('Tagged Comic'), findsOneWidget);
+      expect(find.text('Untagged Comic'), findsNothing);
+    });
+
+    testWidgets('filters by translated (Chinese) tag name', (tester) async {
+      final model = _FakeDownloadManagerModel(
+        harness: harness,
+        itemsOverride: <DownloadListItemSnapshot>[
+          _itemFromDownloadedComic(
+            comicId: 'tagged',
+            title: 'Tagged Comic',
+            requestedAt: DateTime(2026, 4, 11),
+            tags: <ComicTag>[ComicTag(type: 'tag', name: 'Full Color')],
+          ),
+          _itemFromDownloadedComic(
+            comicId: 'untagged',
+            title: 'Untagged Comic',
+            requestedAt: DateTime(2026, 4, 10),
+            tags: const <ComicTag>[],
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        _buildTestWidget(
+          model: model,
+          searchQuery: '全彩',
+          tagDisplayMap: const <String, String>{'full-color': '全彩'},
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Tagged Comic'), findsOneWidget);
+      expect(find.text('Untagged Comic'), findsNothing);
     });
 
     testWidgets('shows Active and Completed section headers', (tester) async {
@@ -293,9 +354,12 @@ Widget _buildTestWidget({
   HomeShellController? controller,
   String searchQuery = '',
   ValueChanged<String>? onOpenOfflineReader,
+  Map<String, String> tagDisplayMap = const <String, String>{},
 }) {
   final providers = <SingleChildWidget>[
-    Provider<TagDisplayService>.value(value: TagDisplayService.fromMap({})),
+    Provider<TagDisplayService>.value(
+      value: TagDisplayService.fromMap(tagDisplayMap),
+    ),
     Provider<LoadComicMetaUseCase>(
       create: (_) => LoadComicMetaUseCase(nhentaiGateway: FakeNhentaiGateway()),
     ),
@@ -390,6 +454,7 @@ DownloadListItemSnapshot _itemFromDownloadedComic({
   required String comicId,
   required String title,
   required DateTime requestedAt,
+  List<ComicTag>? tags,
 }) {
   return DownloadListItemSnapshot.fromDownloadedComic(
     DownloadedComicSnapshot(
@@ -400,7 +465,7 @@ DownloadListItemSnapshot _itemFromDownloadedComic({
       rootDirectoryPath: '/downloads/$comicId',
       pageCount: 2,
       downloadedAt: requestedAt,
-      tags: sampleComic().tags,
+      tags: tags ?? sampleComic().tags,
     ),
   );
 }

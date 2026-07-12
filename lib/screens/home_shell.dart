@@ -79,7 +79,7 @@ class _HomeShellState extends State<HomeShell> {
             controller: _downloadsSearchController,
             onChanged: (value) => setState(() => _downloadsSearchQuery = value),
             decoration: const InputDecoration(
-              hintText: 'Search downloaded titles',
+              hintText: 'Search downloaded comics',
               border: InputBorder.none,
             ),
           ),

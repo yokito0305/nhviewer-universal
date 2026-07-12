@@ -3,8 +3,10 @@ import 'dart:math';
 
 import 'package:concept_nhv/application/home/home_shell_controller.dart';
 import 'package:concept_nhv/application/tags/load_comic_meta_use_case.dart';
+import 'package:concept_nhv/models/comic_tag.dart';
 import 'package:concept_nhv/models/download_job_status.dart';
 import 'package:concept_nhv/models/download_list_item_snapshot.dart';
+import 'package:concept_nhv/services/tag_display_service.dart';
 import 'package:concept_nhv/state/download_manager_model.dart';
 import 'package:concept_nhv/widgets/comic_tag_bottom_sheet.dart';
 import 'package:concept_nhv/widgets/fallback_cached_network_image.dart';
@@ -52,13 +54,21 @@ class _DownloadJobListSliverState extends State<DownloadJobListSliver> {
   Widget build(BuildContext context) {
     return Consumer<DownloadManagerModel>(
       builder: (context, model, _) {
-        final filteredItems = model.sortedDownloadItems
-            .where(
-              (item) => item.title.toLowerCase().contains(
-                widget.searchQuery.trim().toLowerCase(),
-              ),
-            )
-            .toList(growable: false);
+        final query = widget.searchQuery.trim().toLowerCase();
+        final tagDisplayService = context.read<TagDisplayService>();
+        final filteredItems = model.sortedDownloadItems.where((item) {
+          if (query.isEmpty) return true;
+          if (item.title.toLowerCase().contains(query)) return true;
+          return item.tags.any((tag) {
+            final rawName = tag.name ?? '';
+            final displayName = tagDisplayService.displayName(
+              tag.slug,
+              rawName,
+            );
+            return rawName.toLowerCase().contains(query) ||
+                displayName.toLowerCase().contains(query);
+          });
+        }).toList(growable: false);
         final activeItems = filteredItems
             .where((item) => !item.isCompletedCard)
             .toList(growable: false);
