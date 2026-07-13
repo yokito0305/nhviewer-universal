@@ -48,6 +48,9 @@ void main() {
 
     test('downloads pages, stores offline snapshot, and marks job complete', () async {
       final comic = sampleComic(id: '900', mediaId: '321');
+      final compressionService = FakeImageCompressionService(
+        result: Uint8List.fromList(<int>[1, 2, 3, 4]),
+      );
       final manager = DownloadManagerModel(
         nhentaiGateway: FakeNhentaiGateway(detailComic: comic),
         cdnConfigService: _FakeCdnConfigService(),
@@ -59,9 +62,7 @@ void main() {
         downloadAssetStore: DownloadAssetStore(
           directoryResolver: () async => tempDirectory,
         ),
-        imageCompressionService: FakeImageCompressionService(
-          result: Uint8List.fromList(<int>[1, 2, 3, 4]),
-        ),
+        imageCompressionService: compressionService,
         remoteAssetFetcher: FakeRemoteAssetFetcher(
           responses: <String, Uint8List>{
             'https://i1.nhentai.net/galleries/321/1.jpg': Uint8List.fromList(<int>[1]),
@@ -87,7 +88,10 @@ void main() {
           .get();
 
       expect(job?.completedPages, comic.numPages);
-      expect(pages.every((page) => page.storedFormat == 'webp'), isTrue);
+      // jpg is a Skia-safe format, so it is kept as-is instead of being
+      // transcoded to WebP — the compression service should never be called.
+      expect(pages.every((page) => page.storedFormat == 'jpg'), isTrue);
+      expect(compressionService.callCount, 0);
       expect(downloadedRows.single.read<String>('comic_id'), '900');
       final firstPageFile = File(
         p.join(tempDirectory.path, pages.first.localPath!),
@@ -97,8 +101,50 @@ void main() {
       manager.dispose();
     });
 
+    test('transcodes unsafe source formats (e.g. avif) to WebP', () async {
+      final comic = _comicWithPageExtension(id: '903', mediaId: '999', typeCode: 'a', extension: 'avif');
+      final compressionService = FakeImageCompressionService(
+        result: Uint8List.fromList(<int>[1, 2, 3, 4]),
+      );
+      final manager = DownloadManagerModel(
+        nhentaiGateway: FakeNhentaiGateway(detailComic: comic),
+        cdnConfigService: _FakeCdnConfigService(),
+        downloadQueueRepository: harness.downloadQueueRepository,
+        downloadedLibraryRepository: harness.downloadedLibraryRepository,
+        downloadSettingsRepository: DownloadSettingsStore(
+          optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+        ),
+        downloadAssetStore: DownloadAssetStore(
+          directoryResolver: () async => tempDirectory,
+        ),
+        imageCompressionService: compressionService,
+        remoteAssetFetcher: FakeRemoteAssetFetcher(
+          responses: <String, Uint8List>{
+            'https://i1.nhentai.net/galleries/999/1.avif': Uint8List.fromList(<int>[1]),
+            'https://i1.nhentai.net/galleries/999/2.avif': Uint8List.fromList(<int>[2]),
+            'https://t1.nhentai.net/galleries/999/cover.avif': Uint8List.fromList(<int>[3]),
+          },
+        ),
+      );
+
+      await manager.initialize();
+      await manager.enqueue(const DownloadRequest(comicId: '903', title: 'Avif'));
+      await _waitForJobStatus(
+        harness: harness,
+        comicId: '903',
+        status: 'completed',
+      );
+      await manager.waitForIdle();
+
+      final pages = await harness.downloadQueueRepository.loadPages('903');
+      expect(pages.every((page) => page.storedFormat == 'webp'), isTrue);
+      expect(compressionService.callCount, greaterThan(0));
+
+      manager.dispose();
+    });
+
     test('falls back to original page format when WebP compression is unsupported', () async {
-      final comic = sampleComic(id: '901', mediaId: '654');
+      final comic = _comicWithPageExtension(id: '901', mediaId: '654', typeCode: 'a', extension: 'avif');
       final manager = DownloadManagerModel(
         nhentaiGateway: FakeNhentaiGateway(detailComic: comic),
         cdnConfigService: _FakeCdnConfigService(),
@@ -115,9 +161,9 @@ void main() {
         ),
         remoteAssetFetcher: FakeRemoteAssetFetcher(
           responses: <String, Uint8List>{
-            'https://i1.nhentai.net/galleries/654/1.jpg': Uint8List.fromList(<int>[1]),
-            'https://i1.nhentai.net/galleries/654/2.jpg': Uint8List.fromList(<int>[2]),
-            'https://t1.nhentai.net/galleries/654/cover.jpg': Uint8List.fromList(<int>[3]),
+            'https://i1.nhentai.net/galleries/654/1.avif': Uint8List.fromList(<int>[1]),
+            'https://i1.nhentai.net/galleries/654/2.avif': Uint8List.fromList(<int>[2]),
+            'https://t1.nhentai.net/galleries/654/cover.avif': Uint8List.fromList(<int>[3]),
           },
         ),
       );
@@ -132,8 +178,8 @@ void main() {
       await manager.waitForIdle();
 
       final pages = await harness.downloadQueueRepository.loadPages('901');
-      expect(pages.every((page) => page.storedFormat == 'jpg'), isTrue);
-      expect(pages.every((page) => page.localPath!.endsWith('.jpg')), isTrue);
+      expect(pages.every((page) => page.storedFormat == 'avif'), isTrue);
+      expect(pages.every((page) => page.localPath!.endsWith('.avif')), isTrue);
 
       manager.dispose();
     });
@@ -1461,6 +1507,24 @@ class _SelectiveFailureGateway extends FakeNhentaiGateway {
     }
     return (comic: _comics[comicId] ?? sampleComic(id: comicId), headers: null);
   }
+}
+
+Comic _comicWithPageExtension({
+  required String id,
+  required String mediaId,
+  required String typeCode,
+  required String extension,
+}) {
+  final base = sampleComic(id: id, mediaId: mediaId);
+  return base.copyWith(
+    images: base.images.copyWith(
+      pages: <ComicPageImage>[
+        ComicPageImage(t: typeCode, w: 1200, h: 1800, path: 'galleries/$mediaId/1.$extension'),
+        ComicPageImage(t: typeCode, w: 1200, h: 1800, path: 'galleries/$mediaId/2.$extension'),
+      ],
+      cover: ComicPageImage(t: typeCode, w: 350, h: 500, path: 'galleries/$mediaId/cover.$extension'),
+    ),
+  );
 }
 
 class _FakeCdnConfigService extends NhentaiCdnConfigService {

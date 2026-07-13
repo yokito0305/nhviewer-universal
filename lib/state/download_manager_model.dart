@@ -21,6 +21,12 @@ import 'package:concept_nhv/storage/downloaded_library_repository.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 
+/// Extensions Flutter's built-in Skia codec can reliably decode via
+/// `Image.file`/`Image.memory`. Anything outside this set (heif/avif/tiff/
+/// unknown) is still transcoded to WebP so the reader never gets stuck on
+/// an undecodable local file.
+const _skiaSafeExtensions = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'};
+
 class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
   DownloadManagerModel({
     required this.nhentaiGateway,
@@ -118,16 +124,32 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
     }
     _isRefreshing = true;
     notifyListeners();
-    final jobs = await downloadQueueRepository.loadJobs();
-    final rawDownloadedComics =
-        await downloadedLibraryRepository.loadDownloadedComics();
-    final downloadedComics = await _resolveCoverPaths(rawDownloadedComics);
-    _jobs = jobs;
-    _downloadItems = _buildDownloadItems(jobs, downloadedComics);
+    await _syncState();
     if (_isDisposed) {
       return;
     }
     _isRefreshing = false;
+    notifyListeners();
+  }
+
+  /// Reloads jobs/downloaded comics from the DB and notifies listeners,
+  /// without touching [isRefreshing] — used for the per-page/per-job resyncs
+  /// inside [_processJob], which fire far too often to double as a
+  /// user-visible "refreshing" signal (that was flashing the app bar's
+  /// loading indicator on every single page).
+  Future<void> _syncState() async {
+    if (_isDisposed) {
+      return;
+    }
+    final jobs = await downloadQueueRepository.loadJobs();
+    final rawDownloadedComics =
+        await downloadedLibraryRepository.loadDownloadedComics();
+    final downloadedComics = await _resolveCoverPaths(rawDownloadedComics);
+    if (_isDisposed) {
+      return;
+    }
+    _jobs = jobs;
+    _downloadItems = _buildDownloadItems(jobs, downloadedComics);
     notifyListeners();
   }
 
@@ -606,7 +628,7 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
     final pageIntervalMs = await downloadSettingsRepository.loadPageIntervalMs();
 
     await downloadQueueRepository.markJobDownloading(job.comicId);
-    await refresh();
+    await _syncState();
 
     final pages = await downloadQueueRepository.loadPages(job.comicId);
     for (final page in pages) {
@@ -621,7 +643,7 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
         comicId: job.comicId,
         pageNumber: page.pageNumber,
       );
-      await refresh();
+      await _syncState();
 
       try {
         final downloadedPage = await _downloadAndPersistPage(
@@ -637,14 +659,14 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
           storedFormat: downloadedPage.storedFormat,
           byteSize: downloadedPage.byteSize,
         );
-        await refresh();
+        await _syncState();
       } catch (error) {
         await downloadQueueRepository.markPageFailed(
           comicId: job.comicId,
           pageNumber: page.pageNumber,
           error: '$error',
         );
-        await refresh();
+        await _syncState();
         return;
       }
 
@@ -676,7 +698,7 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
       coverLocalPath: coverLocalPath,
     );
     await downloadQueueRepository.markJobCompleted(job.comicId);
-    await refresh();
+    await _syncState();
   }
 
   Future<bool> _shouldStopJob(String comicId) async {
@@ -776,6 +798,11 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
     Uint8List originalBytes, {
     required String fallbackExtension,
   }) async {
+    final normalizedExtension = fallbackExtension.toLowerCase();
+    if (_skiaSafeExtensions.contains(normalizedExtension)) {
+      return _CompressedAsset(bytes: originalBytes, extension: normalizedExtension);
+    }
+
     try {
       final compressed = await imageCompressionService.compressToWebp(
         originalBytes,
@@ -790,7 +817,7 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
       // Keep original format below.
     }
 
-    return _CompressedAsset(bytes: originalBytes, extension: fallbackExtension);
+    return _CompressedAsset(bytes: originalBytes, extension: normalizedExtension);
   }
 
   String _extensionFromPath(String path) {
