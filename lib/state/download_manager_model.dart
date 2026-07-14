@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:concept_nhv/application/downloads/download_settings_repository.dart';
 import 'package:concept_nhv/models/comic.dart';
+import 'package:concept_nhv/models/comic_card_data.dart';
+import 'package:concept_nhv/models/comic_images.dart';
+import 'package:concept_nhv/models/comic_title.dart';
 import 'package:concept_nhv/models/download_list_item_snapshot.dart';
 import 'package:concept_nhv/models/download_job_snapshot.dart';
 import 'package:concept_nhv/models/download_job_status.dart';
@@ -16,6 +20,7 @@ import 'package:concept_nhv/services/image_compression_service.dart';
 import 'package:concept_nhv/services/nhentai_api_client.dart';
 import 'package:concept_nhv/services/nhentai_cdn_config_service.dart';
 import 'package:concept_nhv/services/remote_asset_fetcher.dart';
+import 'package:concept_nhv/services/rate_limit_retry.dart';
 import 'package:concept_nhv/storage/download_queue_repository.dart';
 import 'package:concept_nhv/storage/downloaded_library_repository.dart';
 import 'package:flutter/widgets.dart';
@@ -361,6 +366,140 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
     });
   }
 
+  /// Batch version of [enqueue] for multi-select flows (e.g. downloading a
+  /// large batch of favorites at once). Processes [comics] sequentially with
+  /// a throttling delay and 429 backoff/retry between network requests, and
+  /// stops early after too many consecutive failures instead of continuing
+  /// to hammer the API. Comics whose cached [ComicCardData.serializedImages]
+  /// already contains the full page manifest (e.g. opened in the reader
+  /// before being favorited) skip the network round trip entirely.
+  Future<
+      ({
+        int queuedCount,
+        int skippedCount,
+        int failedCount,
+        int totalCount,
+        bool stoppedEarly,
+      })> enqueueMany(
+    List<ComicCardData> comics, {
+    void Function(int processed, int total)? onProgress,
+  }) async {
+    var queuedCount = 0;
+    var skippedCount = 0;
+    var failedCount = 0;
+    var consecutiveFailures = 0;
+    var processedCount = 0;
+    final total = comics.length;
+
+    for (final comic in comics) {
+      if (_isDisposed) break;
+      var hitNetwork = false;
+      try {
+        final outcome = await _enqueueOne(comic);
+        hitNetwork = outcome.hitNetwork;
+        if (outcome.skipped) {
+          skippedCount += 1;
+        } else {
+          queuedCount += 1;
+        }
+        consecutiveFailures = 0;
+      } catch (_) {
+        failedCount += 1;
+        hitNetwork = true;
+        consecutiveFailures += 1;
+      }
+      processedCount += 1;
+      onProgress?.call(processedCount, total);
+
+      if (consecutiveFailures >= _maxConsecutiveNetworkFailures) {
+        break;
+      }
+      if (hitNetwork && processedCount < total) {
+        await Future<void>.delayed(_networkThrottleDelay);
+      }
+    }
+
+    unawaited(_processQueue());
+
+    return (
+      queuedCount: queuedCount,
+      skippedCount: skippedCount,
+      failedCount: failedCount,
+      totalCount: total,
+      stoppedEarly: consecutiveFailures >= _maxConsecutiveNetworkFailures,
+    );
+  }
+
+  Future<({bool hitNetwork, bool skipped})> _enqueueOne(
+    ComicCardData comic,
+  ) async {
+    ({bool hitNetwork, bool skipped})? outcome;
+    await _runMutatingJobAction(comic.id, () async {
+      final existingJob = await downloadQueueRepository.loadJob(comic.id);
+      if (existingJob != null) {
+        await refresh();
+        outcome = (hitNetwork: false, skipped: true);
+        return;
+      }
+
+      final localComic = _tryBuildCompleteLocalComic(comic);
+      if (localComic != null) {
+        await downloadQueueRepository.upsertJobManifest(
+          comic: localComic,
+          title: comic.title,
+        );
+        await refresh();
+        outcome = (hitNetwork: false, skipped: false);
+        return;
+      }
+
+      final detail = await _loadComicDetailWithRetry(comic.id);
+      await downloadQueueRepository.upsertJobManifest(
+        comic: detail.comic,
+        title: comic.title,
+      );
+      await refresh();
+      outcome = (hitNetwork: true, skipped: false);
+    });
+    // Another mutation was already in flight for this comic (e.g. the user
+    // tapped its card's own download button mid-batch) — treat it as
+    // already handled rather than as a failure.
+    return outcome ?? (hitNetwork: false, skipped: true);
+  }
+
+  /// Builds a [Comic] directly from cached favorites data when the full page
+  /// manifest is already present locally, so [enqueueMany] can skip the
+  /// `loadComicDetail` network call for it. Returns null when the cached
+  /// data is incomplete — e.g. synced from the remote favorites list, which
+  /// only ever carries the thumbnail, not the per-page manifest — and a
+  /// network call is required.
+  Comic? _tryBuildCompleteLocalComic(ComicCardData comic) {
+    if (comic.pages <= 0) return null;
+    final ComicImages images;
+    try {
+      images = ComicImages.fromJson(
+        jsonDecode(comic.serializedImages) as Map<String, dynamic>,
+      );
+    } catch (_) {
+      return null;
+    }
+    if (images.pages.length < comic.pages) return null;
+    return Comic(
+      id: comic.id,
+      mediaId: comic.mediaId,
+      title: ComicTitle(pretty: comic.title),
+      images: images,
+      tags: comic.tags,
+      numPages: comic.pages,
+      uploadDate: comic.uploadDate,
+    );
+  }
+
+  Future<({Comic comic, Map<String, String>? headers})>
+  _loadComicDetailWithRetry(String comicId) {
+    return withRateLimitRetry(() => nhentaiGateway.loadComicDetail(comicId));
+  }
+
   Future<void> pause(String comicId) async {
     await _runMutatingJobAction(comicId, () async {
       await downloadQueueRepository.markJobPaused(comicId);
@@ -514,21 +653,22 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// Minimum delay between repair attempts that hit the network, to avoid
-  /// bursting `loadComicDetail` calls.
-  static const Duration _repairThrottleDelay = Duration(milliseconds: 1000);
+  /// Minimum delay after any network-hitting attempt in [repairAllCompleted]
+  /// or [enqueueMany], to avoid bursting `loadComicDetail` calls.
+  static const Duration _networkThrottleDelay = Duration(milliseconds: 1000);
 
-  /// Stop scanning after this many consecutive failures — repeated failures
-  /// in a row suggest a systemic problem (e.g. the network or API is down),
-  /// and continuing to hammer it for the remaining items is more likely to
-  /// make things worse than to succeed.
-  static const int _maxConsecutiveRepairFailures = 3;
+  /// Stop scanning/enqueueing after this many consecutive failures in
+  /// [repairAllCompleted] or [enqueueMany] — repeated failures in a row
+  /// suggest a systemic problem (e.g. the network or API is down), and
+  /// continuing to hammer it for the remaining items is more likely to make
+  /// things worse than to succeed.
+  static const int _maxConsecutiveNetworkFailures = 3;
 
   /// Scans every completed download, repairing missing pages and/or covers.
   ///
   /// Returns how many of the [totalCount] completed downloads needed a
   /// repair and how many failed. Runs sequentially. Stops early —
-  /// [stoppedEarly] is true — after [_maxConsecutiveRepairFailures]
+  /// [stoppedEarly] is true — after [_maxConsecutiveNetworkFailures]
   /// consecutive failures, leaving the remaining items unscanned. A
   /// throttling delay is inserted after any item that actually triggered a
   /// network request (repaired or failed), but not after items that were
@@ -560,18 +700,18 @@ class DownloadManagerModel extends ChangeNotifier with WidgetsBindingObserver {
       processedCount += 1;
       onProgress?.call(processedCount, completedIds.length);
 
-      if (consecutiveFailures >= _maxConsecutiveRepairFailures) {
+      if (consecutiveFailures >= _maxConsecutiveNetworkFailures) {
         break;
       }
       if (hitNetwork && processedCount < completedIds.length) {
-        await Future<void>.delayed(_repairThrottleDelay);
+        await Future<void>.delayed(_networkThrottleDelay);
       }
     }
     return (
       repairedCount: repairedCount,
       failedCount: failedCount,
       totalCount: completedIds.length,
-      stoppedEarly: consecutiveFailures >= _maxConsecutiveRepairFailures,
+      stoppedEarly: consecutiveFailures >= _maxConsecutiveNetworkFailures,
     );
   }
 

@@ -5,6 +5,7 @@ import 'package:concept_nhv/models/comic_search_response.dart';
 import 'package:concept_nhv/models/comic_tag.dart';
 import 'package:concept_nhv/models/comic_title.dart';
 import 'package:concept_nhv/services/nhentai_auth_service.dart';
+import 'package:concept_nhv/services/rate_limit_retry.dart';
 import 'package:concept_nhv/storage/nhentai_api_key_store.dart';
 import 'package:dio/dio.dart';
 
@@ -40,12 +41,6 @@ class NhentaiApiRemoteFavoriteGateway implements RemoteFavoriteGateway {
   final Dio _dio;
 
   static const Duration _favoritePageDelay = Duration(milliseconds: 2000);
-  static const int _rateLimitMaxRetries = 3;
-  static const List<Duration> _rateLimitBackoffs = <Duration>[
-    Duration(seconds: 30),
-    Duration(seconds: 60),
-    Duration(seconds: 120),
-  ];
 
   @override
   Future<List<Comic>> loadRemoteFavorites({
@@ -75,33 +70,14 @@ class NhentaiApiRemoteFavoriteGateway implements RemoteFavoriteGateway {
   Future<Response<Map<String, dynamic>>> _fetchFavoritesPage(
     int page, {
     void Function(Duration retryIn)? onRateLimit,
-  }) async {
+  }) {
     final uri = Uri.https('nhentai.net', '/api/v2/favorites', <String, String>{
       'page': '$page',
     });
-    for (var attempt = 0; attempt < _rateLimitMaxRetries; attempt++) {
-      try {
-        return await _withAuthRequest<Map<String, dynamic>>(uri);
-      } on DioException catch (e) {
-        if (e.response?.statusCode == 429 && attempt + 1 < _rateLimitMaxRetries) {
-          final backoff = _retryAfterDuration(e.response) ??
-              _rateLimitBackoffs[attempt];
-          onRateLimit?.call(backoff);
-          await Future<void>.delayed(backoff);
-          continue;
-        }
-        rethrow;
-      }
-    }
-    throw StateError('unreachable');
-  }
-
-  Duration? _retryAfterDuration(Response<dynamic>? response) {
-    final header = response?.headers.value('retry-after');
-    if (header == null) return null;
-    final seconds = int.tryParse(header.trim());
-    if (seconds == null || seconds <= 0) return null;
-    return Duration(seconds: seconds + 1);
+    return withRateLimitRetry(
+      () => _withAuthRequest<Map<String, dynamic>>(uri),
+      onRateLimit: onRateLimit,
+    );
   }
 
   @override

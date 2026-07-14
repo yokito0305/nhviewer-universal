@@ -1,8 +1,8 @@
 import 'package:concept_nhv/application/library/collection_page_coordinator.dart';
-import 'package:concept_nhv/application/library/comic_card_action_coordinator.dart';
 import 'package:concept_nhv/application/home/home_shell_controller.dart';
 import 'package:concept_nhv/models/collection_type.dart';
 import 'package:concept_nhv/models/comic_card_data.dart';
+import 'package:concept_nhv/state/download_manager_model.dart';
 import 'package:concept_nhv/state/favorite_sync_model.dart';
 import 'package:concept_nhv/widgets/comic_grid_sliver.dart';
 import 'package:concept_nhv/widgets/glass_container.dart';
@@ -22,6 +22,10 @@ class CollectionScreen extends StatefulWidget {
 class _CollectionScreenState extends State<CollectionScreen> {
   bool _selectionMode = false;
   final Map<String, ComicCardData> _selectedComics = {};
+  List<ComicCardData> _allComics = const <ComicCardData>[];
+  bool _isBatchDownloading = false;
+  int? _batchDownloadProcessed;
+  int? _batchDownloadTotal;
   // A State-owned controller (rather than CustomScrollView's default
   // PrimaryScrollController/PageStorage) so scroll position survives even if
   // the Element tree gets rebuilt — see .codex/phases/P52-collections-screen-reliability.md.
@@ -42,6 +46,32 @@ class _CollectionScreenState extends State<CollectionScreen> {
     });
   }
 
+  void _handleComicsLoaded(List<ComicCardData> comics) {
+    if (!mounted || identical(_allComics, comics)) return;
+    // Deferred to a post-frame callback: this fires from the child sliver's
+    // build() (via FutureBuilder), and calling setState synchronously during
+    // an ancestor's build would trigger a "setState during build" error.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _allComics = comics);
+    });
+  }
+
+  bool get _isAllSelected =>
+      _allComics.isNotEmpty && _selectedComics.length == _allComics.length;
+
+  void _selectAll() {
+    setState(() {
+      for (final comic in _allComics) {
+        _selectedComics[comic.id] = comic;
+      }
+    });
+  }
+
+  void _deselectAll() {
+    setState(_selectedComics.clear);
+  }
+
   void _exitSelectionMode() {
     setState(() {
       _selectionMode = false;
@@ -56,28 +86,66 @@ class _CollectionScreenState extends State<CollectionScreen> {
   }
 
   Future<void> _downloadSelected(BuildContext context) async {
-    final coordinator = context.read<ComicCardActionCoordinator>();
+    final downloadManagerModel = context.read<DownloadManagerModel>();
     final messenger = ScaffoldMessenger.of(context);
     final comics = _selectedComics.values.toList();
     _exitSelectionMode();
 
-    var queued = 0;
+    final toDownload = <ComicCardData>[];
+    var alreadyHandled = 0;
     for (final comic in comics) {
-      if (!mounted) break;
-      final result = await coordinator.enqueueDownload(comic);
-      if (result.success) queued++;
+      if (downloadManagerModel.jobForComic(comic.id) != null) {
+        alreadyHandled++;
+      } else {
+        toDownload.add(comic);
+      }
     }
 
-    final total = comics.length;
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          queued == total
-              ? '$queued comic${queued > 1 ? 's' : ''} added to Downloads'
-              : '$queued / $total comics added to Downloads',
+    if (toDownload.isEmpty) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            alreadyHandled == 0
+                ? 'No comics selected'
+                : 'All $alreadyHandled comic${alreadyHandled > 1 ? 's' : ''} already in Downloads',
+          ),
         ),
-      ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isBatchDownloading = true;
+      _batchDownloadProcessed = 0;
+      _batchDownloadTotal = toDownload.length;
+    });
+
+    final result = await downloadManagerModel.enqueueMany(
+      toDownload,
+      onProgress: (processed, total) {
+        if (!mounted) return;
+        setState(() {
+          _batchDownloadProcessed = processed;
+          _batchDownloadTotal = total;
+        });
+      },
     );
+
+    if (!mounted) return;
+    setState(() {
+      _isBatchDownloading = false;
+      _batchDownloadProcessed = null;
+      _batchDownloadTotal = null;
+    });
+
+    final skipped = result.skippedCount + alreadyHandled;
+    final messageParts = <String>[
+      '${result.queuedCount} comic${result.queuedCount == 1 ? '' : 's'} added to Downloads',
+      if (skipped > 0) '$skipped skipped (already downloaded)',
+      if (result.failedCount > 0) '${result.failedCount} failed',
+      if (result.stoppedEarly) 'stopped early after repeated failures',
+    ];
+    messenger.showSnackBar(SnackBar(content: Text(messageParts.join(', '))));
   }
 
   @override
@@ -111,6 +179,14 @@ class _CollectionScreenState extends State<CollectionScreen> {
                   icon: const Icon(Icons.checklist_outlined),
                   tooltip: 'Select comics',
                   onPressed: () => setState(() => _selectionMode = true),
+                ),
+              if (_selectionMode)
+                IconButton(
+                  icon: Icon(_isAllSelected ? Icons.deselect : Icons.select_all),
+                  tooltip: _isAllSelected ? 'Deselect all' : 'Select all',
+                  onPressed: _allComics.isEmpty
+                      ? null
+                      : (_isAllSelected ? _deselectAll : _selectAll),
                 ),
               if (_selectionMode)
                 TextButton(
@@ -152,23 +228,48 @@ class _CollectionScreenState extends State<CollectionScreen> {
             collectionType: collectionType,
             selectedIds: _selectedComics.keys.toSet(),
             onToggleSelection: _selectionMode ? _toggleSelection : null,
+            onComicsLoaded: _handleComicsLoaded,
           ),
         ],
       ),
-      bottomNavigationBar: _selectionMode && selectedCount > 0
+      bottomNavigationBar: _isBatchDownloading
           ? SafeArea(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: FilledButton.icon(
-                  onPressed: () => _downloadSelected(context),
-                  icon: const Icon(Icons.download_outlined),
-                  label: Text(
-                    'Download $selectedCount comic${selectedCount > 1 ? 's' : ''}',
-                  ),
+                child: Row(
+                  children: <Widget>[
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Adding $_batchDownloadProcessed/$_batchDownloadTotal to Downloads…',
+                      ),
+                    ),
+                  ],
                 ),
               ),
             )
-          : null,
+          : (_selectionMode && selectedCount > 0
+                ? SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: FilledButton.icon(
+                        onPressed: () => _downloadSelected(context),
+                        icon: const Icon(Icons.download_outlined),
+                        label: Text(
+                          'Download $selectedCount comic${selectedCount > 1 ? 's' : ''}',
+                        ),
+                      ),
+                    ),
+                  )
+                : null),
     );
   }
 }
@@ -179,11 +280,13 @@ class CollectionComicSliver extends StatefulWidget {
     required this.collectionType,
     this.selectedIds = const <String>{},
     this.onToggleSelection,
+    this.onComicsLoaded,
   });
 
   final CollectionType collectionType;
   final Set<String> selectedIds;
   final void Function(ComicCardData comic)? onToggleSelection;
+  final void Function(List<ComicCardData> comics)? onComicsLoaded;
 
   @override
   State<CollectionComicSliver> createState() => _CollectionComicSliverState();
@@ -230,6 +333,7 @@ class _CollectionComicSliverState extends State<CollectionComicSliver> {
         }
 
         final comics = snapshot.requireData;
+        widget.onComicsLoaded?.call(comics);
         if (comics.isEmpty) {
           final favoriteModel = context.watch<FavoriteSyncModel>();
           final isFavoriteCollection =

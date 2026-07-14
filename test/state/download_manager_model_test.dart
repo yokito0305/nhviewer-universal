@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:concept_nhv/models/comic.dart';
+import 'package:concept_nhv/models/comic_card_data.dart';
 import 'package:concept_nhv/models/comic_images.dart';
 import 'package:concept_nhv/models/comic_page_image.dart';
 import 'package:concept_nhv/models/comic_tag.dart';
@@ -16,6 +18,7 @@ import 'package:concept_nhv/services/nhentai_cdn_config_service.dart';
 import 'package:concept_nhv/state/download_manager_model.dart';
 import 'package:concept_nhv/storage/download_settings_store.dart';
 import 'package:concept_nhv/storage/options_store.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -1442,6 +1445,243 @@ void main() {
         manager.dispose();
       },
     );
+
+    test(
+      'enqueueMany skips comics already in the download queue',
+      () async {
+        final gateway = FakeNhentaiGateway();
+        final manager = DownloadManagerModel(
+          nhentaiGateway: gateway,
+          cdnConfigService: _FakeCdnConfigService(),
+          downloadQueueRepository: harness.downloadQueueRepository,
+          downloadedLibraryRepository: harness.downloadedLibraryRepository,
+          downloadSettingsRepository: DownloadSettingsStore(
+            optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+          ),
+          downloadAssetStore: DownloadAssetStore(
+            directoryResolver: () async => tempDirectory,
+          ),
+          imageCompressionService: FakeImageCompressionService(
+            result: Uint8List.fromList(<int>[1, 2, 3, 4]),
+          ),
+          remoteAssetFetcher: FakeRemoteAssetFetcher(),
+        );
+
+        await manager.initialize();
+        await manager.enqueue(
+          const DownloadRequest(comicId: '960', title: 'Already queued'),
+        );
+        await manager.refresh();
+
+        final alreadyQueued = ComicCardData.fromComic(
+          sampleComic(id: '960', mediaId: '460'),
+        );
+        final fresh = ComicCardData.fromComic(
+          sampleComic(id: '961', mediaId: '461'),
+        );
+
+        final result = await manager.enqueueMany(
+          <ComicCardData>[alreadyQueued, fresh],
+        );
+
+        expect(result.totalCount, 2);
+        expect(result.skippedCount, 1);
+        expect(result.queuedCount, 1);
+        expect(result.failedCount, 0);
+
+        await manager.waitForIdle();
+        manager.dispose();
+      },
+    );
+
+    test(
+      'enqueueMany skips the loadComicDetail round trip when the favorite '
+      'already has a complete cached page manifest',
+      () async {
+        final gateway = _DelayedNhentaiGateway(
+          delay: const Duration(milliseconds: 300),
+        );
+        final manager = DownloadManagerModel(
+          nhentaiGateway: gateway,
+          cdnConfigService: _FakeCdnConfigService(),
+          downloadQueueRepository: harness.downloadQueueRepository,
+          downloadedLibraryRepository: harness.downloadedLibraryRepository,
+          downloadSettingsRepository: DownloadSettingsStore(
+            optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+          ),
+          downloadAssetStore: DownloadAssetStore(
+            directoryResolver: () async => tempDirectory,
+          ),
+          imageCompressionService: FakeImageCompressionService(
+            result: Uint8List.fromList(<int>[1, 2, 3, 4]),
+          ),
+          remoteAssetFetcher: FakeRemoteAssetFetcher(),
+        );
+
+        await manager.initialize();
+
+        // Built via ComicCardData.fromComic, so serializedImages already
+        // carries the full 2-page manifest from sampleComic() — as if this
+        // comic had been opened in the reader before being favorited.
+        final completeComic = ComicCardData.fromComic(
+          sampleComic(id: '962', mediaId: '462'),
+        );
+
+        final stopwatch = Stopwatch()..start();
+        final result = await manager.enqueueMany(<ComicCardData>[completeComic]);
+        stopwatch.stop();
+
+        expect(result.queuedCount, 1);
+        expect(result.skippedCount, 0);
+        expect(result.failedCount, 0);
+        expect(
+          stopwatch.elapsed,
+          lessThan(const Duration(milliseconds: 200)),
+          reason:
+              'A complete local page manifest should skip loadComicDetail '
+              'entirely, so this should resolve well under the fake '
+              'gateway\'s 300ms delay.',
+        );
+
+        final job = await harness.downloadQueueRepository.loadJob('962');
+        expect(job, isNotNull);
+        expect(job!.totalPages, 2);
+
+        await manager.waitForIdle();
+        manager.dispose();
+      },
+    );
+
+    test(
+      'enqueueMany calls loadComicDetail when the favorite has no cached '
+      'page manifest (e.g. synced from the remote favorites list)',
+      () async {
+        final gateway = FakeNhentaiGateway();
+        final manager = DownloadManagerModel(
+          nhentaiGateway: gateway,
+          cdnConfigService: _FakeCdnConfigService(),
+          downloadQueueRepository: harness.downloadQueueRepository,
+          downloadedLibraryRepository: harness.downloadedLibraryRepository,
+          downloadSettingsRepository: DownloadSettingsStore(
+            optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+          ),
+          downloadAssetStore: DownloadAssetStore(
+            directoryResolver: () async => tempDirectory,
+          ),
+          imageCompressionService: FakeImageCompressionService(
+            result: Uint8List.fromList(<int>[1, 2, 3, 4]),
+          ),
+          remoteAssetFetcher: FakeRemoteAssetFetcher(),
+        );
+
+        await manager.initialize();
+
+        final thumbnailOnlyComic = _thumbnailOnlyCard(id: '963', mediaId: '463');
+        final result = await manager.enqueueMany(<ComicCardData>[thumbnailOnlyComic]);
+
+        expect(result.queuedCount, 1);
+        expect(gateway.loadedComicDetailIds, contains('963'));
+
+        await manager.waitForIdle();
+        manager.dispose();
+      },
+    );
+
+    test(
+      'enqueueMany stops early after 3 consecutive failures, leaving the '
+      'rest unprocessed',
+      () async {
+        final comics = <String, Comic>{
+          '970': sampleComic(id: '970', mediaId: '470'),
+          '971': sampleComic(id: '971', mediaId: '471'),
+          '972': sampleComic(id: '972', mediaId: '472'),
+          '973': sampleComic(id: '973', mediaId: '473'),
+        };
+        final gateway = _SelectiveFailureGateway(comics);
+        gateway.throwingComicIds.addAll(<String>['970', '971', '972']);
+
+        final manager = DownloadManagerModel(
+          nhentaiGateway: gateway,
+          cdnConfigService: _FakeCdnConfigService(),
+          downloadQueueRepository: harness.downloadQueueRepository,
+          downloadedLibraryRepository: harness.downloadedLibraryRepository,
+          downloadSettingsRepository: DownloadSettingsStore(
+            optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+          ),
+          downloadAssetStore: DownloadAssetStore(
+            directoryResolver: () async => tempDirectory,
+          ),
+          imageCompressionService: FakeImageCompressionService(
+            result: Uint8List.fromList(<int>[1, 2, 3, 4]),
+          ),
+          remoteAssetFetcher: FakeRemoteAssetFetcher(),
+        );
+
+        await manager.initialize();
+
+        final progressUpdates = <(int, int)>[];
+        final result = await manager.enqueueMany(
+          <ComicCardData>[
+            for (final entry in comics.entries)
+              _thumbnailOnlyCard(id: entry.key, mediaId: entry.value.mediaId),
+          ],
+          onProgress: (processed, total) =>
+              progressUpdates.add((processed, total)),
+        );
+
+        expect(result.totalCount, 4);
+        expect(result.failedCount, 3);
+        expect(result.queuedCount, 0);
+        expect(result.stoppedEarly, isTrue);
+        expect(progressUpdates, <(int, int)>[(1, 4), (2, 4), (3, 4)]);
+        expect(gateway.loadedComicDetailIds, isNot(contains('973')));
+
+        manager.dispose();
+      },
+    );
+
+    test(
+      'enqueueMany retries after a 429 using the Retry-After header, then '
+      'succeeds',
+      () async {
+        final gateway = _RateLimitedOnceGateway(<String, Comic>{
+          '980': sampleComic(id: '980', mediaId: '480'),
+        });
+        final manager = DownloadManagerModel(
+          nhentaiGateway: gateway,
+          cdnConfigService: _FakeCdnConfigService(),
+          downloadQueueRepository: harness.downloadQueueRepository,
+          downloadedLibraryRepository: harness.downloadedLibraryRepository,
+          downloadSettingsRepository: DownloadSettingsStore(
+            optionsStore: OptionsStore(localDatabase: harness.localDatabase),
+          ),
+          downloadAssetStore: DownloadAssetStore(
+            directoryResolver: () async => tempDirectory,
+          ),
+          imageCompressionService: FakeImageCompressionService(
+            result: Uint8List.fromList(<int>[1, 2, 3, 4]),
+          ),
+          remoteAssetFetcher: FakeRemoteAssetFetcher(),
+        );
+
+        await manager.initialize();
+
+        final comic = _thumbnailOnlyCard(id: '980', mediaId: '480');
+        final result = await manager.enqueueMany(<ComicCardData>[comic]);
+
+        expect(result.queuedCount, 1);
+        expect(result.failedCount, 0);
+        // The first call hits the simulated 429; the retry after the
+        // Retry-After delay succeeds.
+        expect(
+          gateway.loadedComicDetailIds.where((id) => id == '980').length,
+          2,
+        );
+
+        await manager.waitForIdle();
+        manager.dispose();
+      },
+    );
   });
 }
 
@@ -1457,6 +1697,53 @@ class _MultiComicNhentaiGateway extends FakeNhentaiGateway {
     String comicId,
   ) async {
     loadedComicDetailIds.add(comicId);
+    return (comic: _comics[comicId] ?? sampleComic(id: comicId), headers: null);
+  }
+}
+
+/// Delays every `loadComicDetail` response by [delay] before succeeding —
+/// used to prove `enqueueMany` never awaits the gateway at all for a
+/// favorite whose cached page manifest is already complete (see
+/// .codex/phases/P57-favorites-multiselect-download-throttle.md).
+class _DelayedNhentaiGateway extends FakeNhentaiGateway {
+  _DelayedNhentaiGateway({required this.delay});
+
+  final Duration delay;
+
+  @override
+  Future<({Comic comic, Map<String, String>? headers})> loadComicDetail(
+    String comicId,
+  ) async {
+    await Future<void>.delayed(delay);
+    return super.loadComicDetail(comicId);
+  }
+}
+
+/// Throws a 429 with a `Retry-After` header the first time each comicId is
+/// requested, then succeeds on the following attempt.
+class _RateLimitedOnceGateway extends FakeNhentaiGateway {
+  _RateLimitedOnceGateway(this._comics);
+
+  final Map<String, Comic> _comics;
+  final Set<String> _rateLimitedOnceIds = <String>{};
+
+  @override
+  Future<({Comic comic, Map<String, String>? headers})> loadComicDetail(
+    String comicId,
+  ) async {
+    loadedComicDetailIds.add(comicId);
+    if (_rateLimitedOnceIds.add(comicId)) {
+      throw DioException(
+        requestOptions: RequestOptions(path: '/'),
+        response: Response<dynamic>(
+          requestOptions: RequestOptions(path: '/'),
+          statusCode: 429,
+          headers: Headers.fromMap(<String, List<String>>{
+            'retry-after': <String>['1'],
+          }),
+        ),
+      );
+    }
     return (comic: _comics[comicId] ?? sampleComic(id: comicId), headers: null);
   }
 }
@@ -1524,6 +1811,36 @@ Comic _comicWithPageExtension({
       ],
       cover: ComicPageImage(t: typeCode, w: 350, h: 500, path: 'galleries/$mediaId/cover.$extension'),
     ),
+  );
+}
+
+/// A favorite whose cached data only carries the thumbnail — matching what
+/// `RemoteFavoriteGateway`'s `_mapListComic` produces when favorites are
+/// synced in bulk from the remote list, which never includes the per-page
+/// manifest. `enqueueMany` must call `loadComicDetail` for cards like this.
+ComicCardData _thumbnailOnlyCard({
+  required String id,
+  required String mediaId,
+  int pages = 2,
+}) {
+  return ComicCardData(
+    id: id,
+    mediaId: mediaId,
+    title: 'Card $id',
+    pages: pages,
+    serializedImages: jsonEncode(
+      ComicImages(
+        thumbnail: ComicPageImage(
+          t: 'j',
+          w: 350,
+          h: 500,
+          path: 'galleries/$mediaId/thumb.jpg',
+        ),
+      ).toJson(),
+    ),
+    thumbnailUrl: 'https://t1.nhentai.net/galleries/$mediaId/thumb.jpg',
+    thumbnailWidth: 350,
+    thumbnailHeight: 500,
   );
 }
 
